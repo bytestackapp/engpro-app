@@ -1,0 +1,3412 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Manhours Input — EngPro App</title>
+  <link rel="stylesheet" href="../css/main.css" />
+  <style>
+    /* ── CSS VARIABLE FALLBACKS (standalone preview) ── */
+    :root {
+      --text:        #e2e8f0;
+      --text-2:      #cbd5e1;
+      --text-3:      #94a3b8;
+      --text-4:      #64748b;
+      --surface:     #16191e;
+      --bg-3:        #1e2126;
+      --bg-4:        #191c21;
+      --border:      #2a2e35;
+      --border-2:    #252930;
+      --accent:      #f97316;
+      --accent-light:#fdba74;
+      --accent-dim:  rgba(249,115,22,0.08);
+      --radius:      6px;
+      --radius-lg:   10px;
+      --speed:       0.15s;
+    }
+
+    /* ── STANDALONE SHELL — only applies in preview, NOT in real app ── */
+    * { box-sizing: border-box; }
+    /* NOTE: Do NOT set max-width/padding on #page-content — layout.js owns that in the real app */
+
+    /* ── FORM ELEMENTS (standalone fallback) ── */
+    label {
+      display: block;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-3);
+      margin-bottom: 4px;
+      letter-spacing: 0.02em;
+    }
+    label.required::after { content: ' *'; color: var(--accent); }
+    select, input[type="number"], input[type="text"] {
+      width: 100%;
+      background: var(--bg-4);
+      border: 1px solid var(--border-2);
+      border-radius: var(--radius);
+      padding: 8px 10px;
+      font-size: 13px;
+      color: var(--text);
+      outline: none;
+      transition: border-color var(--speed);
+      min-height: 36px;
+    }
+    select:focus, input:focus { border-color: var(--accent); }
+    .form-group { margin: 0; }
+
+    /* ── PAGE HEADER ── */
+    .page-header { margin-bottom: 18px; }
+    .page-header h1 {
+      display: flex; align-items: center; gap: 10px;
+      font-size: 18px; font-weight: 700; color: var(--text); margin: 0 0 4px 0;
+    }
+    .page-header p { font-size: 12px; color: var(--text-3); margin: 0; }
+
+    .page-top-bar {
+      display: flex; align-items: flex-start; justify-content: space-between;
+      margin-bottom: 18px; gap: 12px;
+    }
+
+    /* ── TOTAL MANHOURS BADGE ── */
+    .total-manhours-badge {
+      display: flex; align-items: center; gap: 8px;
+      background: var(--bg-2);
+      border: 1px solid var(--accent);
+      border-radius: var(--radius-lg);
+      padding: 6px 14px;
+      font-size: 12px; font-weight: 600;
+      color: var(--accent-light);
+      white-space: nowrap; flex-shrink: 0;
+      position: fixed;
+      top: 70px;
+      right: 24px;
+      z-index: 999;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    }
+    .total-manhours-badge .mh-value {
+      font-size: 17px; font-weight: 700; color: var(--accent);
+    }
+
+    /* ── PANEL CARD ── */
+    .eng-panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      margin-bottom: 20px;
+      overflow: visible;
+    }
+    .eng-panel-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 14px 20px;
+      border-bottom: 1px solid var(--border);
+    }
+    .eng-panel-title {
+      display: flex; align-items: center; gap: 8px;
+      font-size: 13px; font-weight: 600; color: var(--text);
+    }
+    .eng-panel-body { padding: 20px; }
+
+    /* ── AUTO / READ-ONLY FIELDS ── */
+    .auto-field {
+      background: var(--bg-4);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 8px 10px;
+      font-size: 13px; color: var(--text-3);
+      min-height: 36px; display: flex; align-items: center;
+    }
+
+    /* ── INFO ROW ── */
+    .info-row {
+      display: grid;
+      grid-template-columns: 1.4fr 1fr 1.4fr;
+      gap: 12px; margin-bottom: 16px;
+    }
+
+    /* ── ENTRY ROWS CONTAINER ── */
+    .entry-rows-container { display: flex; flex-direction: column; gap: 10px; }
+
+    /* ── ENTRY ROW ──
+       Key alignment fix: use align-items: start so the grid cells all start
+       at the top, and each cell has its own label + input naturally aligned.
+       The picker-summary sits OUTSIDE the grid cell content-flow issue.
+    ── */
+    .entry-row {
+      display: grid;
+      grid-template-columns: 0.7fr 0.7fr 1fr 0.8fr 110px;
+      gap: 12px;
+      align-items: end;
+      background: var(--bg-3);
+      border: 1px solid var(--border-2);
+      border-radius: var(--radius-lg);
+      padding: 28px 16px 14px;
+      position: relative;
+      transition: border-color var(--speed);
+    }
+    .entry-row:hover { border-color: var(--border-2); }
+    .entry-row.has-selection { border-color: var(--accent); }
+
+    .entry-row .remove-row-btn {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      margin-top: 0;
+    }
+
+    .row-number {
+      position: absolute; top: -8px; left: 14px;
+      font-size: 10px; font-weight: 700; color: var(--text-4);
+      background: var(--bg-3); padding: 0 6px;
+      border-radius: 10px; border: 1px solid var(--border);
+    }
+
+    /* ── DRAWING PICKER BUTTON ── */
+    .drawing-picker-btn {
+      width: 100%;
+      background: var(--bg-4);
+      border: 1px solid var(--border-2);
+      border-radius: var(--radius);
+      padding: 8px 10px;
+      font-size: 13px; color: var(--text-3);
+      cursor: pointer; text-align: left;
+      display: flex; align-items: center; justify-content: space-between;
+      transition: all var(--speed); min-height: 36px; gap: 8px;
+    }
+    .drawing-picker-btn:hover { border-color: var(--accent); background: var(--bg-3); }
+    .drawing-picker-btn.active { border-color: var(--accent); color: var(--text); }
+
+    /* Selection summary — sits ABOVE picker button, aligned with label row */
+    .picker-summary {
+      margin-bottom: 5px;
+      font-size: 11px;
+      color: var(--accent-light);
+      min-height: 0;
+      display: flex; flex-wrap: wrap; align-items: center; gap: 5px;
+    }
+    .picker-count-badge {
+      background: var(--accent); color: #000;
+      font-size: 10px; font-weight: 700;
+      border-radius: 10px; padding: 2px 8px;
+      display: inline-flex; align-items: center; gap: 4px;
+    }
+
+    /* ── REMOVE ROW BUTTON ── */
+    .remove-row-btn {
+      width: 20px; height: 20px; border-radius: 4px;
+      background: transparent; border: none;
+      color: var(--text-4); cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+      transition: all var(--speed);
+    }
+    .remove-row-btn:hover { color: #e74c3c; }
+
+    /* ── MANHOURS INPUT ── */
+    .manhour-input {
+      font-size: 15px !important; font-weight: 700 !important;
+      text-align: center; color: var(--accent) !important;
+    }
+    .mh-hint { font-size: 10px; color: var(--text-4); text-align: center; margin-top: 3px; }
+
+    /* ── ADD ROW BUTTON ── */
+    .add-row-btn {
+      display: flex; align-items: center; gap: 7px;
+      background: var(--bg-3);
+      border: 1px solid var(--border-2);
+      border-radius: var(--radius-lg);
+      padding: 9px 18px;
+      font-size: 12px; font-weight: 600; color: var(--text-3);
+      cursor: pointer; width: 100%;
+      justify-content: center;
+      transition: all var(--speed); margin-top: 8px;
+    }
+    .add-row-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
+
+    /* ── FORM ACTIONS ── */
+    .form-actions {
+      display: flex; gap: 10px; margin-top: 20px;
+      padding-top: 16px; border-top: 1px solid var(--border);
+    }
+
+    /* ── OTHER ACTIVITIES PLACEHOLDER ── */
+    .other-activities-placeholder {
+      display: flex; flex-direction: column; align-items: center;
+      justify-content: center; padding: 48px 24px; gap: 10px; color: var(--text-4);
+    }
+    .other-activities-placeholder p { font-size: 13px; margin: 0; }
+
+    /* ── MODAL ── */
+    .modal {
+      display: none; position: fixed; inset: 0; z-index: 1000;
+      align-items: center; justify-content: center;
+    }
+    .modal.open { display: flex; }
+    .modal-backdrop {
+      position: absolute; inset: 0;
+      background: rgba(0,0,0,0.7); backdrop-filter: blur(3px);
+    }
+    .modal-box {
+      position: relative; z-index: 1;
+      background: #1a1d22; border: 1px solid #2a2e35;
+      border-radius: 12px; width: 90%; max-width: 860px;
+      display: flex; flex-direction: column; max-height: 80vh;
+      box-shadow: 0 24px 64px rgba(0,0,0,0.6);
+    }
+	
+    .modal-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 14px 20px; border-bottom: 1px solid #2a2e35; flex-shrink: 0;
+    }
+    .modal-header h3 { margin:0; font-size:14px; font-weight:600; color:#e2e8f0; display:flex; align-items:center; gap:8px; }
+    .modal-close {
+      background: none; border: none; color: #64748b;
+      font-size: 18px; cursor: pointer; padding: 2px 8px; border-radius: 4px; line-height:1;
+    }
+    .modal-close:hover { color: #e2e8f0; background: #2a2e35; }
+
+    .modal-drawing-search {
+      padding: 12px 20px 10px; border-bottom: 1px solid #2a2e35; flex-shrink: 0;
+    }
+    .modal-drawing-search input {
+      width: 100%; padding: 7px 11px; font-size: 13px;
+      background: #191c21; border: 1px solid #2a2e35;
+      border-radius: 6px; color: #e2e8f0; outline: none;
+    }
+    .modal-drawing-search input:focus { border-color: #f97316; }
+
+    .modal-select-bar {
+      display: flex; align-items: center; gap: 10px;
+      padding: 7px 20px; border-bottom: 1px solid #2a2e35;
+      background: #191c21; font-size: 12px; color: #94a3b8; flex-shrink: 0;
+    }
+    .modal-drawing-list { overflow-y: auto; flex: 1; }
+    .modal-drawing-option {
+      display: flex; align-items: center; gap: 12px;
+      padding: 9px 20px; font-size: 13px; color: #94a3b8;
+      cursor: pointer; transition: background 0.1s;
+      border-bottom: 1px solid #1e2126;
+    }
+    .modal-drawing-option:last-child { border-bottom: none; }
+    .modal-drawing-option:hover:not(.step-locked) { background: #1e2126; color: #e2e8f0; }
+    .modal-drawing-option.selected { background: rgba(249,115,22,0.08); }
+    .modal-drawing-option.step-locked { opacity: 0.5; cursor: not-allowed !important; background: transparent !important; }
+    .modal-drawing-option.step-locked * { pointer-events: none; cursor: not-allowed !important; }
+    .modal-drawing-option input[type="checkbox"] {
+      accent-color: #f97316; width: 15px; height: 15px; flex-shrink: 0; cursor: pointer;
+    }
+    .modal-drawing-option-num {
+      font-weight: 700; font-size: 12px; color: #fdba74; flex-shrink: 0; min-width: 90px;
+    }
+    .modal-drawing-option-title { flex: 1; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .modal-drawing-option-badge { flex-shrink: 0; }
+
+    .modal-footer-info {
+      padding: 8px 20px; font-size: 12px; color: #64748b;
+      border-top: 1px solid #2a2e35; background: #191c21; flex-shrink: 0; display: none;
+    }
+    .modal-footer {
+      display: flex; justify-content: flex-end; gap: 10px;
+      padding: 12px 20px; border-top: 1px solid #2a2e35; flex-shrink: 0;
+    }
+
+    /* ── BUTTONS ── */
+    .btn {
+      padding: 7px 16px; border-radius: 8px; font-size: 13px; font-weight:600;
+      cursor:pointer; border:none; display:inline-flex; align-items:center; gap:6px;
+      transition: all 0.15s;
+    }
+    .btn-primary { background: #f97316; color: #fff; }
+    .btn-primary:hover { background: #ea6b0e; }
+    .btn-ghost { background: transparent; color: #94a3b8; border: 1px solid #2a2e35; }
+    .btn-ghost:hover { color: #e2e8f0; background: #2a2e35; }
+    .btn-sm { padding: 3px 10px; font-size: 11px; border-radius: 6px; }
+    .badge-gray {
+      background: #2a2e35; color: #94a3b8; border-radius: 10px;
+      padding: 2px 7px; font-size: 11px; display:inline-flex; align-items:center; gap:3px;
+    }
+
+    /* ── TWO COLUMN PAGE LAYOUT ── */
+    .page-columns {
+      display: grid;
+      grid-template-columns: 2.2fr 1fr;
+      gap: 20px;
+      align-items: start;
+    }
+
+    /* ── RECENT ACTIVITY PANEL ── */
+    .activity-feed { display: flex; flex-direction: column; gap: 0; }
+    .activity-item {
+      display: flex; flex-direction: column; gap: 3px;
+      padding: 10px 16px; border-bottom: 1px solid var(--border);
+      transition: background var(--speed);
+    }
+    .activity-item:last-child { border-bottom: none; }
+    .activity-item:hover { background: var(--bg-3); }
+    .activity-item-top {
+      display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    }
+    .activity-item-num {
+      font-size: 12px; font-weight: 700; color: var(--accent-light);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1;
+    }
+    .activity-item-mh {
+      font-size: 12px; font-weight: 700; color: var(--accent);
+      flex-shrink: 0;
+    }
+    .activity-item-bottom {
+      display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    }
+    .activity-item-step {
+      font-size: 11px; color: var(--text-3);
+    }
+    .activity-item-date {
+      font-size: 10px; color: var(--text-4);
+    }
+
+    @media (max-width: 900px) {
+      .page-columns { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 680px) {
+      .info-row { grid-template-columns: 1fr; }
+      .entry-row { grid-template-columns: 1fr 1fr; }
+      .entry-row > .form-group:nth-child(-n+2) { grid-column: 1 / -1; }
+    }
+	
+  </style>
+</head>
+<body>
+  <!-- External scripts (loaded when served within the real app) -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="../js/supabase.js"></script>
+  <script src="../js/utils.js"></script>
+  <script src="../js/layout.js"></script>
+  <script src="../js/messaging.js"></script>
+
+  <!-- ── PAGE CONTENT WRAPPER ── -->
+  <div id="page-content"></div>
+
+  <script>
+    // ── MODAL OPEN / CLOSE ─────────────────────────────────
+    // Only define these if layout.js hasn't already defined them.
+    // Use window assignments so layout.js can override cleanly.
+    function _defaultOpenModal(id) {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.style.display = 'flex';
+      el.classList.add('open');
+      document.body.style.overflow = 'hidden';
+    }
+    function _defaultCloseModal(id) {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.style.display = '';
+      el.classList.remove('open');
+      document.body.style.overflow = '';
+    }
+    // Delay so layout.js (loaded before this script) can set its own openModal first
+    if (typeof openModal === 'undefined')   window.openModal   = _defaultOpenModal;
+    if (typeof closeModal === 'undefined')  window.closeModal  = _defaultCloseModal;
+
+    // ── ICONS ──────────────────────────────────────────────
+    const SVG_SM = (p) => `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
+    const SVG_MD = (p) => `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
+
+    const IC = {
+      pencil:   SVG_MD('<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>'),
+      plus:     SVG_SM('<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>'),
+      clock:    SVG_MD('<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>'),
+      save:     SVG_MD('<path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/>'),
+      activity: SVG_MD('<polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>'),
+	  action:   SVG_MD('<polygon points="13 2 3 14 10 14 9 22 21 9 14 9 13 2"/>'),
+      check:    SVG_SM('<polyline points="20 6 9 17 4 12"/>'),
+      lock:     SVG_SM('<rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>'),
+      x:        SVG_SM('<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>'),
+      list:     SVG_SM('<line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>'),
+      file:     `<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/></svg>`,
+      calendar: `<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round" style="opacity:0.25;"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>`,
+	  cube:     `<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>`,
+	  package:  `<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="M3.3 7 12 12l8.7-5"/><path d="M12 22V12"/></svg>`,
+    };
+	
+	function buildDocCodeOptions(activityType) {
+      const all = window._docCodesList || [];
+      const filtered = activityType
+        ? all.filter(d => (d.activity_type || 'drawing') === activityType)
+        : all;
+      return `<option value="">— All —</option>` +
+        filtered.map(d => `<option value="${d.id}">${d.code}</option>`).join('');
+    }
+	
+	function getDrawingDocCode(sourceTable) {
+      const all = window._docCodesList || [];
+      const match = all.find(d => d.activity_type === 'drawing' && d.source_table === sourceTable);
+      return match?.code || null;
+    }
+    
+    function buildDrawingDocCodeOptions() {
+      const all = (window._docCodesList || []).filter(d => d.activity_type === 'drawing' && d.source_table);
+      return all.map(d => `<option value="${d.source_table}">${d.code} — ${d.type}</option>`).join('');
+    }
+    
+    function onDrawingDocCodeChange(rowId, sourceTable) {
+      const rowState = entryRows.find(r => r.id === rowId);
+      if (!rowState) return;
+      rowState.source_table     = sourceTable || '';
+      rowState.selectedDrawings = [];
+      updatePickerSummary(rowId, 'drawing');
+    }
+
+    // ── STATE ──────────────────────────────────────────────
+    let drawingsList      = [];
+    let userProfile       = null;
+    let entryRows         = [];
+    let projectsList      = [];
+    let rowCounter        = 0;
+    let modalTargetRowId  = null;
+    let modalTempSelected = [];
+
+    let VISIBLE_STEPS = [];
+	let otherActivitiesList = [];
+    let miscActivitiesList  = [];
+	let inquiryList     = [];
+    let inquiryStepsList = [];
+    let inquiryRows     = [];
+    let inqRowCounter   = 0;
+    let miscStepsList       = [];
+    let miscActivityRows    = [];
+    let maRowCounter        = 0;
+
+	let tpDrawingsList    = [];
+	let tpEntryRows       = [];
+	let tpRowCounter      = 0;
+	let TP_STEPS          = [];
+	let TP_VISIBLE_STEPS  = [];
+	
+	let calcsList        = [];
+	let calcEntryRows    = [];
+	let calcRowCounter   = 0;
+	let CALC_STEPS       = [];
+	let CALC_VISIBLE_STEPS = [];
+	
+	let materialsList      = [];
+	let matEntryRows       = [];
+	let matRowCounter      = 0;
+	let MAT_STEPS          = [];
+	let MAT_VISIBLE_STEPS  = [];
+
+	// Generic modal targeting — 'drawing' or 'testpkg'
+	let modalSource = 'drawing';
+	let revisionReasonsList    = [];
+	let REVISION_STEP_NAME     = null;
+	let TP_REVISION_STEP_NAME   = null;
+	let CALC_REVISION_STEP_NAME = null;
+    let MAT_REVISION_STEP_NAME  = null;
+    let CALC_IFC_STEP_NAME      = null;
+    let MAT_IFC_STEP_NAME       = null;
+    
+    // Returns the revision_of step for a given revision step name and steps array
+    function getRevisionOfStep(revStepName, stepsArray) {
+      const revStep = stepsArray.find(s => s.name === revStepName);
+      return revStep?.revision_of || null;
+    };
+
+	let IFC_STEP_NAME    = null; // drawing step that allows re-issue
+	let TP_IFC_STEP_NAME = null; // test package step that allows re-issue
+    let otherActivityRows   = [];
+    let oaRowCounter        = 0;
+	let disciplinesList = [];
+	
+	let modelRows    = [];
+	let modelCounter = 0;
+	let modelsList   = [];
+	let targetsList  = [];
+
+    // ── BOOT ───────────────────────────────────────────────
+    // If layout.js is present it calls pageInit via initLayout.
+    // In standalone preview, we mock everything and call pageInit directly.
+    if (typeof initLayout === 'function') {
+      initLayout('Manhours Input');
+    } else {
+      window.db = {
+        from: (table) => ({
+          _table: table,
+          select(){ return this; },
+          order(){ return Promise.resolve({ data:
+            this._table === 'workflow_steps'
+              ? [ {name:'Draft',sort_order:1}, {name:'Check',sort_order:2}, {name:'AFC',sort_order:3}, {name:'IFR',sort_order:4}, {name:'IFC',sort_order:5} ]
+              : [
+                  { id:'d1', drawing_number:'DWG-001', title:'Piping Layout — Level 1',      discipline_id:'x', drawing_activities:[] },
+                  { id:'d2', drawing_number:'DWG-002', title:'Structural Plan — Foundation', discipline_id:'x', drawing_activities:[] },
+                  { id:'d3', drawing_number:'DWG-003', title:'Electrical Single Line',        discipline_id:'x', drawing_activities:[{step_done:'Draft'}] },
+                  { id:'d4', drawing_number:'DWG-004', title:'HVAC Ductwork Plan',            discipline_id:'x', drawing_activities:[] },
+                  { id:'d5', drawing_number:'DWG-005', title:'Fire Protection Layout',        discipline_id:'x', drawing_activities:[] },
+                ]
+          }); },
+          eq(){ return this; },
+          insert(){ return Promise.resolve({ error: null }); },
+        })
+      };
+      window.toast = (msg, type) => {
+        const t = document.createElement('div');
+        t.style.cssText = `position:fixed;bottom:24px;right:24px;background:${type==='error'?'#e74c3c':'#22c55e'};color:#fff;padding:10px 18px;border-radius:8px;font-size:13px;font-weight:600;z-index:9999;`;
+        t.textContent = msg;
+        document.body.appendChild(t);
+        setTimeout(() => t.remove(), 3000);
+      };
+      // Inject standalone shell styles
+      const ss = document.createElement("style");
+      ss.textContent = "body{margin:0;padding:0;background:#0f1115;color:#e2e8f0;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;font-size:13px;}#page-content{max-width:1200px;margin:0 auto;padding:28px 24px;}";
+      document.head.appendChild(ss);
+      pageInit({ id:"u1", full_name:"support.engpro", discipline_id:"x", role:"admin", disciplines:{ name:"Mechanical" } });
+    }
+
+    // ── PAGE INIT ──────────────────────────────────────────
+    async function pageInit(profile) {
+      userProfile = profile;
+      await loadWorkflowSteps();
+      await loadProjects();
+      await loadDisciplines();
+      await load3DModels();
+      await loadDocCodes();
+      await loadOtherActivities();
+	  await loadTargets();
+	  await loadRevisionReasons();
+      await renderPage();
+      addEntryRow();
+	  addTpEntryRow();
+	  addCalcEntryRow();
+	  addMatEntryRow();
+      addOtherActivityRow();
+	  addModelRow();
+	  addInquiryRow()
+      await loadDrawings();
+	  await loadTestPackages();
+	  await loadCalcs();
+      await loadMaterials();
+      loadRecentActivity();
+	  addMiscActivityRow();
+    }
+
+    let WORKFLOW_STEPS = []; // drawing steps
+	let MODEL_STEPS    = []; // 3D model steps
+
+    async function loadWorkflowSteps() {
+  const { data } = await db.from('workflow_steps').select('name, sort_order, revision_code, is_revision, revision_of, activity_type').order('sort_order');
+  const all = data || [];
+
+  WORKFLOW_STEPS = all.filter(s => !s.activity_type || s.activity_type === 'drawing');
+  VISIBLE_STEPS  = WORKFLOW_STEPS.map(s => s.name);
+  if (!VISIBLE_STEPS.length) {
+    VISIBLE_STEPS  = ['Draft', 'Check'];
+    WORKFLOW_STEPS = [{ name: 'Draft', sort_order: 1 }, { name: 'Check', sort_order: 2 }];
+  }
+
+  MODEL_STEPS = all.filter(s => s.activity_type === 'model');
+  if (!MODEL_STEPS.length) {
+    MODEL_STEPS = [
+      { name: 'Not Started', sort_order: 1 },
+      { name: 'Draft',       sort_order: 2 },
+      { name: 'Modelled',    sort_order: 3 },
+      { name: 'Checked',     sort_order: 4 },
+      { name: 'Completed',   sort_order: 5 },
+    ];
+  }
+
+  TP_STEPS = all.filter(s => s.activity_type === 'test_package');
+  TP_VISIBLE_STEPS = TP_STEPS.map(s => s.name);
+  if (!TP_VISIBLE_STEPS.length) {
+    TP_VISIBLE_STEPS = ['Package Preparation', 'Issued for Construction'];
+    TP_STEPS = [{ name: 'Package Preparation', sort_order: 1 }, { name: 'Issued for Construction', sort_order: 2 }];
+  }
+  
+  CALC_STEPS = all.filter(s => s.activity_type === 'calculations');
+  CALC_VISIBLE_STEPS = CALC_STEPS.map(s => s.name);
+  if (!CALC_VISIBLE_STEPS.length) {
+    CALC_VISIBLE_STEPS = ['Draft', 'Check', 'Approved'];
+    CALC_STEPS = [
+      { name: 'Draft',    sort_order: 1 },
+      { name: 'Check',    sort_order: 2 },
+      { name: 'Approved', sort_order: 3 },
+    ];
+  }
+
+  // Derive the IFC step — the step that allows repeated re-issue (revision cycling)
+  // Convention: step whose name contains "construction" or has revision_code = '0'
+  MAT_STEPS = all.filter(s => s.activity_type === 'materials');
+  MAT_VISIBLE_STEPS = MAT_STEPS.map(s => s.name);
+  if (!MAT_VISIBLE_STEPS.length) {
+    MAT_VISIBLE_STEPS = ['Requisition', 'Procurement', 'Delivered'];
+    MAT_STEPS = [
+      { name: 'Requisition',  sort_order: 1 },
+      { name: 'Procurement',  sort_order: 2 },
+      { name: 'Delivered',    sort_order: 3 },
+    ];
+  }
+
+  IFC_STEP_NAME        = WORKFLOW_STEPS.find(s =>
+    s.name.toLowerCase().includes('construction') || s.revision_code === '0'
+  )?.name || null;
+  TP_IFC_STEP_NAME   = TP_STEPS.find(s =>
+    s.name.toLowerCase().includes('construction') || s.revision_code === '0'
+  )?.name || null;
+  CALC_IFC_STEP_NAME = CALC_STEPS.find(s =>
+    s.name.toLowerCase().includes('construction') || s.revision_code === '0'
+  )?.name || null;
+  MAT_IFC_STEP_NAME  = MAT_STEPS.find(s =>
+    s.name.toLowerCase().includes('construction') || s.revision_code === '0'
+  )?.name || null;
+  REVISION_STEP_NAME      = WORKFLOW_STEPS.find(s => s.is_revision === true)?.name || null;
+  TP_REVISION_STEP_NAME   = TP_STEPS.find(s => s.is_revision === true)?.name || null;
+  CALC_REVISION_STEP_NAME = CALC_STEPS.find(s => s.is_revision === true)?.name || null;
+  MAT_REVISION_STEP_NAME  = MAT_STEPS.find(s => s.is_revision === true)?.name || null;
+}
+
+	async function loadProjects() {
+      const { data } = await db.from('projects').select('id, name, code').eq('status', 'Active').order('name');
+      projectsList = data || [];
+    }
+	
+	async function loadDocCodes() {
+      const { data } = await db.from('document_codes').select('id, code, type, activity_type, source_table').order('code');
+      window._docCodesList = data || [];
+    }
+	
+	async function loadDisciplines() {
+      const { data } = await db.from('disciplines').select('id, name').order('name');
+      disciplinesList = data || [];
+    }
+	
+	async function load3DModels() {
+      const { data } = await db.from('models_3d')
+        .select('id, model_name, area, discipline_id, project_id, status, progress, step_progress, disciplines(name), projects(code)')
+        .order('model_name');
+      modelsList = data || [];
+    }
+
+    async function loadOtherActivities() {
+      const { data } = await db.from('other_activities').select('id, code, description').order('code');
+      otherActivitiesList = data || [];
+
+      const { data: maData } = await db.from('misc_activities').select('id, category, name').order('category').order('name');
+      miscActivitiesList = maData || [];
+
+      const { data: msData } = await db.from('workflow_steps').select('id, name, sort_order, misc_activity_id').eq('activity_type', 'miscellaneous').order('sort_order');
+      miscStepsList = msData || [];
+	  
+	  const { data: inqData } = await db.from('project_inquiries')
+        .select('id, control_number, client, activity').order('control_number');
+      inquiryList = inqData || [];
+      
+      const { data: inqSteps } = await db.from('misc_activities')
+		.select('id, name').eq('category', 'INQUIRY').order('name');
+      inquiryStepsList = inqSteps || [];
+    }
+	
+	
+	async function loadTargets() {
+      const { data } = await db.from('targets')
+        .select('id, position, project_id, role_key, discipline_id')
+        .order('position');
+      targetsList = data || [];
+    }
+	
+	async function loadRevisionReasons() {
+      const { data } = await db.from('revision_reasons').select('id, code, description').order('sort_order');
+      revisionReasonsList = data || [];
+    }
+	
+    const DRAWING_SOURCES = [
+      { table: 'erection_drawings',    activities: 'erection_drawing_activities',    fk: 'erection_drawing_id' },
+      { table: 'fabrication_drawings', activities: 'fabrication_drawing_activities', fk: 'fabrication_drawing_id' },
+      { table: 'support_drawings',     activities: 'support_drawing_activities',     fk: 'support_drawing_id' },
+      { table: 'weld_map_drawings',    activities: 'weld_map_drawing_activities',    fk: 'weld_map_drawing_id' },
+    ];
+    
+    async function loadDrawings(disciplineId) {
+      const isAdmin    = userProfile?.role === 'admin';
+      const filterById = isAdmin ? null : (disciplineId || userProfile?.discipline_id);
+      const results = await Promise.all(DRAWING_SOURCES.map(src => {
+        let q = db.from(src.table)
+          .select(`id, drawing_number, title, discipline_id, project_id, revision_number, ${src.activities}(step_done)`)
+          .order('drawing_number');
+        if (filterById) q = q.eq('discipline_id', filterById);
+        return q;
+      }));
+    
+      drawingsList = [];
+      results.forEach((res, i) => {
+        const src = DRAWING_SOURCES[i];
+        if (res.error) { console.warn('[loadDrawings:' + src.table + ']', res.error.message); return; }
+        (res.data || []).forEach(d => {
+          drawingsList.push({
+            id: d.id,
+            drawing_number: d.drawing_number,
+            title: d.title || '',
+            project_id: d.project_id || null,
+            discipline_id: d.discipline_id || null,
+            revision_number: d.revision_number ?? 0,
+            source_table: src.table,
+            activities_table: src.activities,
+            completedSteps: [...new Set((d[src.activities] || []).map(a => a.step_done).filter(Boolean))],
+            get latestStep() {
+              if (!this.completedSteps.length) return null;
+              return this.completedSteps.reduce((latest, step) => {
+                const latestOrder = WORKFLOW_STEPS.find(w => w.name === latest)?.sort_order ?? -1;
+                const stepOrder   = WORKFLOW_STEPS.find(w => w.name === step)?.sort_order ?? -1;
+                return stepOrder > latestOrder ? step : latest;
+              });
+            },
+            get nextStep() {
+              if (!this.latestStep) return WORKFLOW_STEPS[0]?.name || null;
+              const currentOrder = WORKFLOW_STEPS.find(w => w.name === this.latestStep)?.sort_order ?? -1;
+              const next = WORKFLOW_STEPS.find(w => w.sort_order > currentOrder);
+              return next?.name || null;
+            }
+          });
+        });
+      });
+      drawingsList.sort((a, b) => (a.drawing_number || '').localeCompare(b.drawing_number || ''));
+    }
+
+    async function loadTestPackages(disciplineId) {
+      let q = db.from('test_package_drawings')
+        .select('id, drawing_number, title, discipline_id, project_id, revision_number, test_package_drawing_activities(step_done)')
+        .order('drawing_number');
+      const isAdmin    = userProfile?.role === 'admin';
+      const filterById = isAdmin ? null : (disciplineId || userProfile?.discipline_id);
+      if (filterById) q = q.eq('discipline_id', filterById);
+      const { data, error } = await q;
+      if (error) console.warn('[loadTestPackages]', error.message);
+      tpDrawingsList = (data || []).map(d => ({
+        id: d.id,
+        drawing_number: d.drawing_number,
+        title: d.title || '',
+        project_id: d.project_id || null,
+        discipline_id: d.discipline_id || null,
+        revision_number: d.revision_number ?? 0,
+        completedSteps: [...new Set((d.test_package_drawing_activities || []).map(a => a.step_done).filter(Boolean))],
+        get latestStep() {
+          if (!this.completedSteps.length) return null;
+          return this.completedSteps.reduce((latest, step) => {
+            const latestOrder = TP_STEPS.find(w => w.name === latest)?.sort_order ?? -1;
+            const stepOrder   = TP_STEPS.find(w => w.name === step)?.sort_order ?? -1;
+            return stepOrder > latestOrder ? step : latest;
+          });
+        },
+        get nextStep() {
+          if (!this.latestStep) return TP_STEPS[0]?.name || null;
+          const currentOrder = TP_STEPS.find(w => w.name === this.latestStep)?.sort_order ?? -1;
+          const next = TP_STEPS.find(w => w.sort_order > currentOrder);
+          return next?.name || null;
+        }
+      }));
+    }
+	
+	async function loadCalcs(projectCode) {
+      let q = db.from('eng_calculations')
+    .select('id, doc_number, doc_description, project_code, calc_type, status, eng_calculation_activities(step_done)')
+    .order('doc_number');
+      const { data, error } = await q;
+      if (error) console.warn('[loadCalcs]', error.message);
+      calcsList = (data || []).map(d => ({
+        id: d.id,
+        drawing_number: d.doc_number,   // reuse drawing_number key for modal compatibility
+        title: d.doc_description || '',
+        project_id: projectsList.find(p => p.code === d.project_code)?.id || null,
+        discipline_id: d.discipline_id || null,
+		completedSteps: [...new Set((d.eng_calculation_activities || []).map(a => a.step_done).filter(Boolean))],
+        get latestStep() {
+          if (!this.completedSteps.length) return null;
+          return this.completedSteps.reduce((latest, step) => {
+            const latestOrder = CALC_STEPS.find(w => w.name === latest)?.sort_order ?? -1;
+            const stepOrder   = CALC_STEPS.find(w => w.name === step)?.sort_order ?? -1;
+            return stepOrder > latestOrder ? step : latest;
+          });
+        },
+        get nextStep() {
+          if (!this.latestStep) return CALC_STEPS[0]?.name || null;
+          const currentOrder = CALC_STEPS.find(w => w.name === this.latestStep)?.sort_order ?? -1;
+          const next = CALC_STEPS.find(w => w.sort_order > currentOrder);
+          return next?.name || null;
+        }
+      }));
+    }
+	
+	async function loadMaterials() {
+      const { data, error } = await db.from('material_status')
+        .select('id, mto_number, mto_description, project_code, discipline_code, material_activities(step_done)')
+        .order('mto_number');
+      if (error) console.warn('[loadMaterials]', error.message);
+      materialsList = (data || []).map(d => ({
+        id: d.id,
+        drawing_number: d.mto_number,
+        title: d.mto_description || '',
+        project_id: projectsList.find(p => p.code === d.project_code)?.id || null,
+        discipline_id: d.discipline_code || null,
+        completedSteps: [...new Set((d.material_activities || []).map(a => a.step_done).filter(Boolean))],
+        get latestStep() {
+          if (!this.completedSteps.length) return null;
+          return this.completedSteps.reduce((latest, step) => {
+            const latestOrder = MAT_STEPS.find(w => w.name === latest)?.sort_order ?? -1;
+            const stepOrder   = MAT_STEPS.find(w => w.name === step)?.sort_order ?? -1;
+            return stepOrder > latestOrder ? step : latest;
+          });
+        },
+        get nextStep() {
+          if (!this.latestStep) return MAT_STEPS[0]?.name || null;
+          const currentOrder = MAT_STEPS.find(w => w.name === this.latestStep)?.sort_order ?? -1;
+          const next = MAT_STEPS.find(w => w.sort_order > currentOrder);
+          return next?.name || null;
+        }
+      }));
+    }
+
+	async function onRowProjectChange(rowId, projectId) {
+      const rowState = entryRows.find(r => r.id === rowId);
+      if (!rowState) return;
+      rowState.project_id       = projectId;
+      rowState.selectedDrawings = [];
+      updatePickerSummary(rowId);
+      if (projectId) localStorage.setItem('activeProjectId', projectId);
+      // Refresh position dropdown for this project
+      const posSel = document.getElementById('pos-' + rowId);
+      if (posSel) {
+        posSel.innerHTML = `<option value="">— None —</option>` +
+          targetsList.filter(t => !t.project_id || t.project_id === projectId)
+            .map(t => `<option value="${t.id}">${t.position}</option>`).join('');
+      }
+    }
+	
+    // ── RENDER PAGE ────────────────────────────────────────
+    async function renderPage() {
+      const content = document.getElementById('page-content');
+      if (!content) return;
+
+      content.innerHTML = `
+        <!-- ── DRAWING PICKER MODAL — injected here so layout.js modal system finds it ── -->
+        <div class="modal" id="drawing-picker-modal">
+          <div class="modal-backdrop" onclick="closeDrawingModal()"></div>
+          <div class="modal-box">
+            <div class="modal-header">
+              <h3>
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/></svg>
+                Select Drawings
+              </h3>
+              <button class="modal-close" onclick="closeDrawingModal()">✕</button>
+            </div>
+            <div class="modal-drawing-search">
+              <input type="text" id="modal-search-input" placeholder="Search by drawing number…" oninput="renderModalList(this.value)" />
+            </div>
+            <div style="padding:8px 20px;border-bottom:1px solid #2a2e35;background:#191c21;display:flex;align-items:center;gap:8px;flex-shrink:0;">
+              <span style="font-size:11px;color:#64748b;flex-shrink:0;">Filter step:</span>
+              <select id="modal-step-filter" oninput="renderModalList(document.getElementById('modal-search-input').value)"
+                style="background:#1e2126;border:1px solid #2a2e35;border-radius:6px;padding:4px 8px;font-size:12px;color:#e2e8f0;outline:none;flex:1;">
+                <option value="">All</option>
+                ${VISIBLE_STEPS.map(s => `<option value="${s}">${s}</option>`).join('')}
+                <option value="__none__">Not started</option>
+              </select>
+            </div>
+            <div class="modal-select-bar">
+              <span id="modal-selected-count" style="font-weight:600;color:#cbd5e1;">0 selected</span>
+              <div style="margin-left:auto;display:flex;gap:6px;">
+                <button class="btn btn-ghost btn-sm" onclick="modalSelectAll()">Select All</button>
+                <button class="btn btn-ghost btn-sm" onclick="modalClearAll()">Clear</button>
+              </div>
+            </div>
+            <div style="flex:1;overflow:hidden;display:flex;flex-direction:column;">
+              <table style="width:100%;border-collapse:collapse;" id="modal-header-table">
+                <thead>
+                  <tr style="background:#16191e;border-bottom:1px solid #2a2e35;">
+                    <th style="width:32px;padding:7px 0 7px 20px;"></th>
+                    <th style="width:35%;padding:7px 12px;font-size:10px;font-weight:700;color:#475569;letter-spacing:0.05em;text-align:left;">DRAWING NO.</th>
+                    <th style="width:25%;padding:7px 12px;font-size:10px;font-weight:700;color:#475569;letter-spacing:0.05em;text-align:center;">STEPS DONE</th>
+                    <th id="modal-revision-header" style="width:15%;padding:7px 12px;font-size:10px;font-weight:700;color:#475569;letter-spacing:0.05em;text-align:center;display:none;">CURRENT REV</th>
+                    <th id="modal-reason-header" style="width:25%;padding:7px 20px 7px 0;font-size:10px;font-weight:700;color:#e74c3c;letter-spacing:0.05em;text-align:left;display:none;">REVISION REASON *</th>
+                  </tr>
+                </thead>
+              </table>
+              <div style="overflow-y:auto;flex:1;">
+                <table style="width:100%;border-collapse:collapse;" id="modal-drawing-list"></table>
+              </div>
+            </div>
+            <div class="modal-footer-info" id="modal-footer-info"></div>
+            <div class="modal-footer">
+              <button class="btn btn-ghost" onclick="closeDrawingModal()">Cancel</button>
+              <button class="btn btn-primary" onclick="confirmDrawingModal()">OK — Apply Selection</button>
+            </div>
+          </div>
+        </div>
+        <div class="page-top-bar">
+          <div class="page-header" style="margin-bottom:0;">
+            <h1>${IC.pencil} Manhours Input</h1>
+            <p>Record manhours for each activity execution</p>
+          </div>
+          <div class="total-manhours-badge">
+            ${IC.clock}
+            <span>Total Manhours</span>
+            <span class="mh-value" id="total-mh-display">0.0</span>
+          </div>
+        </div>
+
+        <div class="page-columns">
+
+          <!-- LEFT: form -->
+          <div>
+            <div class="eng-panel">
+              <div class="eng-panel-header">
+                <div class="eng-panel-title" style="color:var(--accent);"> ${IC.cube} 3D Model Preparation</div>
+              </div>
+              <div class="eng-panel-body">
+                <div class="entry-rows-container" id="model-rows-container"></div>
+                <button class="add-row-btn" onclick="addModelRow()">
+                  ${IC.plus}&nbsp; Add Another Model
+                </button>
+              </div>
+            </div>
+            <div class="eng-panel">
+              <div class="eng-panel-header">
+                <div class="eng-panel-title" style="color:var(--accent);"> ${IC.file} Drawing Preparation</div>
+              </div>
+              <div class="eng-panel-body">
+
+                <div class="entry-rows-container" id="entry-rows-container"></div>
+
+                <button class="add-row-btn" onclick="addEntryRow()">
+                  ${IC.plus}&nbsp; Add Another Drawing Set
+                </button>
+              </div>
+            </div>
+
+            <div class="eng-panel">
+              <div class="eng-panel-header">
+                <div class="eng-panel-title" style="color:var(--accent);"> ${IC.package} Test Package</div>
+              </div>
+              <div class="eng-panel-body">
+                <div class="entry-rows-container" id="tp-rows-container"></div>
+                <button class="add-row-btn" onclick="addTpEntryRow()">
+                  ${IC.plus}&nbsp; Add Another Test Package
+                </button>
+              </div>
+            </div>
+			
+			<div class="eng-panel">
+              <div class="eng-panel-header">
+                <div class="eng-panel-title" style="color:var(--accent);">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+                  Engineering Calculation
+                </div>
+              </div>
+              <div class="eng-panel-body">
+                <div class="entry-rows-container" id="calc-rows-container"></div>
+                <button class="add-row-btn" onclick="addCalcEntryRow()">
+                  ${IC.plus}&nbsp; Add Another Calculation
+                </button>
+              </div>
+            </div>
+			
+			<div class="eng-panel">
+              <div class="eng-panel-header">
+                <div class="eng-panel-title" style="color:var(--accent);">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8h14M5 8a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-6a2 2 0 0 0-2-2M5 8V6a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v2"/></svg>
+                  Material Preparation
+                </div>
+              </div>
+              <div class="eng-panel-body">
+                <div class="entry-rows-container" id="mat-rows-container"></div>
+                <button class="add-row-btn" onclick="addMatEntryRow()">
+                  ${IC.plus}&nbsp; Add Another Material
+                </button>
+              </div>
+            </div>
+			
+			<div class="eng-panel">
+              <div class="eng-panel-header">
+                <div class="eng-panel-title" style="color:var(--accent);">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
+                  Project Inquiry
+                </div>
+              </div>
+              <div class="eng-panel-body">
+                <div class="entry-rows-container" id="inq-rows-container"></div>
+                <button class="add-row-btn" onclick="addInquiryRow()">
+                  ${IC.plus}&nbsp; Add Another Inquiry
+                </button>
+              </div>
+            </div>
+
+            <div class="eng-panel">
+              <div class="eng-panel-header">
+                <div class="eng-panel-title" style="color:var(--accent);">${IC.activity} Miscellaneous Activities</div>
+              </div>
+              <div class="eng-panel-body">
+                <div class="entry-rows-container" id="ma-rows-container"></div>
+                <button class="add-row-btn" onclick="addMiscActivityRow()">
+                  ${IC.plus}&nbsp; Add Another Miscellaneous Activity
+                </button>
+              </div>
+            </div>
+
+            <div class="eng-panel">
+              <div class="eng-panel-header">
+                <div class="eng-panel-title" style="color:var(--accent);"> ${IC.activity} Other Activities</div>
+              </div>
+              <div class="eng-panel-body">
+                <div class="entry-rows-container" id="oa-rows-container"></div>
+                <button class="add-row-btn" onclick="addOtherActivityRow()">
+                  ${IC.plus}&nbsp; Add Another Activity
+                </button>
+              </div>
+            </div>
+			
+			<!-- ── SAVE ACTIONS BLOCK ── -->
+            <div class="eng-panel" style="border-color:var(--accent);background:var(--accent-dim);">
+              <div class="eng-panel-header" style="border-bottom-color:color-mix(in srgb,var(--accent) 30%,transparent);">
+                <div class="eng-panel-title" style="color:var(--accent-light);">
+                  ${IC.action} Actions
+                </div>
+              </div>
+              <div class="eng-panel-body" style="display:flex;flex-direction:column;gap:10px;">
+                <div style="display:flex;gap:8px;">
+                  <button class="btn btn-primary" id="save-btn" onclick="saveAllEntries(false)"
+                    style="display:flex;align-items:center;gap:6px;padding:10px 20px;font-size:14px;flex:1;justify-content:center;">
+                    ${IC.save} Save All Entries
+                  </button>
+                  <button class="add-row-btn" onclick="clearAllEntries()"
+                    style="flex:1;padding:10px 20px;font-size:14px;margin-top:0;">
+                    ${IC.x} Clear
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- RIGHT: recent activity -->
+          <div class="eng-panel" style="position:sticky;top:20px;">
+            <div class="eng-panel-header">
+              <div class="eng-panel-title">${IC.activity} My Recent Activity</div>
+              <div style="display:flex;align-items:center;gap:8px;">
+                <span style="font-size:11px;color:var(--text-4);">Last 20 entries</span>
+                <button class="btn btn-ghost btn-sm" onclick="clearRecentActivity()" style="font-size:11px;padding:2px 8px;">Clear All</button>
+              </div>
+            </div>
+            <div id="activity-feed" class="activity-feed"></div>
+          </div>
+        </div>
+      `;
+    }
+
+    // ── ADD ENTRY ROW ──────────────────────────────────────
+    function addEntryRow() {
+      rowCounter++;
+      const rowId = 'row-' + rowCounter;
+      // Default project from localStorage
+      const defaultProjectId = localStorage.getItem('activeProjectId') || '';
+	  entryRows.push({ id: rowId, selectedDrawings: [], step: 'Draft', project_id: defaultProjectId, discipline_id: '', source_table: '' });
+
+      const container = document.getElementById('entry-rows-container');
+      if (!container) return;
+	  
+	  const div = document.createElement('div');
+      div.className = 'entry-row';
+	  div.style.gridTemplateColumns = '0.5fr 0.6fr 0.6fr 1fr 0.7fr 0.7fr 110px';
+      div.id = rowId;
+      div.innerHTML = `
+        <span class="row-number">#${rowCounter}</span>
+
+        <!-- Project -->
+        <div class="form-group">
+          <label>Project Code</label>
+          <select id="proj-${rowId}" onchange="onRowProjectChange('${rowId}', this.value)">
+            <option value="">— All —</option>
+            ${projectsList.map(p => `<option value="${p.id}" ${p.id === defaultProjectId ? 'selected' : ''}>${p.code}</option>`).join('')}
+          </select>
+        </div>
+
+        <!-- Doc Code -->
+        <div class="form-group">
+          <label class="required">Doc Code</label>
+          <select id="doccode-${rowId}" onchange="onDrawingDocCodeChange('${rowId}', this.value)">
+            <option value="">— Select —</option>
+            ${buildDrawingDocCodeOptions()}
+          </select>
+        </div>
+
+        <!-- Step Done -->
+        <div class="form-group">
+          <label class="required">Step Done</label>
+          <select id="step-${rowId}" oninput="onStepChange('${rowId}')">
+            ${buildStepOptions('Draft')}
+          </select>
+        </div>
+
+        <!-- Drawing Number -->
+        <div class="form-group">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px;">
+            <label style="margin-bottom:0;" class="required">Drawing Number</label>
+            <div class="picker-summary" id="picker-summary-${rowId}" style="margin-bottom:0;"></div>
+          </div>
+          <button class="drawing-picker-btn" id="picker-btn-${rowId}" onclick="openDrawingModal('${rowId}')">
+            <span id="picker-label-${rowId}" style="flex:1;text-align:left;">Click to select drawings</span>
+            ${IC.list}
+          </button>
+        </div>
+
+        <!-- Position -->
+        <div class="form-group">
+          <label>Position</label>
+          <select id="pos-${rowId}">
+            <option value="">— None —</option>
+            ${targetsList.map(t => `<option value="${t.id}">${t.position}</option>`).join('')}
+          </select>
+        </div>
+
+        <!-- Manhours -->
+        <div class="form-group">
+          <label class="required">Manhours</label>
+          <input type="number" class="manhour-input" id="mh-${rowId}"
+            min="0.1" step="0.5" placeholder="0.0"
+            oninput="updateTotals()" />
+          <div class="mh-hint" id="mh-hint-${rowId}"></div>
+        </div>
+
+        <!-- Remove -->
+        <button class="remove-row-btn" id="rm-btn-${rowId}" onclick="removeEntryRow('${rowId}')" title="Remove row">
+          ${IC.x}
+        </button>
+      `;
+
+      container.appendChild(div);
+      const defaultPosId = getDefaultPositionId();
+      if (defaultPosId) {
+        const posSel = document.getElementById('pos-' + rowId);
+        if (posSel) posSel.value = defaultPosId;
+      }
+      updateRemoveButtons();
+      toggleManhoursByStep(rowId);
+    }
+	
+	function getDefaultPositionId() {
+      const roleKey = userProfile?.role || null;
+      const discId  = userProfile?.discipline_id || null;
+      if (!roleKey && !discId) return null;
+    
+      const match = targetsList.find(t =>
+        (!roleKey || t.role_key === roleKey) &&
+        (!discId  || t.discipline_id === discId)
+      );
+      return match?.id || null;
+    }
+	
+	function buildTpStepOptions(currentStep, disabledSteps = []) {
+      return TP_VISIBLE_STEPS.map(s =>
+        `<option value="${s}" ${s === currentStep ? 'selected' : ''} ${disabledSteps.includes(s) ? 'disabled' : ''}>${s}</option>`
+      ).join('');
+    }
+
+    function addTpEntryRow() {
+      tpRowCounter++;
+      const rowId = 'tprow-' + tpRowCounter;
+      const defaultProjectId = localStorage.getItem('activeProjectId') || '';
+      tpEntryRows.push({ id: rowId, selectedDrawings: [], step: TP_VISIBLE_STEPS[0] || 'Package Preparation', project_id: defaultProjectId, discipline_id: '' });
+
+      const container = document.getElementById('tp-rows-container');
+      if (!container) return;
+	  
+	  const div = document.createElement('div');
+      div.className = 'entry-row';
+      div.style.gridTemplateColumns = '0.5fr 0.6fr 1fr 0.7fr 0.7fr 110px';
+      div.id = rowId;
+      div.innerHTML = `
+        <span class="row-number">#${tpRowCounter}</span>
+
+        <!-- Project -->
+        <div class="form-group">
+          <label>Project Code</label>
+          <select id="proj-${rowId}" onchange="onTpRowProjectChange('${rowId}', this.value)">
+            <option value="">— All —</option>
+            ${projectsList.map(p => `<option value="${p.id}" ${p.id === defaultProjectId ? 'selected' : ''}>${p.code}</option>`).join('')}
+          </select>
+        </div>
+
+        <!-- Step Done -->
+        <div class="form-group">
+          <label class="required">Step Done</label>
+          <select id="step-${rowId}" oninput="onTpStepChange('${rowId}')">
+            ${buildTpStepOptions(TP_VISIBLE_STEPS[0])}
+          </select>
+        </div>
+
+        <!-- Test Package Number -->
+        <div class="form-group">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px;">
+            <label style="margin-bottom:0;" class="required">Test Package No.</label>
+            <div class="picker-summary" id="picker-summary-${rowId}" style="margin-bottom:0;"></div>
+          </div>
+          <button class="drawing-picker-btn" id="picker-btn-${rowId}" onclick="openTpModal('${rowId}')">
+            <span id="picker-label-${rowId}" style="flex:1;text-align:left;">Click to select test packages</span>
+            ${IC.list}
+          </button>
+        </div>
+
+        <!-- Position -->
+        <div class="form-group">
+          <label>Position</label>
+          <select id="pos-${rowId}">
+            <option value="">— None —</option>
+            ${targetsList.map(t => `<option value="${t.id}">${t.position}</option>`).join('')}
+          </select>
+        </div>
+
+        <!-- Manhours -->
+        <div class="form-group">
+          <label class="required">Manhours</label>
+          <input type="number" class="manhour-input" id="mh-${rowId}"
+            min="0.1" step="0.5" placeholder="0.0"
+            oninput="updateTotals()" />
+          <div class="mh-hint" id="mh-hint-${rowId}"></div>
+        </div>
+
+        <!-- Remove -->
+        <button class="remove-row-btn" id="rm-btn-${rowId}" onclick="removeTpEntryRow('${rowId}')" title="Remove row">
+          ${IC.x}
+        </button>
+      `;
+
+      container.appendChild(div);
+      const defaultPosId = getDefaultPositionId();
+      if (defaultPosId) {
+        const posSel = document.getElementById('pos-' + rowId);
+        if (posSel) posSel.value = defaultPosId;
+      }
+      updateTpRemoveButtons();
+      toggleTpManhoursByStep(rowId);
+    }
+	
+	function buildCalcStepOptions(currentStep) {
+  return CALC_VISIBLE_STEPS.map(s =>
+    `<option value="${s}" ${s === currentStep ? 'selected' : ''}>${s}</option>`
+  ).join('');
+}
+
+function addCalcEntryRow() {
+  calcRowCounter++;
+  const rowId = 'calcrow-' + calcRowCounter;
+  const defaultProjectId = localStorage.getItem('activeProjectId') || '';
+  calcEntryRows.push({ id: rowId, selectedDrawings: [], step: CALC_VISIBLE_STEPS[0] || 'Draft', project_id: defaultProjectId });
+
+  const container = document.getElementById('calc-rows-container');
+  if (!container) return;
+
+  const div = document.createElement('div');
+  div.className = 'entry-row';
+  div.style.gridTemplateColumns = '0.5fr 0.6fr 1fr 0.7fr 0.7fr 110px';
+  div.id = rowId;
+  div.innerHTML = `
+    <span class="row-number">#${calcRowCounter}</span>
+
+    <!-- Project -->
+    <div class="form-group">
+      <label>Project Code</label>
+      <select id="calc-proj-${rowId}" onchange="onCalcRowProjectChange('${rowId}', this.value)">
+        <option value="">— All —</option>
+        ${projectsList.map(p => `<option value="${p.id}" ${p.id === defaultProjectId ? 'selected' : ''}>${p.code}</option>`).join('')}
+      </select>
+    </div>
+
+    <!-- Step Done -->
+    <div class="form-group">
+      <label class="required">Step Done</label>
+      <select id="calc-step-${rowId}" onchange="onCalcStepChange('${rowId}')">
+        ${buildCalcStepOptions(CALC_VISIBLE_STEPS[0])}
+      </select>
+    </div>
+
+    <!-- Calculation Number -->
+    <div class="form-group">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px;">
+        <label style="margin-bottom:0;" class="required">Calc No.</label>
+        <div class="picker-summary" id="picker-summary-${rowId}" style="margin-bottom:0;"></div>
+      </div>
+      <button class="drawing-picker-btn" id="picker-btn-${rowId}" onclick="openCalcModal('${rowId}')">
+        <span id="picker-label-${rowId}" style="flex:1;text-align:left;">Click to select calculations</span>
+        ${IC.list}
+      </button>
+    </div>
+
+    <!-- Position -->
+    <div class="form-group">
+      <label>Position</label>
+      <select id="calc-pos-${rowId}">
+        <option value="">— None —</option>
+        ${targetsList.map(t => `<option value="${t.id}">${t.position}</option>`).join('')}
+      </select>
+    </div>
+
+    <!-- Manhours -->
+    <div class="form-group">
+      <label class="required">Manhours</label>
+      <input type="number" class="manhour-input" id="mh-${rowId}"
+        min="0.1" step="0.5" placeholder="0.0"
+        oninput="updateTotals()" />
+    </div>
+
+    <!-- Remove -->
+    <button class="remove-row-btn" id="calc-rm-${rowId}" onclick="removeCalcEntryRow('${rowId}')" title="Remove row">
+      ${IC.x}
+    </button>
+  `;
+
+  container.appendChild(div);
+  const defaultPosId = getDefaultPositionId();
+  if (defaultPosId) {
+    const posSel = document.getElementById('calc-pos-' + rowId);
+    if (posSel) posSel.value = defaultPosId;
+  }
+  const allRows = container.querySelectorAll('.entry-row');
+  allRows.forEach(r => {
+    const btn = r.querySelector('.remove-row-btn');
+    if (btn) btn.style.display = allRows.length === 1 ? 'none' : 'flex';
+  });
+}
+
+function removeCalcEntryRow(rowId) {
+  calcEntryRows = calcEntryRows.filter(r => r.id !== rowId);
+  const el = document.getElementById(rowId);
+  if (el) el.remove();
+  updateTotals();
+  const container = document.getElementById('calc-rows-container');
+  if (container) {
+    const allRows = container.querySelectorAll('.entry-row');
+    allRows.forEach(r => {
+      const btn = r.querySelector('.remove-row-btn');
+      if (btn) btn.style.display = allRows.length === 1 ? 'none' : 'flex';
+    });
+  }
+}
+
+function buildMatStepOptions(currentStep) {
+  return MAT_VISIBLE_STEPS.map(s =>
+    `<option value="${s}" ${s === currentStep ? 'selected' : ''}>${s}</option>`
+  ).join('');
+}
+
+function addMatEntryRow() {
+  matRowCounter++;
+  const rowId = 'matrow-' + matRowCounter;
+  const defaultProjectId = localStorage.getItem('activeProjectId') || '';
+  matEntryRows.push({ id: rowId, selectedDrawings: [], step: MAT_VISIBLE_STEPS[0] || 'Requisition', project_id: defaultProjectId });
+
+  const container = document.getElementById('mat-rows-container');
+  if (!container) return;
+
+  const div = document.createElement('div');
+  div.className = 'entry-row';
+  div.style.gridTemplateColumns = '0.5fr 0.6fr 1fr 0.7fr 0.7fr 110px';
+  div.id = rowId;
+  div.innerHTML = `
+    <span class="row-number">#${matRowCounter}</span>
+
+    <!-- Project -->
+    <div class="form-group">
+      <label>Project Code</label>
+      <select id="mat-proj-${rowId}" onchange="onMatRowProjectChange('${rowId}', this.value)">
+        <option value="">— All —</option>
+        ${projectsList.map(p => `<option value="${p.id}" ${p.id === defaultProjectId ? 'selected' : ''}>${p.code}</option>`).join('')}
+      </select>
+    </div>
+
+    <!-- Step Done -->
+    <div class="form-group">
+      <label class="required">Step Done</label>
+      <select id="mat-step-${rowId}" onchange="onMatStepChange('${rowId}')">
+        ${buildMatStepOptions(MAT_VISIBLE_STEPS[0])}
+      </select>
+    </div>
+
+    <!-- MTO Number -->
+    <div class="form-group">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px;">
+        <label style="margin-bottom:0;" class="required">MTO No.</label>
+        <div class="picker-summary" id="picker-summary-${rowId}" style="margin-bottom:0;"></div>
+      </div>
+      <button class="drawing-picker-btn" id="picker-btn-${rowId}" onclick="openMatModal('${rowId}')">
+        <span id="picker-label-${rowId}" style="flex:1;text-align:left;">Click to select materials</span>
+        ${IC.list}
+      </button>
+    </div>
+
+    <!-- Position -->
+    <div class="form-group">
+      <label>Position</label>
+      <select id="mat-pos-${rowId}">
+        <option value="">— None —</option>
+        ${targetsList.map(t => `<option value="${t.id}">${t.position}</option>`).join('')}
+      </select>
+    </div>
+
+    <!-- Manhours -->
+    <div class="form-group">
+      <label class="required">Manhours</label>
+      <input type="number" class="manhour-input" id="mh-${rowId}"
+        min="0.1" step="0.5" placeholder="0.0"
+        oninput="updateTotals()" />
+    </div>
+
+    <!-- Remove -->
+    <button class="remove-row-btn" id="mat-rm-${rowId}" onclick="removeMatEntryRow('${rowId}')" title="Remove row">
+      ${IC.x}
+    </button>
+  `;
+
+    container.appendChild(div);
+    const defaultPosId = getDefaultPositionId();
+    if (defaultPosId) {
+      const posSel = document.getElementById('mat-pos-' + rowId);
+      if (posSel) posSel.value = defaultPosId;
+    }
+    const allRows = container.querySelectorAll('.entry-row');
+    allRows.forEach(r => {
+      const btn = r.querySelector('.remove-row-btn');
+      if (btn) btn.style.display = allRows.length === 1 ? 'none' : 'flex';
+    });
+  }
+
+function removeMatEntryRow(rowId) {
+  matEntryRows = matEntryRows.filter(r => r.id !== rowId);
+  const el = document.getElementById(rowId);
+  if (el) el.remove();
+  updateTotals();
+  const container = document.getElementById('mat-rows-container');
+  if (container) {
+    const allRows = container.querySelectorAll('.entry-row');
+    allRows.forEach(r => {
+      const btn = r.querySelector('.remove-row-btn');
+      if (btn) btn.style.display = allRows.length === 1 ? 'none' : 'flex';
+    });
+  }
+}
+
+function openMatModal(rowId) {
+  modalSource = 'materials';
+  const rowState = matEntryRows.find(r => r.id === rowId);
+  if (!rowState) return;
+  modalTargetRowId  = rowId;
+  modalTempSelected = [...rowState.selectedDrawings];
+  const rowProject = rowState.project_id || null;
+  window._modalDrawings = rowProject ? materialsList.filter(d => d.project_id === rowProject) : materialsList;
+  openSharedModal('Select Materials');
+}
+
+function openCalcModal(rowId) {
+  modalSource = 'calc';
+  const rowState = calcEntryRows.find(r => r.id === rowId);
+  if (!rowState) return;
+  modalTargetRowId  = rowId;
+  modalTempSelected = [...rowState.selectedDrawings];
+  const rowProject = rowState.project_id || null;
+  window._modalDrawings = rowProject ? calcsList.filter(d => d.project_id === rowProject) : calcsList;
+  openSharedModal('Select Calculations');
+}
+
+    function removeTpEntryRow(rowId) {
+      tpEntryRows = tpEntryRows.filter(r => r.id !== rowId);
+      const el = document.getElementById(rowId);
+      if (el) el.remove();
+      updateTpRemoveButtons();
+      updateTotals();
+    }
+
+    function updateTpRemoveButtons() {
+      const rows = document.querySelectorAll('#tp-rows-container .entry-row');
+      rows.forEach(r => {
+        const btn = r.querySelector('.remove-row-btn');
+        if (btn) btn.style.display = rows.length === 1 ? 'none' : 'flex';
+      });
+    }
+
+    function onTpStepChange(rowId) {
+      const rowState = tpEntryRows.find(r => r.id === rowId);
+      if (!rowState) return;
+      rowState.step = document.getElementById('step-' + rowId).value;
+      toggleTpManhoursByStep(rowId);
+      if (modalSource === 'testpkg' && modalTargetRowId === rowId)
+        renderModalList((document.getElementById('modal-search-input') || {}).value || '');
+    }
+
+    function toggleTpManhoursByStep(rowId) {
+      const rowState = tpEntryRows.find(r => r.id === rowId);
+      if (!rowState) return;
+      const mhInput = document.getElementById('mh-' + rowId);
+      const hintEl  = document.getElementById('mh-hint-' + rowId);
+      if (!mhInput) return;
+      const firstStep = TP_STEPS[0]?.name || 'Package Preparation';
+      const isFirstStep = rowState.step === firstStep;
+      mhInput.disabled = isFirstStep;
+      if (isFirstStep) mhInput.value = '';
+      mhInput.style.opacity = isFirstStep ? '0.4' : '';
+      mhInput.style.cursor  = isFirstStep ? 'not-allowed' : '';
+      if (hintEl) hintEl.textContent = isFirstStep ? 'Reserved — no manhours for this step' : '';
+      updateTotals();
+    }
+
+    async function onTpRowProjectChange(rowId, projectId) {
+      const rowState = tpEntryRows.find(r => r.id === rowId);
+      if (!rowState) return;
+      rowState.project_id       = projectId;
+      rowState.selectedDrawings = [];
+      updatePickerSummary(rowId, 'testpkg');
+      if (projectId) localStorage.setItem('activeProjectId', projectId);
+      const posSel = document.getElementById('pos-' + rowId);
+      if (posSel) {
+        posSel.innerHTML = `<option value="">— None —</option>` +
+          targetsList.filter(t => !t.project_id || t.project_id === projectId)
+            .map(t => `<option value="${t.id}">${t.position}</option>`).join('');
+      }
+    }
+
+    function onCalcStepChange(rowId) {
+      const rowState = calcEntryRows.find(r => r.id === rowId);
+      if (!rowState) return;
+      rowState.step = document.getElementById('calc-step-' + rowId)?.value || rowState.step;
+    }
+	
+	function onCalcRowProjectChange(rowId, projectId) {
+      const rowState = calcEntryRows.find(r => r.id === rowId);
+      if (!rowState) return;
+      rowState.project_id = projectId;
+      rowState.selectedDrawings = [];
+      updatePickerSummary(rowId, 'calc');
+      if (projectId) localStorage.setItem('activeProjectId', projectId);
+    }
+
+    function onMatStepChange(rowId) {
+      const rowState = matEntryRows.find(r => r.id === rowId);
+      if (!rowState) return;
+      rowState.step = document.getElementById('mat-step-' + rowId)?.value || rowState.step;
+    }
+    
+    function onMatRowProjectChange(rowId, projectId) {
+      const rowState = matEntryRows.find(r => r.id === rowId);
+      if (!rowState) return;
+      rowState.project_id = projectId;
+      rowState.selectedDrawings = [];
+      updatePickerSummary(rowId, 'materials');
+      if (projectId) localStorage.setItem('activeProjectId', projectId);
+    }
+
+    function buildStepOptions(currentStep, disabledSteps = []) {
+      return VISIBLE_STEPS.map(s =>
+        `<option value="${s}" ${s === currentStep ? 'selected' : ''} ${disabledSteps.includes(s) ? 'disabled' : ''}>${s}</option>`
+      ).join('');
+    }
+
+    // ── REMOVE ROW ─────────────────────────────────────────
+    function removeEntryRow(rowId) {
+      entryRows = entryRows.filter(r => r.id !== rowId);
+      const el = document.getElementById(rowId);
+      if (el) el.remove();
+      updateRemoveButtons();
+      updateTotals();
+    }
+
+    function updateRemoveButtons() {
+      const rows = document.querySelectorAll('.entry-row');
+      rows.forEach(r => {
+        const btn = r.querySelector('.remove-row-btn');
+        if (btn) btn.style.display = rows.length === 1 ? 'none' : 'flex';
+      });
+    }
+
+    // ── STEP CHANGE ────────────────────────────────────────
+    function onStepChange(rowId) {
+      const rowState = entryRows.find(r => r.id === rowId);
+      if (!rowState) return;
+      rowState.step = document.getElementById('step-' + rowId).value;
+      toggleManhoursByStep(rowId);
+      if (modalTargetRowId === rowId)
+        renderModalList((document.getElementById('modal-search-input') || {}).value || '');
+    }
+
+    function toggleManhoursByStep(rowId) {
+      const rowState = entryRows.find(r => r.id === rowId);
+      if (!rowState) return;
+      const mhInput = document.getElementById('mh-' + rowId);
+      const hintEl  = document.getElementById('mh-hint-' + rowId);
+      if (!mhInput) return;
+      const firstStep = WORKFLOW_STEPS[0]?.name || 'Draft';
+      const isFirstStep = rowState.step === firstStep;
+      mhInput.disabled = isFirstStep;
+      mhInput.value    = isFirstStep ? '0' : (mhInput.value === '0' ? '' : mhInput.value);
+      mhInput.style.opacity = isFirstStep ? '0.4' : '1';
+      mhInput.style.cursor  = isFirstStep ? 'not-allowed' : '';
+      if (hintEl) hintEl.textContent = isFirstStep ? 'Reserved — no manhours for draft' : '';
+      updateTotals();
+    }
+
+    // ── DRAWING PICKER MODAL ───────────────────────────────
+   function openDrawingModal(rowId) {
+      modalSource = 'drawing';
+      const rowState = entryRows.find(r => r.id === rowId);
+      if (!rowState) return;
+      if (!rowState.source_table) {
+        toast('Please select a Doc Code first.', 'error');
+        return;
+      }
+      rowState.step = document.getElementById('step-' + rowId)?.value || rowState.step;
+      modalTargetRowId  = rowId;
+      modalTempSelected = [...rowState.selectedDrawings];
+    
+      const rowProject = rowState.project_id || null;
+      const posId = document.getElementById('pos-' + rowId)?.value || null;
+      const selectedTarget = posId ? targetsList.find(t => t.id === posId) : null;
+      const rowDisc = selectedTarget?.discipline_id || null;
+    
+      let filteredDrawings = drawingsList.filter(d => d.source_table === rowState.source_table);
+      if (rowProject) filteredDrawings = filteredDrawings.filter(d => d.project_id === rowProject);
+      if (rowDisc) filteredDrawings = filteredDrawings.filter(d => d.discipline_id === rowDisc);
+      window._modalDrawings = filteredDrawings;
+    
+      openSharedModal('Select Drawings');
+    }
+
+    function openTpModal(rowId) {
+      modalSource = 'testpkg';
+      const rowState = tpEntryRows.find(r => r.id === rowId);
+      if (!rowState) return;
+      rowState.step = document.getElementById('step-' + rowId)?.value || rowState.step;
+      modalTargetRowId  = rowId;
+      modalTempSelected = [...rowState.selectedDrawings];
+
+      const rowProject = rowState.project_id || null;
+      const posId = document.getElementById('pos-' + rowId)?.value || null;
+      const selectedTarget = posId ? targetsList.find(t => t.id === posId) : null;
+      const rowDisc = selectedTarget?.discipline_id || null;
+
+      let filtered = rowProject
+        ? tpDrawingsList.filter(d => d.project_id === rowProject)
+        : tpDrawingsList;
+      if (rowDisc) filtered = filtered.filter(d => d.discipline_id === rowDisc);
+      window._modalDrawings = filtered;
+
+      openSharedModal('Select Test Packages');
+    }
+
+    function openSharedModal(title) {
+      const titleEl = document.querySelector('#drawing-picker-modal .modal-header h3');
+      if (titleEl) {
+        const svg = titleEl.querySelector('svg');
+        titleEl.innerHTML = '';
+        if (svg) titleEl.appendChild(svg);
+        titleEl.appendChild(document.createTextNode(' ' + title));
+      }
+
+      const stepFilter = document.getElementById('modal-step-filter');
+      if (stepFilter) {
+        const steps = modalSource === 'testpkg' ? TP_VISIBLE_STEPS
+					: modalSource === 'calc'      ? CALC_VISIBLE_STEPS
+					: modalSource === 'materials' ? MAT_VISIBLE_STEPS
+					: VISIBLE_STEPS;
+        stepFilter.innerHTML = `<option value="">All</option>` +
+          steps.map(s => `<option value="${s}">${s}</option>`).join('') +
+          `<option value="__none__">Not started</option>`;
+      }
+
+      const si = document.getElementById("modal-search-input");
+      if (si) si.value = "";
+      renderModalList("");
+
+      const modalEl = document.getElementById("drawing-picker-modal");
+      if (modalEl) {
+        modalEl.style.display = "flex";
+        modalEl.classList.add("open");
+        document.body.style.overflow = "hidden";
+      }
+      setTimeout(() => si && si.focus(), 80);
+    }
+
+    // modalTempSelected is now [{id, reason_id}]
+    // Helper to find a selection entry by drawing id
+    function _getSelEntry(id) { return modalTempSelected.find(s => s.id === id); }
+    function _isSelected(id)  { return !!_getSelEntry(id); }
+
+    function renderModalList(query) {
+      const q          = (query || '').toLowerCase();
+      const sourceRows = modalSource === 'testpkg'  ? tpEntryRows
+                       : modalSource === 'calc'      ? calcEntryRows
+                       : modalSource === 'materials' ? matEntryRows
+                       : entryRows;
+      const sourceList = modalSource === 'testpkg'  ? tpDrawingsList
+                       : modalSource === 'calc'      ? calcsList
+                       : modalSource === 'materials' ? materialsList
+                       : drawingsList;
+      const rowState   = sourceRows.find(r => r.id === modalTargetRowId);
+      const step       = rowState?.step || (
+        modalSource === 'testpkg'  ? (TP_VISIBLE_STEPS[0]  || 'Package Preparation') :
+        modalSource === 'calc'     ? (CALC_VISIBLE_STEPS[0] || 'Draft') :
+        modalSource === 'materials'? (MAT_VISIBLE_STEPS[0]  || 'Requisition') : 'Draft'
+      );
+      const stepsArray = modalSource === 'testpkg'  ? TP_STEPS
+                       : modalSource === 'calc'      ? CALC_STEPS
+                       : modalSource === 'materials' ? MAT_STEPS
+                       : WORKFLOW_STEPS;
+      const isRevisionMode = stepsArray.some(s => s.name === step && s.is_revision === true);
+      const ifcStep        = isRevisionMode
+                           ? getRevisionOfStep(step, stepsArray)
+                           : (modalSource === 'testpkg'  ? TP_IFC_STEP_NAME
+                            : modalSource === 'calc'      ? CALC_IFC_STEP_NAME
+                            : modalSource === 'materials' ? MAT_IFC_STEP_NAME
+                            : IFC_STEP_NAME);
+      const isIfcMode = step === ifcStep && !!ifcStep;
+
+      // Show/hide the Reason and Revision column headers — visible for Revision step.
+      // The Current Rev badge only applies to Drawing/Test Package; Calc and Material have no revision_number.
+      const showRevCol     = isRevisionMode && modalSource !== 'calc' && modalSource !== 'materials';
+      const reasonHeader   = document.getElementById('modal-reason-header');
+      const revisionHeader = document.getElementById('modal-revision-header');
+      if (reasonHeader)   reasonHeader.style.display   = isRevisionMode ? '' : 'none';
+      if (revisionHeader) revisionHeader.style.display = showRevCol ? '' : 'none';
+
+      const filtered = (window._modalDrawings || sourceList).filter(d =>
+        !q || d.drawing_number.toLowerCase().includes(q) || d.title.toLowerCase().includes(q)
+      );
+      const stepFilter = (document.getElementById('modal-step-filter') || {}).value || '';
+
+      const display = filtered.filter(d => {
+        if (isRevisionMode) return d.completedSteps.includes(ifcStep); // only IFC-completed drawings
+        if (!stepFilter) return true;
+        if (stepFilter === '__none__') return d.completedSteps.length === 0;
+        return d.completedSteps.includes(stepFilter);
+      });
+
+      const list = document.getElementById('modal-drawing-list');
+      if (!list) return;
+
+      const reasonOptions = revisionReasonsList.map(r =>
+        `<option value="${r.id}">${r.description}</option>`
+      ).join('');
+
+      list.innerHTML = display.length === 0
+        ? `<tr><td colspan="4" style="padding:24px;text-align:center;font-size:13px;color:#64748b;">No drawings found.</td></tr>`
+        : display.map(d => {
+          const sel      = _getSelEntry(d.id);
+          const isSelected = !!sel;
+          const isReIssue  = isRevisionMode;
+          const latestStep = d.latestStep;
+          const revNum    = showRevCol ? (d.revision_number ?? 0) : null;
+          const stepBadge = latestStep
+            ? `<span class="badge-gray">${latestStep}</span>`
+            : `<span style="font-size:12px;color:#475569;">—</span>`;
+          const revCell   = showRevCol
+            ? `<td style="width:15%;padding:0 12px;text-align:center;font-size:12px;font-weight:700;color:#fdba74;vertical-align:middle;">Rev ${revNum}</td>`
+            : '';
+
+          const reasonCell = isRevisionMode
+            ? `<td style="width:25%;padding:0 12px 0 0;vertical-align:middle;" onclick="event.stopPropagation()">
+                ${isSelected
+                  ? `<select onchange="modalSetReason('${d.id}',this.value)"
+                      style="font-size:11px;padding:3px 6px;background:#1e2126;border:1px solid ${sel.reason_id ? '#f97316' : '#e74c3c'};border-radius:4px;color:#e2e8f0;outline:none;width:100%;max-width:160px;">
+                      <option value="">— Reason *</option>${reasonOptions.replace(
+                        `value="${sel.reason_id}"`,
+                        `value="${sel.reason_id}" selected`
+                      )}
+                    </select>`
+                  : true
+                    ? `<span style="font-size:11px;color:#64748b;">Select to add reason</span>`
+                    : `<span style="font-size:11px;color:#475569;">—</span>`
+                }
+              </td>`
+            : '';
+
+          return `
+            <tr style="border-bottom:1px solid #1e2126;cursor:pointer;height:40px;${isSelected ? 'background:rgba(249,115,22,0.08);' : ''}"
+              id="modal-row-${d.id}"
+              onclick="modalToggle('${d.id}')"
+              onmouseover="if(!this.style.background||this.style.background==='')this.style.background='#1e2126'"
+              onmouseout="this.style.background='${isSelected ? 'rgba(249,115,22,0.08)' : ''}'">
+              <td style="width:32px;padding:0 0 0 20px;vertical-align:middle;">
+                <input type="checkbox" ${isSelected ? 'checked' : ''}
+                  onclick="event.stopPropagation();modalToggle('${d.id}')"
+                  style="accent-color:#f97316;width:15px;height:15px;cursor:pointer;" />
+              </td>
+              <td style="width:35%;padding:0 12px;font-size:12px;font-weight:700;color:#fdba74;vertical-align:middle;">
+                ${d.drawing_number}
+              </td>
+             <td style="width:25%;padding:0 12px;vertical-align:middle;"><div style="display:flex;flex-wrap:wrap;gap:4px;align-items:center;">${stepBadge}</div></td>
+              ${revCell}
+              ${reasonCell}
+            </tr>`;
+        }).join('');
+
+      const countEl = document.getElementById('modal-selected-count');
+      if (countEl) {
+        const n = modalTempSelected.length;
+        countEl.textContent = n === 0 ? '0 selected' : `${n} item${n > 1 ? 's' : ''} selected`;
+        countEl.style.color = n > 0 ? '#fdba74' : '#94a3b8';
+      }
+      const fi = document.getElementById('modal-footer-info');
+      if (fi) {
+        fi.style.display = modalTempSelected.length > 1 ? 'block' : 'none';
+        if (modalTempSelected.length > 1)
+          fi.textContent = `Manhours will be divided equally across ${modalTempSelected.length} items.`;
+      }
+    }
+
+    function modalToggle(drawingId) {
+      const idx = modalTempSelected.findIndex(s => s.id === drawingId);
+      if (idx === -1) modalTempSelected.push({ id: drawingId, reason_id: null });
+      else            modalTempSelected.splice(idx, 1);
+      renderModalList((document.getElementById('modal-search-input') || {}).value || '');
+    }
+
+    function modalSetReason(drawingId, reasonId) {
+      const entry = _getSelEntry(drawingId);
+      if (entry) entry.reason_id = reasonId || null;
+      // Re-render only the reason cell to avoid losing focus
+      renderModalList((document.getElementById('modal-search-input') || {}).value || '');
+    }
+
+    function modalSelectAll() {
+      const sourceRows  = modalSource === 'testpkg'  ? tpEntryRows
+                        : modalSource === 'calc'      ? calcEntryRows
+                        : modalSource === 'materials' ? matEntryRows
+                        : entryRows;
+      const sourceList  = modalSource === 'testpkg'  ? tpDrawingsList
+						: modalSource === 'calc'      ? calcsList
+						: modalSource === 'materials' ? materialsList
+						: (window._modalDrawings || drawingsList);
+      const defaultStep = modalSource === 'testpkg'  ? (TP_VISIBLE_STEPS[0]  || 'Package Preparation')
+                        : modalSource === 'calc'      ? (CALC_VISIBLE_STEPS[0] || 'Draft')
+                        : modalSource === 'materials' ? (MAT_VISIBLE_STEPS[0]  || 'Requisition')
+                        : 'Draft';
+      const step        = sourceRows.find(r => r.id === modalTargetRowId)?.step || defaultStep;
+      const ifcStep     = modalSource === 'testpkg' ? TP_IFC_STEP_NAME
+                        : modalSource === 'materials' ? null
+                        : modalSource === 'calc'      ? null
+                        : IFC_STEP_NAME;
+      const stepsArr    = modalSource === 'testpkg'  ? TP_STEPS
+                        : modalSource === 'calc'      ? CALC_STEPS
+                        : modalSource === 'materials' ? MAT_STEPS
+                        : WORKFLOW_STEPS;
+      const isRevStep   = stepsArr.some(s => s.name === step && s.is_revision === true);
+      const prereqStep  = isRevStep ? getRevisionOfStep(step, stepsArr) : null;
+      modalTempSelected = sourceList
+        .filter(d => isRevStep
+          ? (prereqStep ? d.completedSteps.includes(prereqStep) : true)
+          : !d.completedSteps.includes(step))
+        .map(d => ({ id: d.id, reason_id: null }));
+      renderModalList((document.getElementById('modal-search-input') || {}).value || '');
+    }
+
+    function modalClearAll() {
+      modalTempSelected = [];
+      renderModalList((document.getElementById('modal-search-input') || {}).value || '');
+    }
+
+    function confirmDrawingModal() {
+      const sourceRows = modalSource === 'testpkg'  ? tpEntryRows
+                       : modalSource === 'calc'      ? calcEntryRows
+                       : modalSource === 'materials' ? matEntryRows
+                       : entryRows;
+      const rowState   = sourceRows.find(r => r.id === modalTargetRowId);
+      if (!rowState) { closeDrawingModal(); return; }
+
+      // Validate: IFC re-issues must have a reason
+      const ifcStep   = modalSource === 'testpkg'  ? TP_IFC_STEP_NAME
+                      : modalSource === 'calc'      ? null
+                      : modalSource === 'materials' ? null
+                      : IFC_STEP_NAME;
+      const srcList   = modalSource === 'testpkg'  ? tpDrawingsList
+                      : modalSource === 'calc'      ? calcsList
+                      : modalSource === 'materials' ? materialsList
+                      : drawingsList;
+      const stepsArr2 = modalSource === 'testpkg'  ? TP_STEPS
+                      : modalSource === 'calc'      ? CALC_STEPS
+                      : modalSource === 'materials' ? MAT_STEPS
+                      : WORKFLOW_STEPS;
+      const isRevMode = stepsArr2.some(s => s.name === rowState.step && s.is_revision === true);
+      if (isRevMode) {
+        const missingReason = modalTempSelected.find(s => !s.reason_id);
+        if (missingReason) {
+          const d = srcList.find(x => x.id === missingReason.id);
+          toast(`Please select a revision reason for ${d?.drawing_number || 'the re-issued item'}.`, 'error');
+          return;
+        }
+      }
+
+      rowState.selectedDrawings = [...modalTempSelected]; // [{id, reason_id}]
+	  updatePickerSummary(modalTargetRowId, modalSource);
+	  if (modalSource === 'testpkg') refreshTpStepOptions(modalTargetRowId);
+	  else if (modalSource === 'calc' || modalSource === 'materials') { /* no step-lock logic needed */ }
+	  else { refreshStepOptions(modalTargetRowId); }
+	  updateTotals();
+	  closeDrawingModal();
+    }
+
+    function refreshStepOptions(rowId) {
+      const rowState = entryRows.find(r => r.id === rowId);
+      if (!rowState) return;
+
+      const allCompleted = new Set();
+      rowState.selectedDrawings.forEach(sel => {
+        const id = sel.id ?? sel; // support both {id} and plain id
+        const d = drawingsList.find(x => x.id === id);
+        if (d) d.completedSteps.forEach(s => allCompleted.add(s));
+      });
+
+      const select = document.getElementById('step-' + rowId);
+      if (!select) return;
+
+      const currentStep = rowState.step;
+      // IFC locks after first use. Revision NEVER locks — it can be used multiple times.
+      const stepsToDisable = [...allCompleted].filter(s => s !== REVISION_STEP_NAME);
+      select.innerHTML = buildStepOptions(currentStep, stepsToDisable);
+
+      if (allCompleted.has(currentStep) && currentStep !== REVISION_STEP_NAME) {
+        const nextAvailable = VISIBLE_STEPS.find(s => !allCompleted.has(s));
+        if (nextAvailable) {
+          select.value = nextAvailable;
+          rowState.step = nextAvailable;
+          toggleManhoursByStep(rowId);
+        }
+      }
+    }
+
+    function refreshTpStepOptions(rowId) {
+      const rowState = tpEntryRows.find(r => r.id === rowId);
+      if (!rowState) return;
+
+      const allCompleted = new Set();
+      rowState.selectedDrawings.forEach(sel => {
+        const id = sel.id ?? sel;
+        const d = tpDrawingsList.find(x => x.id === id);
+        if (d) d.completedSteps.forEach(s => allCompleted.add(s));
+      });
+
+      const select = document.getElementById('step-' + rowId);
+      if (!select) return;
+
+      const currentStep = rowState.step;
+      const stepsToDisable = [...allCompleted].filter(s => s !== TP_REVISION_STEP_NAME);
+      select.innerHTML = buildTpStepOptions(currentStep, stepsToDisable);
+
+      if (allCompleted.has(currentStep) && currentStep !== TP_REVISION_STEP_NAME) {
+        const nextAvailable = TP_VISIBLE_STEPS.find(s => !allCompleted.has(s));
+        if (nextAvailable) {
+          select.value = nextAvailable;
+          rowState.step = nextAvailable;
+          toggleTpManhoursByStep(rowId);
+        }
+      }
+    }
+
+    function closeDrawingModal() {
+      const modalEl = document.getElementById("drawing-picker-modal");
+      if (modalEl) {
+        modalEl.style.display = "";
+        modalEl.classList.remove("open");
+        document.body.style.overflow = "";
+      }
+      modalTargetRowId  = null;
+      modalTempSelected = [];
+    }
+
+    // ── PICKER SUMMARY ─────────────────────────────────────
+    function updatePickerSummary(rowId, source) {
+      source = source || 'drawing';
+      const rowState  = (source === 'testpkg' ? tpEntryRows : source === 'calc' ? calcEntryRows : source === 'materials' ? matEntryRows : entryRows).find(r => r.id === rowId);
+      if (!rowState) return;
+      const count     = rowState.selectedDrawings.length;
+      const btn       = document.getElementById('picker-btn-' + rowId);
+      const labelEl   = document.getElementById('picker-label-' + rowId);
+      const summaryEl = document.getElementById('picker-summary-' + rowId);
+      const noun      = source === 'testpkg' ? 'test package' : source === 'calc' ? 'calculation' : source === 'materials' ? 'material' : 'drawing';
+      const clickText = source === 'testpkg' ? 'Click to select test packages' : source === 'calc' ? 'Click to select calculations' : source === 'materials' ? 'Click to select materials' : 'Click to select drawings';
+
+      if (count === 0) {
+        if (labelEl)   labelEl.textContent = clickText;
+        if (btn)       btn.classList.remove('active');
+        if (summaryEl) summaryEl.innerHTML = '';
+      } else {
+        if (labelEl)   labelEl.textContent = 'Click to change selection';
+        if (btn)       btn.classList.add('active');
+        if (summaryEl) {
+          summaryEl.innerHTML = `<span class="picker-count-badge">${IC.check} ${count} ${noun}${count > 1 ? 's' : ''} selected</span>`;
+        }
+      }
+      updateMhHint(rowId);
+    }
+
+    // ── MANHOUR HINT ───────────────────────────────────────
+    function updateMhHint(rowId) {
+      const rowState = entryRows.find(r => r.id === rowId) || tpEntryRows.find(r => r.id === rowId) || matEntryRows.find(r => r.id === rowId);
+      if (!rowState) return;
+      const count  = rowState.selectedDrawings.length;
+      const mh     = parseFloat(document.getElementById('mh-' + rowId)?.value || 0);
+      const hintEl = document.getElementById('mh-hint-' + rowId);
+      if (!hintEl) return;
+      hintEl.textContent = (count > 1 && mh > 0) ? `÷ ${count} = ${(mh / count).toFixed(2)} hrs each` : '';
+    }
+
+    // ── TOTAL MANHOURS ─────────────────────────────────────
+    function updateTotals() {
+      let total = 0;
+      entryRows.forEach(r => {
+        total += parseFloat(document.getElementById('mh-' + r.id)?.value || 0);
+        updateMhHint(r.id);
+      });
+      tpEntryRows.forEach(r => {
+        total += parseFloat(document.getElementById('mh-' + r.id)?.value || 0);
+        updateMhHint(r.id);
+      });
+	  calcEntryRows.forEach(r => {
+        total += parseFloat(document.getElementById('mh-' + r.id)?.value || 0);
+        updateMhHint(r.id);
+      });
+	  matEntryRows.forEach(r => {
+        total += parseFloat(document.getElementById('mh-' + r.id)?.value || 0);
+        updateMhHint(r.id);
+      });
+      otherActivityRows.forEach(r => {
+        total += parseFloat(document.getElementById('oa-mh-' + r.id)?.value || 0);
+      });
+      miscActivityRows.forEach(r => {
+        total += parseFloat(document.getElementById('ma-mh-' + r.id)?.value || 0);
+      });
+      modelRows.forEach(r => {
+        total += parseFloat(document.getElementById('model-mh-' + r.id)?.value || 0);
+      });
+	  inquiryRows.forEach(r => {
+        total += parseFloat(document.getElementById('inq-mh-' + r.id)?.value || 0);
+      });
+      const el = document.getElementById('total-mh-display');
+      if (el) el.textContent = total > 0 ? total.toFixed(1) : '0.0';
+    }
+	
+	// ── MISCELLANEOUS ACTIVITY ROWS ───────────────────────────
+    function getMiscStepsForActivity(activityId) {
+      // Steps are global (not per-activity), filtered by miscellaneous type
+      return miscStepsList;
+    }
+	
+	// ── PROJECT INQUIRY ROWS ──────────────────────────────
+    function addInquiryRow() {
+      inqRowCounter++;
+      const rowId = 'inq-row-' + inqRowCounter;
+      inquiryRows.push({ id: rowId });
+
+      const container = document.getElementById('inq-rows-container');
+      if (!container) return;
+
+      const div = document.createElement('div');
+      div.className = 'entry-row';
+      div.id = rowId;
+      div.style.gridTemplateColumns = '0.4fr 1.5fr 1fr 0.7fr 110px';
+      div.innerHTML = `
+        <span class="row-number">#${inqRowCounter}</span>
+
+        <!-- Control Number -->
+        <div class="form-group">
+          <label class="required">Control Number</label>
+          <select id="inq-ctrl-${rowId}">
+            <option value="">— Select Inquiry —</option>
+            ${inquiryList.map(i => `<option value="${i.id}">${i.control_number}</option>`).join('')}
+          </select>
+        </div>
+
+        <!-- Activity -->
+        <div class="form-group">
+          <label>Activity</label>
+          <select id="inq-act-${rowId}">
+            <option value="">— Select Activity —</option>
+            ${inquiryStepsList.map(s => `<option value="${s.id}">${s.name}</option>`).join('')}
+          </select>
+        </div>
+		
+        <!-- Position -->
+        <div class="form-group">
+          <label>Position</label>
+          <select id="inq-pos-${rowId}">
+            <option value="">— None —</option>
+            ${targetsList.map(t => `<option value="${t.id}">${t.position}</option>`).join('')}
+          </select>
+        </div>
+
+        <!-- Manhours -->
+        <div class="form-group">
+          <label class="required">Manhours</label>
+          <input type="number" class="manhour-input" id="inq-mh-${rowId}"
+            min="0.1" step="0.5" placeholder="0.0"
+            oninput="updateTotals()" />
+        </div>
+
+        <!-- Remove -->
+        <button class="remove-row-btn" id="inq-rm-${rowId}" onclick="removeInquiryRow('${rowId}')">
+          ${IC.x}
+        </button>
+      `;
+
+      container.appendChild(div);
+      const defaultPosId = getDefaultPositionId();
+      if (defaultPosId) {
+        const posSel = document.getElementById('inq-pos-' + rowId);
+        if (posSel) posSel.value = defaultPosId;
+      }
+
+      const allRows = container.querySelectorAll('.entry-row');
+      allRows.forEach(r => {
+        const btn = r.querySelector('.remove-row-btn');
+        if (btn) btn.style.display = allRows.length === 1 ? 'none' : 'flex';
+      });
+    }
+
+    function removeInquiryRow(rowId) {
+      inquiryRows = inquiryRows.filter(r => r.id !== rowId);
+      const el = document.getElementById(rowId);
+      if (el) el.remove();
+      updateTotals();
+      const container = document.getElementById('inq-rows-container');
+      if (!container) return;
+      const allRows = container.querySelectorAll('.entry-row');
+      allRows.forEach(r => {
+        const btn = r.querySelector('.remove-row-btn');
+        if (btn) btn.style.display = allRows.length === 1 ? 'none' : 'flex';
+      });
+    }
+
+    function addMiscActivityRow() {
+      maRowCounter++;
+      const rowId = 'ma-row-' + maRowCounter;
+      miscActivityRows.push({ id: rowId });
+
+      const container = document.getElementById('ma-rows-container');
+      if (!container) return;
+
+      // Group activities by category for optgroup
+      const categories = [...new Set(miscActivitiesList.map(a => a.category))];
+      const activityOptions = categories.map(cat => `
+        <optgroup label="${cat}">
+          ${miscActivitiesList.filter(a => a.category === cat).map(a => `<option value="${a.id}">${a.name}</option>`).join('')}
+        </optgroup>
+      `).join('');
+
+      const div = document.createElement('div');
+      div.className = 'entry-row';
+      div.id = rowId;
+      div.style.gridTemplateColumns = '0.4fr 1fr 1fr 0.7fr 110px';
+      div.innerHTML = `
+        <span class="row-number">#${maRowCounter}</span>
+
+        <!-- Project Code -->
+        <div class="form-group">
+          <label>Project Code</label>
+          <select id="ma-proj-${rowId}">
+            <option value="">— Select —</option>
+            ${projectsList.map(p => `<option value="${p.id}">${p.code}</option>`).join('')}
+          </select>
+        </div>
+
+        <!-- Category > Activity -->
+        <div class="form-group">
+          <label class="required">Activity</label>
+          <select id="ma-act-${rowId}" onchange="onMiscActivityChange('${rowId}')">
+            <option value="">— Select Activity —</option>
+            ${activityOptions}
+          </select>
+        </div>
+
+        <!-- Step Done -->
+        <div class="form-group">
+          <label>Step Done</label>
+          <select id="ma-step-${rowId}">
+            <option value="">— Select Step —</option>
+            ${miscStepsList.map(s => `<option value="${s.name}">${s.name}</option>`).join('')}
+          </select>
+        </div>
+
+        <!-- Position -->
+        <div class="form-group">
+          <label>Position</label>
+          <select id="ma-pos-${rowId}">
+            <option value="">— None —</option>
+            ${targetsList.map(t => `<option value="${t.id}">${t.position}</option>`).join('')}
+          </select>
+        </div>
+
+        <!-- Manhours -->
+        <div class="form-group">
+          <label class="required">Manhours</label>
+          <input type="number" class="manhour-input" id="ma-mh-${rowId}"
+            min="0.1" step="0.5" placeholder="0.0"
+            oninput="updateTotals()" />
+        </div>
+
+        <!-- Remove -->
+        <button class="remove-row-btn" id="ma-rm-${rowId}" onclick="removeMiscActivityRow('${rowId}')">
+          ${IC.x}
+        </button>
+      `;
+
+      container.appendChild(div);
+      const defaultPosId = getDefaultPositionId();
+      if (defaultPosId) {
+        const posSel = document.getElementById('ma-pos-' + rowId);
+        if (posSel) posSel.value = defaultPosId;
+      }
+
+      const allRows = container.querySelectorAll('.entry-row');
+      allRows.forEach(r => {
+        const btn = r.querySelector('.remove-row-btn');
+        if (btn) btn.style.display = allRows.length === 1 ? 'none' : 'flex';
+      });
+    }
+
+    function onMiscActivityChange(rowId) {
+      const activityId = document.getElementById('ma-act-' + rowId)?.value;
+      const stepSel    = document.getElementById('ma-step-' + rowId);
+      if (!stepSel) return;
+      const filtered = activityId
+        ? miscStepsList.filter(s => s.misc_activity_id === activityId)
+        : miscStepsList;
+      stepSel.innerHTML = '<option value="">— Select Step —</option>' +
+        filtered.map(s => `<option value="${s.name}">${s.name}</option>`).join('');
+    }
+
+    function removeMiscActivityRow(rowId) {
+      miscActivityRows = miscActivityRows.filter(r => r.id !== rowId);
+      const el = document.getElementById(rowId);
+      if (el) el.remove();
+      updateTotals();
+      const container = document.getElementById('ma-rows-container');
+      if (!container) return;
+      const allRows = container.querySelectorAll('.entry-row');
+      allRows.forEach(r => {
+        const btn = r.querySelector('.remove-row-btn');
+        if (btn) btn.style.display = allRows.length === 1 ? 'none' : 'flex';
+      });
+    }
+	
+	// ── OTHER ACTIVITY ROWS ────────────────────────────────
+    function addOtherActivityRow() {
+      oaRowCounter++;
+      const rowId = 'oa-row-' + oaRowCounter;
+      otherActivityRows.push({ id: rowId });
+
+      const container = document.getElementById('oa-rows-container');
+      if (!container) return;
+
+      const div = document.createElement('div');
+      div.className = 'entry-row';
+      div.id = rowId;
+      div.style.gridTemplateColumns = '0.4fr 1fr 0.5fr 0.7fr 110px';
+      div.innerHTML = `
+        <span class="row-number">#${oaRowCounter}</span>
+
+        <!-- Project Code -->
+        <div class="form-group">
+          <label>Project Code</label>
+          <select id="oa-proj-${rowId}">
+            <option value="">— Select —</option>
+            ${projectsList.map(p => `<option value="${p.id}">${p.code}</option>`).join('')}
+          </select>
+        </div>
+
+        <!-- Activity Code -->
+        <div class="form-group">
+          <label class="required">Activity</label>
+          <select id="oa-code-${rowId}">
+            <option value="">— Select —</option>
+            ${otherActivitiesList.map(a => `<option value="${a.id}">${a.description}</option>`).join('')}
+          </select>
+        </div>
+
+        <!-- Status -->
+        <div class="form-group">
+          <label>Status</label>
+          <select id="oa-status-${rowId}">
+            <option value="In Progress">In Progress</option>
+            <option value="Completed">Completed</option>
+          </select>
+        </div>
+
+        <!-- Position -->
+        <div class="form-group">
+          <label>Position</label>
+          <select id="oa-pos-${rowId}">
+            <option value="">— None —</option>
+            ${targetsList.map(t => `<option value="${t.id}">${t.position}</option>`).join('')}
+          </select>
+        </div>
+
+        <!-- Manhours -->
+        <div class="form-group">
+          <label class="required">Manhours</label>
+          <input type="number" class="manhour-input" id="oa-mh-${rowId}"
+            min="0.1" step="0.5" placeholder="0.0"
+            oninput="updateTotals()" />
+        </div>
+
+        <!-- Remove -->
+        <button class="remove-row-btn" id="oa-rm-${rowId}" onclick="removeOtherActivityRow('${rowId}')">
+          ${IC.x}
+        </button>
+      `;
+
+      container.appendChild(div);
+      const defaultPosId = getDefaultPositionId();
+      if (defaultPosId) {
+        const posSel = document.getElementById('oa-pos-' + rowId);
+        if (posSel) posSel.value = defaultPosId;
+      }
+
+      // show/hide remove buttons
+      const allRows = container.querySelectorAll('.entry-row');
+      allRows.forEach(r => {
+        const btn = r.querySelector('.remove-row-btn');
+        if (btn) btn.style.display = allRows.length === 1 ? 'none' : 'flex';
+      });
+    }
+	
+	function addModelRow() {
+      modelCounter++;
+      const rowId = 'model-row-' + modelCounter;
+      modelRows.push({ id: rowId });
+    
+      const container = document.getElementById('model-rows-container');
+      if (!container) return;
+    
+      const div = document.createElement('div');
+      div.className = 'entry-row';
+      div.id = rowId;
+      div.style.gridTemplateColumns = '0.6fr 0.7fr 1.2fr 0.7fr 0.7fr 0.7fr 110px';
+      div.innerHTML = `
+        <span class="row-number">#${modelCounter}</span>
+    
+        <!-- Project -->
+        <div class="form-group">
+          <label>Project</label>
+          <select id="model-proj-${rowId}">
+            <option value="">— Select —</option>
+            ${projectsList.map(p => `<option value="${p.id}">${p.code}</option>`).join('')}
+          </select>
+        </div>
+    
+        <!-- Discipline -->
+        <div class="form-group">
+          <label class="required">Discipline</label>
+          <select id="model-disc-${rowId}" onchange="filterModelPicker('${rowId}')">
+            <option value="">— Select —</option>
+            ${disciplinesList.map(d => `<option value="${d.id}" ${d.id === (userProfile?.discipline_id || '') ? 'selected' : ''}>${d.name}</option>`).join('')}
+          </select>
+        </div>
+
+        <!-- Status -->
+        <div class="form-group">
+          <label class="required">Status</label>
+          <select id="model-status-${rowId}" onchange="onModelStepChange('${rowId}', this.value)">
+            ${MODEL_STEPS.map(s => `<option value="${s.name}">${s.name}</option>`).join('')}
+          </select>
+        </div>
+		
+        <!-- Model picker -->
+        <div class="form-group">
+          <label class="required">Area / System</label>
+          <select id="model-id-${rowId}" onchange="onModelSelect('${rowId}', this.value)">
+            <option value="">— Select model —</option>
+            ${modelsList.map(m => `<option value="${m.id}" data-area="${m.area||''}" data-disc="${m.discipline_id}">${m.area || m.model_name}</option>`).join('')}
+          </select>
+        </div>
+        
+        <!-- % Done -->
+        <div class="form-group">
+          <label>% Done Today</label>
+          <input type="number" id="model-pct-${rowId}"
+            min="0" max="100" step="1" placeholder="0"
+            style="text-align:center;" />
+        </div>
+
+        <!-- Position -->
+        <div class="form-group">
+          <label>Position</label>
+          <select id="model-pos-${rowId}">
+            <option value="">— None —</option>
+            ${targetsList.map(t => `<option value="${t.id}">${t.position}</option>`).join('')}
+          </select>
+        </div>
+
+        <!-- Manhours -->
+        <div class="form-group">
+          <label class="required">Manhours</label>
+          <input type="number" class="manhour-input" id="model-mh-${rowId}"
+            min="0.1" step="0.5" placeholder="0.0"
+            oninput="updateTotals()" />
+        </div>
+    
+        <!-- Remove -->
+        <button class="remove-row-btn" id="model-rm-${rowId}" onclick="removeModelRow('${rowId}')">
+          ${IC.x}
+        </button>
+      `;
+    
+      container.appendChild(div);
+      filterModelPicker(rowId); // apply discipline filter on load
+      const defaultPosId = getDefaultPositionId();
+      if (defaultPosId) {
+        const posSel = document.getElementById('model-pos-' + rowId);
+        if (posSel) posSel.value = defaultPosId;
+      }
+    
+      const allRows = container.querySelectorAll('.entry-row');
+      allRows.forEach(r => {
+        const btn = r.querySelector('.remove-row-btn');
+        if (btn) btn.style.display = allRows.length === 1 ? 'none' : 'flex';
+      });
+    }
+    
+    function filterModelPicker(rowId) {
+      const discId = document.getElementById('model-disc-' + rowId)?.value || '';
+      const sel    = document.getElementById('model-id-' + rowId);
+      if (!sel) return;
+      Array.from(sel.options).forEach(opt => {
+        if (!opt.value) return; // keep the placeholder
+        opt.hidden = discId ? opt.dataset.disc !== discId : false;
+      });
+      sel.value = '';
+    }
+    
+function onModelSelect(rowId, modelId) {
+  const model = modelsList.find(m => m.id === modelId);
+  if (!model) return;
+
+  // Auto-set discipline if not already set
+  const discSel = document.getElementById('model-disc-' + rowId);
+  if (discSel && !discSel.value && model.discipline_id) {
+    discSel.value = model.discipline_id;
+    filterModelPicker(rowId);
+    document.getElementById('model-id-' + rowId).value = modelId;
+  }
+
+  // Auto-set project
+  const projSel = document.getElementById('model-proj-' + rowId);
+  if (projSel && model.project_id && !projSel.value) {
+    projSel.value = model.project_id;
+  }
+
+  // Build status dropdown — lock steps already at 100%
+  const statusSel = document.getElementById('model-status-' + rowId);
+  if (statusSel) {
+    const stepProgress = model.step_progress || {};
+    const currentStepOrder = MODEL_STEPS.find(s => s.name === model.status)?.sort_order ?? -1;
+    statusSel.innerHTML = MODEL_STEPS.map(s => {
+      const pct    = parseFloat(stepProgress[s.name] || 0);
+      const isDone = s.sort_order < currentStepOrder ||
+                     (s.name === model.status && pct >= 100);
+      const label  = pct > 0
+        ? `${s.name} — ${pct.toFixed(0)}%${isDone ? ' ✓' : ''}`
+        : `${s.name}${isDone ? ' ✓' : ''}`;
+      return `<option value="${s.name}" ${isDone ? 'disabled' : ''} ${isDone ? 'style="color:var(--text-4);"' : ''}>
+        ${label}
+      </option>`;
+    }).join('');
+
+    // Auto-select: if current step is 100% done, jump to next; otherwise stay on current
+    const currentStepPct = parseFloat(stepProgress[model.status] || 0);
+    if (currentStepPct >= 100) {
+      const nextStep = MODEL_STEPS.find(s => s.sort_order > currentStepOrder);
+      statusSel.value = nextStep ? nextStep.name : model.status;
+    } else {
+      statusSel.value = model.status;
+    }
+  }
+
+  // Now update the % Done display based on whatever step is actually selected
+  updateModelPctDisplay(rowId);
+}
+
+function onModelStepChange(rowId, stepName) {
+  // When user manually changes the step, re-evaluate progress for that step
+  updateModelPctDisplay(rowId);
+}
+
+function updateModelPctDisplay(rowId) {
+  const modelId  = document.getElementById('model-id-' + rowId)?.value;
+  const stepName = document.getElementById('model-status-' + rowId)?.value;
+  const model    = modelsList.find(m => m.id === modelId);
+  const pctInput = document.getElementById('model-pct-' + rowId);
+  const pctLabel = pctInput?.closest('.form-group')?.querySelector('label');
+
+  if (!model || !stepName || !pctInput) return;
+
+  const stepProgress   = model.step_progress || {};
+  const currentProgress = parseFloat(stepProgress[stepName] || 0);
+  const barColor        = currentProgress >= 100 ? 'var(--green,#22c55e)' : 'var(--accent)';
+
+  if (pctLabel) {
+    pctLabel.innerHTML = `% Done Today <span style="float:right;font-weight:700;color:${barColor};">${currentProgress.toFixed(0)}% done</span>`;
+  }
+
+  if (currentProgress >= 100) {
+    pctInput.value    = '0';
+    pctInput.disabled = true;
+    pctInput.title    = 'This step is already at 100% — select the next step to continue logging.';
+    pctInput.style.opacity = '0.4';
+  } else {
+    pctInput.disabled = false;
+    pctInput.title    = '';
+    pctInput.style.opacity = '';
+    const remaining   = Math.max(0, 100 - currentProgress);
+    pctInput.max      = remaining;
+    pctInput.placeholder = `max ${remaining.toFixed(0)}`;
+  }
+}
+    
+    function removeModelRow(rowId) {
+      modelRows = modelRows.filter(r => r.id !== rowId);
+      const el = document.getElementById(rowId);
+      if (el) el.remove();
+      updateTotals();
+      const container = document.getElementById('model-rows-container');
+      if (container) {
+        const allRows = container.querySelectorAll('.entry-row');
+        allRows.forEach(r => {
+          const btn = r.querySelector('.remove-row-btn');
+          if (btn) btn.style.display = allRows.length === 1 ? 'none' : 'flex';
+        });
+      }
+    }
+
+    function removeOtherActivityRow(rowId) {
+      otherActivityRows = otherActivityRows.filter(r => r.id !== rowId);
+      const el = document.getElementById(rowId);
+      if (el) el.remove();
+      updateTotals();
+      const container = document.getElementById('oa-rows-container');
+      if (container) {
+        const allRows = container.querySelectorAll('.entry-row');
+        allRows.forEach(r => {
+          const btn = r.querySelector('.remove-row-btn');
+          if (btn) btn.style.display = allRows.length === 1 ? 'none' : 'flex';
+        });
+      }
+    }
+
+    // ── RECENT ACTIVITY ────────────────────────────────────
+    async function loadRecentActivity() {
+  const el = document.getElementById('activity-feed');
+  if (!el) return;
+  el.innerHTML = `<div style="padding:24px;text-align:center;"><div style="width:18px;height:18px;border:2px solid #f97316;border-top-color:transparent;border-radius:50%;animation:spin .6s linear infinite;margin:0 auto;"></div></div>`;
+
+  const [drawActsResults, { data: modelActs }, { data: otherActs }, { data: tpActs }, { data: calcActs }, { data: matActs }, { data: inqActs }, { data: miscActs }] = await Promise.all([
+    Promise.all(DRAWING_SOURCES.map(src =>
+      db.from(src.activities)
+        .select(`manhours, step_done, created_at, ${src.table}(drawing_number)`)
+        .eq('user_id', userProfile.id)
+        .order('created_at', { ascending: false }).limit(20)
+    )),
+    db.from('model_activities')
+      .select('manhours, created_at, models_3d(area, model_name)')
+      .eq('user_id', userProfile.id)
+      .order('created_at', { ascending: false }).limit(20),
+    db.from('other_activity_logs')
+      .select('manhours, created_at, other_activities(description)')
+      .eq('user_id', userProfile.id)
+      .order('created_at', { ascending: false }).limit(20),
+    db.from('test_package_drawing_activities')
+	  .select('manhours, step_done, created_at, test_package_drawings(drawing_number)')
+	  .eq('user_id', userProfile.id)
+	  .order('created_at', { ascending: false }).limit(20),
+    db.from('eng_calculation_activities')
+	  .select('manhours, step_done, created_at, eng_calculations(doc_number)')
+	  .eq('user_id', userProfile.id)
+	  .order('created_at', { ascending: false }).limit(20),
+    db.from('material_activities')
+	  .select('manhours, step_done, created_at, material_status(mto_number)')
+	  .eq('user_id', userProfile.id)
+	  .order('created_at', { ascending: false }).limit(20),
+	db.from('inquiry_activities')
+      .select('manhours, created_at, project_inquiries(control_number, client), misc_activities(name)')
+      .eq('user_id', userProfile.id)
+      .order('created_at', { ascending: false }).limit(20),
+    db.from('misc_activity_logs')
+      .select('manhours, step_done, created_at, misc_activities(category, name)')
+      .eq('user_id', userProfile.id)
+      .order('created_at', { ascending: false }).limit(20),
+  ]);
+
+  const drawActs = drawActsResults.flatMap((res, i) => {
+    const src = DRAWING_SOURCES[i];
+    return (res.data || []).map(a => ({
+      manhours: a.manhours,
+      step_done: a.step_done,
+      created_at: a.created_at,
+      drawing_number: a[src.table]?.drawing_number
+    }));
+  });
+
+  // Merge and sort all sources by date descending, keep top 20
+  const all = [
+    ...(drawActs  || []).map(a => ({ type: 'drawing',  label: a.drawing_number || '—',                              sub: a.step_done || '—',                                              mh: a.manhours, date: a.created_at })),
+    ...(modelActs || []).map(a => ({ type: 'model',    label: a.models_3d?.area || a.models_3d?.model_name || '—',  sub: '3D Model',                                                      mh: a.manhours, date: a.created_at })),
+    ...(otherActs || []).map(a => ({ type: 'other',    label: a.other_activities?.description || '—',               sub: 'Other Activity',                                                mh: a.manhours, date: a.created_at })),
+    ...(tpActs 	  || []).map(a => ({ type: 'tp',       label: a.test_package_drawings?.drawing_number || '—', 		sub: a.step_done || '—',                                              mh: a.manhours, date: a.created_at })),
+    ...(calcActs  || []).map(a => ({ type: 'calc', 	   label: a.eng_calculations?.doc_number || '—', 				sub: a.step_done || '—',                                              mh: a.manhours, date: a.created_at })),
+    ...(matActs   || []).map(a => ({ type: 'material', label: a.material_status?.mto_number || '—',                 sub: a.step_done || '—',                                              mh: a.manhours, date: a.created_at })),
+	...(inqActs   || []).map(a => ({ type: 'inquiry',  label: a.project_inquiries?.control_number || '—',           sub: a.misc_activities?.name || a.project_inquiries?.client || '—',   mh: a.manhours, date: a.created_at })),
+    ...(miscActs  || []).map(a => ({ type: 'misc',     label: a.misc_activities?.name || '—',                       sub: a.step_done || a.misc_activities?.category || '—',               mh: a.manhours, date: a.created_at })),
+  ].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 20);
+
+  if (!all.length) {
+    el.innerHTML = `<div style="padding:32px 16px;text-align:center;font-size:12px;color:var(--text-4);">No activity yet.</div>`;
+    return;
+  }
+
+  const typeIcon = {
+    drawing:  `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>`,
+    model:    `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>`,
+    other:    `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/><path d="M4.93 4.93a10 10 0 0 0 0 14.14"/></svg>`,
+    tp:       `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v11m0 0H5a2 2 0 0 0-2 2v4a2 2 0 0 0 2 2h4m0-6h6m0 0v6m0-6h4a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-4m-6 0v-6"/></svg>`,
+    calc:     `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2"/><line x1="8" y1="6" x2="16" y2="6"/><line x1="8" y1="10" x2="16" y2="10"/><line x1="8" y1="14" x2="12" y2="14"/><line x1="8" y1="18" x2="10" y2="18"/></svg>`,
+    material: `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16V8z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>`,
+	inquiry:  `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>`,
+    misc:     `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>`,
+  };
+
+  el.innerHTML = all.map(a => `
+    <div class="activity-item">
+      <div class="activity-item-top">
+        <span class="activity-item-num" style="display:flex;align-items:center;gap:5px;">${typeIcon[a.type] || ''} ${a.label}</span>
+        <span class="activity-item-mh">${parseFloat(a.mh || 0).toFixed(2)} hrs</span>
+      </div>
+      <div class="activity-item-bottom">
+        <span class="activity-item-step"><span class="badge-gray">${a.sub}</span></span>
+        <span class="activity-item-date">${new Date(a.date).toLocaleString('en-US', { month:'short', day:'numeric', year:'numeric', hour:'2-digit', minute:'2-digit' })}</span>
+      </div>
+    </div>
+  `).join('');
+}
+
+	// ── CLEAR RECENT ACTIVITY ──────────────────────────────
+    async function clearRecentActivity() {
+  confirmDialog('Delete all your activity log entries? This cannot be undone.', async () => {
+    await Promise.all([
+      db.from('drawing_activities').delete().eq('user_id', userProfile.id),
+      db.from('model_activities').delete().eq('user_id', userProfile.id),
+      db.from('other_activity_logs').delete().eq('user_id', userProfile.id),
+      db.from('test_package_drawing_activities').delete().eq('user_id', userProfile.id),
+      db.from('eng_calculation_activities').delete().eq('user_id', userProfile.id),
+      db.from('material_activities').delete().eq('user_id', userProfile.id),
+	  db.from('inquiry_activities').delete().eq('user_id', userProfile.id),
+      db.from('misc_activity_logs').delete().eq('user_id', userProfile.id),
+    ]);
+    toast('Activity cleared.', 'success');
+    loadRecentActivity();
+  });
+}
+
+function clearAllEntries() {
+  // Drawing rows
+  entryRows = []; rowCounter = 0;
+  const drawContainer = document.getElementById('entry-rows-container');
+  if (drawContainer) drawContainer.innerHTML = '';
+  addEntryRow();
+
+  // Test Package rows
+  tpEntryRows = []; tpRowCounter = 0;
+  const tpContainer = document.getElementById('tp-rows-container');
+  if (tpContainer) tpContainer.innerHTML = '';
+  addTpEntryRow();
+
+  // Calc rows
+  calcEntryRows = []; calcRowCounter = 0;
+  const calcContainer = document.getElementById('calc-rows-container');
+  if (calcContainer) calcContainer.innerHTML = '';
+  addCalcEntryRow();
+  
+  // Inquiry rows
+  inquiryRows = []; inqRowCounter = 0;
+  const inqC = document.getElementById('inq-rows-container');
+  if (inqC) inqC.innerHTML = '';
+  addInquiryRow();
+
+  // Material rows
+  matEntryRows = []; matRowCounter = 0;
+  const matContainer = document.getElementById('mat-rows-container');
+  if (matContainer) matContainer.innerHTML = '';
+  addMatEntryRow();
+
+  // Other Activity rows
+  otherActivityRows = []; oaRowCounter = 0;
+  const oaContainer = document.getElementById('oa-rows-container');
+  if (oaContainer) oaContainer.innerHTML = '';
+  addOtherActivityRow();
+
+  // 3D Model rows
+  modelRows = []; modelCounter = 0;
+  const modelContainer = document.getElementById('model-rows-container');
+  if (modelContainer) modelContainer.innerHTML = '';
+  addModelRow();
+  
+  miscActivityRows = []; maRowCounter = 0;
+  const maC = document.getElementById('ma-rows-container');
+  if (maC) maC.innerHTML = '';
+  addMiscActivityRow();
+
+  updateTotals();
+  toast('All entries cleared.', 'success');
+}
+	
+// ── SAVE ALL ENTRIES ───────────────────────────────────
+async function saveAllEntries(addMore = false) {
+
+  // Determine which blocks are "touched" — has the user actually entered anything?
+  const drawingBlockTouched = entryRows.some(r =>
+    r.selectedDrawings.length > 0 ||
+    parseFloat(document.getElementById('mh-' + r.id)?.value || 0) > 0
+  );
+  const tpBlockTouched = tpEntryRows.some(r =>
+    r.selectedDrawings.length > 0 ||
+    parseFloat(document.getElementById('mh-' + r.id)?.value || 0) > 0
+  );
+  const calcBlockTouched = calcEntryRows.some(r =>
+    r.selectedDrawings.length > 0 ||
+    parseFloat(document.getElementById('mh-' + r.id)?.value || 0) > 0
+  );
+  const matBlockTouched = matEntryRows.some(r =>
+    r.selectedDrawings.length > 0 ||
+    parseFloat(document.getElementById('mh-' + r.id)?.value || 0) > 0
+  );
+  const oaBlockTouched = otherActivityRows.some(r =>
+    document.getElementById('oa-code-' + r.id)?.value ||
+    parseFloat(document.getElementById('oa-mh-' + r.id)?.value || 0) > 0
+  );
+  const maBlockTouched = miscActivityRows.some(r =>
+    document.getElementById('ma-act-' + r.id)?.value ||
+    parseFloat(document.getElementById('ma-mh-' + r.id)?.value || 0) > 0
+  );
+  const inqBlockTouched = inquiryRows.some(r =>
+    document.getElementById('inq-ctrl-' + r.id)?.value ||
+    parseFloat(document.getElementById('inq-mh-' + r.id)?.value || 0) > 0
+  );
+  const modelBlockTouched = modelRows.some(r =>
+    document.getElementById('model-id-' + r.id)?.value ||
+    parseFloat(document.getElementById('model-mh-' + r.id)?.value || 0) > 0
+  );
+
+  // At least one block must have input
+  if (!drawingBlockTouched && !tpBlockTouched && !calcBlockTouched && !matBlockTouched && !oaBlockTouched && !maBlockTouched && !modelBlockTouched && !inqBlockTouched) {
+    toast('Please fill in at least one activity before saving.', 'error'); return;
+  }
+
+  // Validate only touched blocks — skip empty ones entirely
+  if (drawingBlockTouched) {
+    for (const rowState of entryRows) {
+      if (!rowState.selectedDrawings.length) {
+        toast('Drawing Preparation: please select drawings for every row, or remove empty rows.', 'error'); return;
+      }
+      const mh = parseFloat(document.getElementById('mh-' + rowState.id)?.value || 0);
+      const firstStep = WORKFLOW_STEPS[0]?.name || 'Draft';
+      if (rowState.step !== firstStep && (!mh || mh <= 0)) {
+        toast('Drawing Preparation: enter valid manhours (> 0) for every row.', 'error'); return;
+      }
+    }
+  }
+  
+  if (tpBlockTouched) {
+    for (const rowState of tpEntryRows) {
+      if (!rowState.selectedDrawings.length) {
+        toast('Test Package: please select test packages for every row, or remove empty rows.', 'error'); return;
+      }
+      const mh = parseFloat(document.getElementById('mh-' + rowState.id)?.value || 0);
+      const firstStep = TP_STEPS[0]?.name || 'Package Preparation';
+      if (rowState.step !== firstStep && (!mh || mh <= 0)) {
+        toast('Test Package: enter valid manhours (> 0) for every row.', 'error'); return;
+      }
+    }
+  }
+
+  if (oaBlockTouched) {
+    for (const row of otherActivityRows) {
+      const activityId = document.getElementById('oa-code-' + row.id)?.value;
+      const mh = parseFloat(document.getElementById('oa-mh-' + row.id)?.value || 0);
+      if (!activityId) { toast('Other Activities: please select an activity for every row, or remove empty rows.', 'error'); return; }
+      if (!mh || mh <= 0) { toast('Other Activities: enter valid manhours (> 0) for every row.', 'error'); return; }
+    }
+  }
+
+  if (maBlockTouched) {
+    for (const row of miscActivityRows) {
+      const activityId = document.getElementById('ma-act-' + row.id)?.value;
+      const mh = parseFloat(document.getElementById('ma-mh-' + row.id)?.value || 0);
+      if (!activityId) { toast('Miscellaneous Activities: please select an activity for every row, or remove empty rows.', 'error'); return; }
+      if (!mh || mh <= 0) { toast('Miscellaneous Activities: enter valid manhours (> 0) for every row.', 'error'); return; }
+    }
+  }
+  
+  if (inqBlockTouched) {
+    for (const row of inquiryRows) {
+      const inqId      = document.getElementById('inq-ctrl-' + row.id)?.value;
+      const activityId = document.getElementById('inq-act-' + row.id)?.value;
+      const mh         = parseFloat(document.getElementById('inq-mh-' + row.id)?.value || 0);
+      if (!inqId) { toast('Project Inquiry: please select a control number for every row.', 'error'); return; }
+      if (!activityId) { toast('Project Inquiry: please select an activity for every row.', 'error'); return; }
+      if (!mh || mh <= 0) { toast('Project Inquiry: enter valid manhours (> 0) for every row.', 'error'); return; }
+    }
+  }
+
+  if (modelBlockTouched) {
+    for (const row of modelRows) {
+      const modelId = document.getElementById('model-id-' + row.id)?.value;
+      const mh = parseFloat(document.getElementById('model-mh-' + row.id)?.value || 0);
+      if (!modelId) { toast('3D Model Preparation: please select a model for every row, or remove empty rows.', 'error'); return; }
+      if (!mh || mh <= 0) { toast('3D Model Preparation: enter valid manhours (> 0) for every row.', 'error'); return; }
+    }
+  }
+
+  const btn = document.getElementById('save-btn');
+  if (btn) { btn.innerHTML = `<div style="width:14px;height:14px;border:2px solid #fff;border-top-color:transparent;border-radius:50%;animation:spin .6s linear infinite;"></div> Saving…`; btn.disabled = true; }
+
+  // ── Save Drawing Preparation rows ──
+  if (drawingBlockTouched) {
+    const records = [];
+    const revisionIncrements = []; // [drawingId] for IFC re-issues
+    for (const rowState of entryRows) {
+      const mh     = parseFloat(document.getElementById('mh-' + rowState.id).value);
+      const count  = rowState.selectedDrawings.length;
+      const mhEach = parseFloat((mh / count).toFixed(4));
+      const isIfc      = rowState.step === IFC_STEP_NAME && !!IFC_STEP_NAME;
+      const isRevision = WORKFLOW_STEPS.some(s => s.name === rowState.step && s.is_revision === true);
+      const targetId  = document.getElementById('pos-' + rowState.id)?.value || null;
+      const posTarget = targetId ? targetsList.find(t => t.id === targetId) : null;
+      const discId    = posTarget?.discipline_id || null;
+
+      for (const sel of rowState.selectedDrawings) {
+        const drawingId  = sel.id ?? sel;
+        const reasonId   = sel.reason_id || null;
+        const drawing    = drawingsList.find(d => d.id === drawingId);
+        const isReIssue  = isRevision;
+
+        // Skip already-completed steps, but never skip Revision (can repeat)
+        if (!isRevision && drawing && drawing.completedSteps.includes(rowState.step)) {
+          toast(`${drawing.drawing_number} already has "${rowState.step}" logged. Skipped.`, 'info');
+          continue;
+        }
+
+        records.push({
+          drawing_id: drawingId,
+          source_table: drawing?.source_table || null,
+          user_id: userProfile.id,
+          step_done: rowState.step,
+          manhours: mhEach,
+          project_id: rowState.project_id || null,
+          discipline_id: discId,
+          target_id: targetId,
+          revision_reason_id: isReIssue ? reasonId : null,
+          remarks: null
+        });
+
+        if (isRevision) revisionIncrements.push(drawingId);
+      }
+    }
+
+    if (records.length) {
+      // Group records by their source table — each type writes to its own activities table
+      const bySource = {};
+      records.forEach(r => {
+        if (!r.source_table) return; // safety guard, shouldn't normally happen
+        (bySource[r.source_table] = bySource[r.source_table] || []).push(r);
+      });
+
+      for (const [sourceTable, group] of Object.entries(bySource)) {
+        const src = DRAWING_SOURCES.find(s => s.table === sourceTable);
+        if (!src) continue;
+        const payload = group.map(r => ({
+          [src.fk]: r.drawing_id,
+          user_id: r.user_id,
+          step_done: r.step_done,
+          manhours: r.manhours,
+          project_id: r.project_id,
+          discipline_id: r.discipline_id,
+          target_id: r.target_id,
+          revision_reason_id: r.revision_reason_id,
+          remarks: r.remarks
+        }));
+        const { error } = await db.from(src.activities).insert(payload);
+        if (error) { toast(error.message, 'error'); return; }
+      }
+
+      const firstStep   = WORKFLOW_STEPS[0]?.name || 'Draft';
+      const checkedStep = WORKFLOW_STEPS.find(w => w.name.toLowerCase().includes('check'))?.name || 'Checked';
+      const statusUpdates   = {}; // drawingId -> newStatus
+      const revisionUpdates = {}; // drawingId -> newRevisionCode
+
+      records.filter(r => r.step_done !== REVISION_STEP_NAME).forEach(r => {
+        const current = statusUpdates[r.drawing_id];
+        const currentOrder = WORKFLOW_STEPS.find(w => w.name === current)?.sort_order ?? -1;
+        const newOrder     = WORKFLOW_STEPS.find(w => w.name === r.step_done)?.sort_order ?? -1;
+        if (newOrder > currentOrder) statusUpdates[r.drawing_id] = r.step_done;
+      });
+
+      records.filter(r => r.step_done !== REVISION_STEP_NAME).forEach(r => {
+        const step = WORKFLOW_STEPS.find(w => w.name === r.step_done);
+        if (step?.revision_code) {
+          const current = revisionUpdates[r.drawing_id];
+          const currentOrder = WORKFLOW_STEPS.find(w => w.revision_code === current)?.sort_order ?? -1;
+          if (step.sort_order > currentOrder) revisionUpdates[r.drawing_id] = step.revision_code;
+        }
+      });
+
+      for (const [sourceTable, group] of Object.entries(bySource)) {
+        const draftIds = group.filter(r => r.step_done === firstStep).map(r => r.drawing_id);
+        if (draftIds.length) {
+          await db.from(sourceTable).update({ created_by: userProfile.id }).in('id', draftIds);
+        }
+
+        const checkIds = group.filter(r => r.step_done === checkedStep).map(r => r.drawing_id);
+        if (checkIds.length) {
+          await db.from(sourceTable).update({ checked_by: userProfile.id }).in('id', checkIds);
+        }
+
+        const idsInThisSource = new Set(group.map(r => r.drawing_id));
+
+        for (const drawingId of idsInThisSource) {
+          const newStatus = statusUpdates[drawingId];
+          if (newStatus) {
+            const { data: existing } = await db.from(sourceTable).select('status').eq('id', drawingId).single();
+            const existingOrder = WORKFLOW_STEPS.find(w => w.name === existing?.status)?.sort_order ?? -1;
+            const newOrder      = WORKFLOW_STEPS.find(w => w.name === newStatus)?.sort_order ?? -1;
+            if (newOrder > existingOrder) {
+              await db.from(sourceTable).update({ status: newStatus }).eq('id', drawingId);
+            }
+          }
+
+          const newRevision = revisionUpdates[drawingId];
+          if (newRevision) {
+            const { data: existing } = await db.from(sourceTable).select('revision').eq('id', drawingId).single();
+            const existingOrder = WORKFLOW_STEPS.find(w => w.revision_code === existing?.revision)?.sort_order ?? -1;
+            const newOrder      = WORKFLOW_STEPS.find(w => w.revision_code === newRevision)?.sort_order ?? -1;
+            if (newOrder > existingOrder) {
+              await db.from(sourceTable).update({ revision: newRevision }).eq('id', drawingId);
+            }
+          }
+
+          if (revisionIncrements.includes(drawingId)) {
+            const { data: existing } = await db.from(sourceTable).select('revision_number').eq('id', drawingId).single();
+            const newRevNum = parseInt(existing?.revision_number || 0) + 1;
+            await db.from(sourceTable).update({ revision_number: newRevNum, revision: String(newRevNum) }).eq('id', drawingId);
+          }
+        }
+      }
+
+      toast(`${records.length} drawing entr${records.length === 1 ? 'y' : 'ies'} saved!`, 'success');
+    }
+
+    await loadDrawings();
+    entryRows = []; rowCounter = 0;
+    const container = document.getElementById('entry-rows-container');
+    if (container) container.innerHTML = '';
+    addEntryRow();
+    loadRecentActivity();
+  }
+
+  // ── Save Test Package rows ──
+  if (tpBlockTouched) {
+    const tpRecords = [];
+    const tpRevisionIncrements = [];
+    for (const rowState of tpEntryRows) {
+	  const firstStep   = TP_STEPS[0]?.name || 'Package Preparation';
+	  const isFirstStep = rowState.step === firstStep;
+	  const rawMh  = parseFloat(document.getElementById('mh-' + rowState.id).value);
+	  const mh     = isFirstStep ? 0 : (isNaN(rawMh) ? 0 : rawMh);
+	  const count  = rowState.selectedDrawings.length;
+	  const mhEach = parseFloat((mh / count).toFixed(4));
+      const isIfc      = rowState.step === TP_IFC_STEP_NAME && !!TP_IFC_STEP_NAME;
+      const isRevision = TP_STEPS.some(s => s.name === rowState.step && s.is_revision === true);
+      const targetId  = document.getElementById('pos-' + rowState.id)?.value || null;
+      const posTarget = targetId ? targetsList.find(t => t.id === targetId) : null;
+      const discId    = posTarget?.discipline_id || null;
+
+      for (const sel of rowState.selectedDrawings) {
+        const tpId      = sel.id ?? sel;
+        const reasonId  = sel.reason_id || null;
+        const tp        = tpDrawingsList.find(d => d.id === tpId);
+        const isReIssue = isRevision;
+
+        if (!isRevision && tp && tp.completedSteps.includes(rowState.step)) {
+          toast(`${tp.drawing_number} already has "${rowState.step}" logged. Skipped.`, 'info');
+          continue;
+        }
+
+        tpRecords.push({
+          test_package_drawing_id: tpId,
+          user_id: userProfile.id,
+          step_done: rowState.step,
+          manhours: mhEach,
+          project_id: rowState.project_id || null,
+          discipline_id: discId,
+          target_id: targetId,
+          revision_reason_id: isReIssue ? reasonId : null
+        });
+
+        if (isRevision) tpRevisionIncrements.push(tpId);
+      }
+    }
+
+    if (tpRecords.length) {
+      const { error: tpError } = await db.from('test_package_drawing_activities').insert(tpRecords);
+      if (tpError) { toast('Error saving test package entries: ' + tpError.message, 'error'); }
+      else {
+        // Update created_by on first step
+        const firstStep = TP_STEPS[0]?.name || 'Package Preparation';
+        const draftIds = tpRecords.filter(r => r.step_done === firstStep).map(r => r.test_package_drawing_id);
+        if (draftIds.length) {
+          await db.from('test_package_drawings').update({ created_by: userProfile.id }).in('id', draftIds);
+        }
+
+        // Update checked_by
+        const checkedStep = TP_STEPS.find(w => w.name.toLowerCase().includes('check'))?.name;
+        if (checkedStep) {
+          const checkIds = tpRecords.filter(r => r.step_done === checkedStep).map(r => r.test_package_drawing_id);
+          if (checkIds.length) {
+            await db.from('test_package_drawings').update({ checked_by: userProfile.id }).in('id', checkIds);
+          }
+        }
+
+        // Update status — only advance, never downgrade
+        const statusUpdates = {};
+        tpRecords.forEach(r => {
+          const current = statusUpdates[r.test_package_drawing_id];
+          const currentOrder = TP_STEPS.find(w => w.name === current)?.sort_order ?? -1;
+          const newOrder     = TP_STEPS.find(w => w.name === r.step_done)?.sort_order ?? -1;
+          if (newOrder > currentOrder) statusUpdates[r.test_package_drawing_id] = r.step_done;
+        });
+        for (const [tpId, newStatus] of Object.entries(statusUpdates)) {
+          const { data: existing } = await db.from('test_package_drawings').select('status').eq('id', tpId).single();
+          const existingOrder = TP_STEPS.find(w => w.name === existing?.status)?.sort_order ?? -1;
+          const newOrder      = TP_STEPS.find(w => w.name === newStatus)?.sort_order ?? -1;
+          if (newOrder > existingOrder) {
+            await db.from('test_package_drawings').update({ status: newStatus }).eq('id', tpId);
+          }
+        }
+
+        // Auto-update revision (if revision_code configured on TP steps)
+        const revisionUpdates = {};
+        tpRecords.forEach(r => {
+          const step = TP_STEPS.find(w => w.name === r.step_done);
+          if (step?.revision_code) {
+            const current = revisionUpdates[r.test_package_drawing_id];
+            const currentOrder = TP_STEPS.find(w => w.revision_code === current)?.sort_order ?? -1;
+            if (step.sort_order > currentOrder) revisionUpdates[r.test_package_drawing_id] = step.revision_code;
+          }
+        });
+        for (const [tpId, newRevision] of Object.entries(revisionUpdates)) {
+          const { data: existing } = await db.from('test_package_drawings').select('revision').eq('id', tpId).single();
+          const existingOrder = TP_STEPS.find(w => w.revision_code === existing?.revision)?.sort_order ?? -1;
+          const newOrder      = TP_STEPS.find(w => w.revision_code === newRevision)?.sort_order ?? -1;
+          if (newOrder > existingOrder) {
+            await db.from('test_package_drawings').update({ revision: newRevision }).eq('id', tpId);
+          }
+        }
+		
+		// IFC re-issues: increment revision_number AND sync the displayed revision field
+        for (const tpId of tpRevisionIncrements) {
+          const { data: existing } = await db.from('test_package_drawings').select('revision_number').eq('id', tpId).single();
+          const newRevNum = parseInt(existing?.revision_number || 0) + 1;
+          await db.from('test_package_drawings').update({ revision_number: newRevNum, revision: String(newRevNum) }).eq('id', tpId);
+        }
+
+        toast(`${tpRecords.length} test package entr${tpRecords.length === 1 ? 'y' : 'ies'} saved!`, 'success');
+      }
+    }
+
+    await loadTestPackages();
+    tpEntryRows = []; tpRowCounter = 0;
+    const tpContainer = document.getElementById('tp-rows-container');
+    if (tpContainer) tpContainer.innerHTML = '';
+    addTpEntryRow();
+    loadRecentActivity();
+  }
+  
+// ── Save Engineering Calculation rows ──
+if (calcBlockTouched) {
+  for (const rowState of calcEntryRows) {
+    if (!rowState.selectedDrawings.length) {
+      toast('Engineering Calculation: please select a calculation for every row, or remove empty rows.', 'error'); return;
+    }
+    const mh = parseFloat(document.getElementById('mh-' + rowState.id)?.value || 0);
+    if (!mh || mh <= 0) {
+      toast('Engineering Calculation: enter valid manhours (> 0) for every row.', 'error'); return;
+    }
+  }
+
+  const calcRecords = [];
+  for (const rowState of calcEntryRows) {
+    rowState.step = document.getElementById('calc-step-' + rowState.id)?.value || rowState.step;
+    const mh        = parseFloat(document.getElementById('mh-' + rowState.id).value);
+    const count     = rowState.selectedDrawings.length;
+    const mhEach    = parseFloat((mh / count).toFixed(4));
+    const isRevision = CALC_STEPS.some(s => s.name === rowState.step && s.is_revision === true);
+    const targetId  = document.getElementById('calc-pos-' + rowState.id)?.value || null;
+    const projectId = document.getElementById('calc-proj-' + rowState.id)?.value || null;
+    const posTarget = targetId ? targetsList.find(t => t.id === targetId) : null;
+    const discId    = posTarget?.discipline_id || null;
+
+    for (const sel of rowState.selectedDrawings) {
+      const calcId    = sel.id ?? sel;
+      const reasonId  = sel.reason_id || null;
+      const calc      = calcsList.find(c => c.id === calcId);
+      const isReIssue = isRevision;
+
+      // Skip already-completed steps, but never skip Revision (can repeat)
+      if (!isRevision && calc && calc.completedSteps.includes(rowState.step)) {
+        toast(`${calc.drawing_number} already has "${rowState.step}" logged. Skipped.`, 'info');
+        continue;
+      }
+
+      calcRecords.push({
+        eng_calculation_id: calcId,
+        user_id:            userProfile.id,
+        step_done:          rowState.step,
+        manhours:           mhEach,
+        project_id:         projectId,
+        discipline_id:      discId,
+        target_id:          targetId,
+        revision_reason_id: isReIssue ? reasonId : null,
+      });
+    }
+  }
+
+  if (calcRecords.length) {
+    // Update status on each calc — only advance, never downgrade. Revision step never touches status.
+    for (const rec of calcRecords) {
+      if (rec.step_done === CALC_REVISION_STEP_NAME) continue;
+      const stepObj       = CALC_STEPS.find(s => s.name === rec.step_done);
+      const newOrder      = stepObj?.sort_order ?? 999;
+      const { data: existing } = await db.from('eng_calculations').select('status').eq('id', rec.eng_calculation_id).single();
+      const existingStep  = CALC_STEPS.find(s => s.name === existing?.status);
+      const existingOrder = existingStep?.sort_order ?? -1;
+      if (!existingStep || newOrder > existingOrder) {
+        await db.from('eng_calculations').update({ status: rec.step_done }).eq('id', rec.eng_calculation_id);
+      }
+    }
+
+    const { error: cErr } = await db.from('eng_calculation_activities').insert(calcRecords);
+    if (cErr) { toast('Error saving calculation entries: ' + cErr.message, 'error'); }
+    else toast(`${calcRecords.length} calculation entr${calcRecords.length === 1 ? 'y' : 'ies'} saved!`, 'success');
+  }
+
+  await loadCalcs();
+  calcEntryRows = []; calcRowCounter = 0;
+  const calcContainer = document.getElementById('calc-rows-container');
+  if (calcContainer) calcContainer.innerHTML = '';
+  addCalcEntryRow();
+  loadRecentActivity();
+}
+
+// ── Save Material Preparation rows ──
+  if (matBlockTouched) {
+    for (const rowState of matEntryRows) {
+      if (!rowState.selectedDrawings.length) {
+        toast('Material Preparation: please select a material for every row, or remove empty rows.', 'error'); return;
+      }
+      const mh = parseFloat(document.getElementById('mh-' + rowState.id)?.value || 0);
+      if (!mh || mh <= 0) {
+        toast('Material Preparation: enter valid manhours (> 0) for every row.', 'error'); return;
+      }
+    }
+
+    const matRecords = [];
+    for (const rowState of matEntryRows) {
+	  rowState.step = document.getElementById('mat-step-' + rowState.id)?.value || rowState.step;
+	  const mh = parseFloat(document.getElementById('mh-' + rowState.id)?.value || 0);
+      const count     = rowState.selectedDrawings.length;
+      const mhEach    = parseFloat((mh / count).toFixed(4));
+      const isRevision = MAT_STEPS.some(s => s.name === rowState.step && s.is_revision === true);
+      const targetId  = document.getElementById('mat-pos-' + rowState.id)?.value || null;
+      const projectId = document.getElementById('mat-proj-' + rowState.id)?.value || null;
+      const posTarget = targetId ? targetsList.find(t => t.id === targetId) : null;
+      const discId    = posTarget?.discipline_id || null;
+
+      for (const sel of rowState.selectedDrawings) {
+        const matId     = sel.id ?? sel;
+        const reasonId  = sel.reason_id || null;
+        const mat       = materialsList.find(m => m.id === matId);
+        const isReIssue = isRevision;
+
+        // Skip already-completed steps, but never skip Revision (can repeat)
+        if (!isRevision && mat && mat.completedSteps.includes(rowState.step)) {
+          toast(`${mat.drawing_number} already has "${rowState.step}" logged. Skipped.`, 'info');
+          continue;
+        }
+
+        matRecords.push({
+          material_status_id: matId,
+          user_id:            userProfile.id,
+          step_done:          rowState.step,
+          manhours:           mhEach,
+          project_id:         projectId,
+          discipline_id:      discId,
+          target_id:          targetId,
+          revision_reason_id: isReIssue ? reasonId : null,
+        });
+      }
+    }
+
+    if (matRecords.length) {
+      const { error: matError } = await db.from('material_activities').insert(matRecords);
+      if (matError) { toast('Error saving material entries: ' + matError.message, 'error'); }
+      else toast(`${matRecords.length} material entr${matRecords.length === 1 ? 'y' : 'ies'} saved!`, 'success');
+    }
+
+    await loadMaterials();
+    matEntryRows = []; matRowCounter = 0;
+    const matContainer = document.getElementById('mat-rows-container');
+    if (matContainer) matContainer.innerHTML = '';
+    addMatEntryRow();
+    loadRecentActivity();
+  }
+  
+  // ── Save Other Activity rows ──
+  if (oaBlockTouched) {
+    const oaRecords = [];
+    for (const row of otherActivityRows) {
+      const activityId = document.getElementById('oa-code-' + row.id)?.value;
+      const mh         = parseFloat(document.getElementById('oa-mh-' + row.id)?.value || 0);
+      const projectId  = document.getElementById('oa-proj-' + row.id)?.value || null;
+      const status     = document.getElementById('oa-status-' + row.id)?.value || 'In Progress';
+      const oaTargetId = document.getElementById('oa-pos-' + row.id)?.value || null;
+	  oaRecords.push({ activity_id: activityId, user_id: userProfile.id, project_id: projectId, status, manhours: mh, target_id: oaTargetId });
+    }
+    const { error: oaError } = await db.from('other_activity_logs').insert(oaRecords);
+    if (oaError) { toast('Error saving other activities: ' + oaError.message, 'error'); }
+    else toast(`${oaRecords.length} other activit${oaRecords.length === 1 ? 'y' : 'ies'} saved!`, 'success');
+
+    otherActivityRows = []; oaRowCounter = 0;
+    const oaContainer = document.getElementById('oa-rows-container');
+    if (oaContainer) oaContainer.innerHTML = '';
+    addOtherActivityRow();
+  }
+
+  // ── Save Miscellaneous Activity rows ──
+  if (maBlockTouched) {
+    const maRecords = [];
+    for (const row of miscActivityRows) {
+      const activityId = document.getElementById('ma-act-' + row.id)?.value;
+      const mh         = parseFloat(document.getElementById('ma-mh-' + row.id)?.value || 0);
+      const projectId  = document.getElementById('ma-proj-' + row.id)?.value || null;
+      const stepDone   = document.getElementById('ma-step-' + row.id)?.value || null;
+      const maTargetId = document.getElementById('ma-pos-' + row.id)?.value || null;
+      maRecords.push({ activity_id: activityId, user_id: userProfile.id, project_id: projectId, step_done: stepDone, manhours: mh, target_id: maTargetId });
+    }
+    const { error: maError } = await db.from('misc_activity_logs').insert(maRecords);
+    if (maError) { toast('Error saving miscellaneous activities: ' + maError.message, 'error'); }
+    else toast(`${maRecords.length} miscellaneous activit${maRecords.length === 1 ? 'y' : 'ies'} saved!`, 'success');
+
+    miscActivityRows = []; maRowCounter = 0;
+    const maContainer = document.getElementById('ma-rows-container');
+    if (maContainer) maContainer.innerHTML = '';
+    addMiscActivityRow();
+  }
+  
+  // ── Save Project Inquiry rows ──
+  if (inqBlockTouched) {
+    const inqRecords = [];
+    for (const row of inquiryRows) {
+      const inqId      = document.getElementById('inq-ctrl-' + row.id)?.value;
+      const mh         = parseFloat(document.getElementById('inq-mh-' + row.id)?.value || 0);
+      const activityId = document.getElementById('inq-act-' + row.id)?.value || null;
+      const targetId   = document.getElementById('inq-pos-' + row.id)?.value || null;
+      inqRecords.push({ inquiry_id: inqId, user_id: userProfile.id, activity_id: activityId, manhours: mh, target_id: targetId });
+    }
+    const { error: inqError } = await db.from('inquiry_activities').insert(inqRecords);
+    if (inqError) { toast('Error saving inquiry manhours: ' + inqError.message, 'error'); }
+    else toast(`${inqRecords.length} inquiry entr${inqRecords.length === 1 ? 'y' : 'ies'} saved!`, 'success');
+
+    inquiryRows = []; inqRowCounter = 0;
+    const inqContainer = document.getElementById('inq-rows-container');
+    if (inqContainer) inqContainer.innerHTML = '';
+    addInquiryRow();
+  }
+
+  // ── Save 3D Model rows ──
+  if (modelBlockTouched) {
+    const modelRecords = [];
+    const modelStatusUpdates = {};
+    const modelProgressUpdates = {};
+
+    for (const row of modelRows) {
+      const modelId   = document.getElementById('model-id-' + row.id)?.value;
+      const mh        = parseFloat(document.getElementById('model-mh-' + row.id)?.value || 0);
+      const projectId = document.getElementById('model-proj-' + row.id)?.value || null;
+      const status    = document.getElementById('model-status-' + row.id)?.value || 'Not Started';
+      const pct       = parseFloat(document.getElementById('model-pct-' + row.id)?.value || 0);
+      const modelTargetId = document.getElementById('model-pos-' + row.id)?.value || null;
+	  const stepDone = document.getElementById('model-status-' + row.id)?.value || null;
+	  modelRecords.push({ model_id: modelId, user_id: userProfile.id, project_id: projectId, manhours: mh, progress_pct: pct > 0 ? pct : null, target_id: modelTargetId, step_done: stepDone });
+      modelStatusUpdates[modelId] = status;
+      if (pct > 0) modelProgressUpdates[modelId] = (modelProgressUpdates[modelId] || 0) + pct;
+    }
+
+    const { error: mError } = await db.from('model_activities').insert(modelRecords);
+    if (mError) { toast('Error saving 3D model entries: ' + mError.message, 'error'); }
+    else {
+      for (const [modelId, status] of Object.entries(modelStatusUpdates)) {
+        const updatePayload = { status };
+        const model = modelsList.find(m => m.id === modelId);
+        if (model) {
+          // Find the row for this model to get the pct entered
+          const rowId  = [...modelRows].find(r => document.getElementById('model-id-' + r.id)?.value === modelId)?.id;
+          const newPct = parseFloat(document.getElementById('model-pct-' + rowId)?.value || 0);
+
+          // Update step_progress map: accumulate pct per step
+          const stepProgressMap = { ...(model.step_progress || {}) };
+          if (status && newPct > 0) {
+            stepProgressMap[status] = Math.min(100, (parseFloat(stepProgressMap[status] || 0) + newPct));
+          }
+          updatePayload.step_progress = stepProgressMap;
+
+          // Fetch ROC weights for this discipline
+          const { data: rocItemsData } = await db.from('roc_items')
+            .select('roc_step_items(step_name, weight)')
+            .eq('project_id', model.project_id)
+            .eq('discipline_id', model.discipline_id);
+
+          const allStepWeights = (rocItemsData || []).flatMap(r => r.roc_step_items || []);
+
+          // Progress = sum of (step_roc_weight% × step_done%) for each step
+          const totalRocWeight = allStepWeights.reduce((s, r) => s + parseFloat(r.weight || 0), 0);
+          let earnedProgress = 0;
+          if (totalRocWeight > 0) {
+            for (const sw of allStepWeights) {
+              const stepPct = parseFloat(stepProgressMap[sw.step_name] || 0); // 0–100
+              const rocW    = parseFloat(sw.weight || 0);                      // 0–100
+              earnedProgress += (rocW / totalRocWeight) * (stepPct / 100);
+            }
+          }
+          updatePayload.progress = parseFloat((earnedProgress * 100).toFixed(2));
+        }
+
+        await db.from('models_3d').update(updatePayload).eq('id', modelId);
+      }
+      // Refresh modelsList so onModelSelect reads updated progress immediately
+      await load3DModels();
+      toast(`${modelRecords.length} 3D model entr${modelRecords.length === 1 ? 'y' : 'ies'} saved!`, 'success');
+    }
+
+    modelRows = []; modelCounter = 0;
+    const modelContainer = document.getElementById('model-rows-container');
+    if (modelContainer) modelContainer.innerHTML = '';
+    addModelRow();
+  }
+
+  updateTotals();
+  loadRecentActivity();
+  if (btn) { btn.innerHTML = `${IC.save} Save Entries`; btn.disabled = false; }
+}
+	
+    /* spinner keyframe */
+    const style = document.createElement('style');
+    style.textContent = '@keyframes spin { to { transform: rotate(360deg); } }';
+    document.head.appendChild(style);
+  </script>
+</body>
+</html>

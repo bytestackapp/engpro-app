@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Issues and Concerns — EngPro App</title>
+  <link rel="stylesheet" href="../css/main.css" />
+  <style>
+    .table-toolbar { display:flex; align-items:center; gap:8px; padding:10px 24px; flex-wrap:wrap; border-bottom:1px solid var(--border); }
+    .search-box-sm { position:relative; width:200px; }
+    .search-box-sm input { padding-left:28px; font-size:12px; padding-top:6px; padding-bottom:6px; }
+    .search-box-sm::before { content:''; position:absolute; left:9px; top:50%; transform:translateY(-50%); width:13px; height:13px; background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='13' height='13' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cpath d='m21 21-4.35-4.35'/%3E%3C/svg%3E") no-repeat center; }
+    .toolbar-right { margin-left:auto; display:flex; gap:6px; align-items:center; }
+    .concern-text { max-width:300px; white-space:pre-wrap; word-break:break-word; font-size:12px; line-height:1.5; }
+    .action-text  { max-width:250px; white-space:pre-wrap; word-break:break-word; font-size:12px; line-height:1.5; color:var(--text-3); }
+  </style>
+</head>
+<body>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="../js/supabase.js"></script>
+  <script src="../js/utils.js"></script>
+  <script src="../js/layout.js"></script>
+  <script src="../js/messaging.js"></script>
+  <script>
+    const SVG_SM = (p) => `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
+    const IC = {
+      plus:  SVG_SM('<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>'),
+      edit:  SVG_SM('<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>'),
+      trash: SVG_SM('<polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/>'),
+      save:  SVG_SM('<path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/>'),
+    };
+
+    const STATUS_LIST = ['Open', 'In Progress', 'Resolved', 'Closed', 'On Hold'];
+
+    let issuesData      = [];
+    let projectsData    = [];
+    let disciplinesData = [];
+    let searchQ         = '';
+    let filterProject   = '';
+    let filterDisc      = '';
+    let filterStatus    = '';
+
+    function injectModals() {
+      document.body.insertAdjacentHTML('beforeend', `
+        <!-- Add/Edit Modal -->
+        <div class="modal" id="issue-modal">
+          <div class="modal-backdrop" onclick="closeModal('issue-modal')"></div>
+          <div class="modal-box">
+            <div class="modal-header">
+              <h3 id="issue-modal-title" style="display:flex;align-items:center;gap:8px;">
+                ${IC.plus} Add Issue / Concern
+              </h3>
+              <button class="modal-close" onclick="closeModal('issue-modal')">✕</button>
+            </div>
+            <div class="modal-body">
+              <input type="hidden" id="i-id" />
+              <div class="form-row">
+                <div class="form-group">
+                  <label class="required">Project</label>
+                  <select id="i-project"><option value="">— Select —</option></select>
+                </div>
+                <div class="form-group">
+                  <label class="required">Discipline</label>
+                  <select id="i-discipline"><option value="">— Select —</option></select>
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Status</label>
+                  <select id="i-status">
+                    ${STATUS_LIST.map(s => `<option value="${s}">${s}</option>`).join('')}
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label>Date Raised</label>
+                  <input type="date" id="i-date-raised" />
+                </div>
+              </div>
+              <div class="form-group">
+                <label class="required">Concern</label>
+                <textarea id="i-concern" rows="4" placeholder="Describe the issue or concern…" style="resize:vertical;"></textarea>
+              </div>
+              <div class="form-group">
+                <label>Action / Resolution</label>
+                <textarea id="i-action" rows="3" placeholder="Describe the action taken or planned…" style="resize:vertical;"></textarea>
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Respond Date</label>
+                  <input type="date" id="i-target-date" />
+                </div>
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button class="btn btn-ghost" onclick="closeModal('issue-modal')">Cancel</button>
+              <button class="btn btn-primary" id="issue-save-btn" onclick="saveIssue()" style="display:flex;align-items:center;gap:5px;">
+                ${IC.save} Save
+              </button>
+            </div>
+          </div>
+        </div>
+      `);
+    }
+
+    async function pageInit(profile) {
+      injectModals();
+
+      document.getElementById('page-content').innerHTML = `
+        <div class="page-header" style="margin-bottom:14px;">
+          <h1 style="display:flex;align-items:center;gap:10px;">
+            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            Issues and Concerns
+          </h1>
+          <p>Track project issues, concerns, action items, and resolution status.</p>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">Issues &amp; Concerns Log</span>
+            <button class="btn btn-primary btn-sm" onclick="openAddModal()" style="display:flex;align-items:center;gap:5px;">
+              ${IC.plus} Add Issue
+            </button>
+          </div>
+
+          <div class="table-toolbar">
+            <div class="search-box-sm">
+              <input type="text" placeholder="Search concerns…" oninput="onSearch(this.value)" />
+            </div>
+            <select class="filter-select" id="filter-project" onchange="onFilter()" style="font-size:12px;padding:6px 10px;">
+              <option value="">All Projects</option>
+            </select>
+            <select class="filter-select" id="filter-disc" onchange="onFilter()" style="font-size:12px;padding:6px 10px;">
+              <option value="">All Disciplines</option>
+            </select>
+            <select class="filter-select" id="filter-status" onchange="onFilter()" style="font-size:12px;padding:6px 10px;">
+              <option value="">All Statuses</option>
+              ${STATUS_LIST.map(s => `<option value="${s}">${s}</option>`).join('')}
+            </select>
+          </div>
+
+          <div class="card-body" style="padding:0;">
+            <div class="table-wrapper">
+              <table>
+                <thead>
+                  <tr>
+                    <th style="text-align:center;width:40px;">#</th>
+                    <th style="text-align:center;">Project</th>
+                    <th style="text-align:center;">Discipline</th>
+                    <th style="text-align:left;">Concern</th>
+                    <th style="text-align:left;">Action / Resolution</th>
+                    <th style="text-align:center;">Status</th>
+                    <th style="text-align:center;">Date Raised</th>
+                    <th style="text-align:center;">Respond Date</th>
+                    <th style="text-align:center;">Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="issues-tbody">
+                  <tr><td colspan="10" style="text-align:center;padding:40px;color:var(--text-4);">Loading…</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      `;
+
+      await loadBaseData();
+      await loadIssues();
+    }
+
+    async function loadBaseData() {
+      const [projRes, discRes] = await Promise.all([
+        db.from('projects').select('id, name, code').eq('status', 'Active').order('name'),
+        db.from('disciplines').select('id, name').order('name'),
+      ]);
+      projectsData    = projRes.data  || [];
+      disciplinesData = discRes.data  || [];
+
+      // Populate modal selects
+      document.getElementById('i-project').innerHTML = `<option value="">— Select —</option>` +
+        projectsData.map(p => `<option value="${p.id}">${p.code} — ${p.name}</option>`).join('');
+      document.getElementById('i-discipline').innerHTML = `<option value="">— Select —</option>` +
+        disciplinesData.map(d => `<option value="${d.id}">${d.name}</option>`).join('');
+
+      // Populate filter selects
+      document.getElementById('filter-project').innerHTML = `<option value="">All Projects</option>` +
+        projectsData.map(p => `<option value="${p.id}">${p.code} — ${p.name}</option>`).join('');
+      document.getElementById('filter-disc').innerHTML = `<option value="">All Disciplines</option>` +
+        disciplinesData.map(d => `<option value="${d.id}">${d.name}</option>`).join('');
+
+      // Pre-select from localStorage
+      const savedProj = localStorage.getItem('activeProjectId');
+      if (savedProj) {
+        document.getElementById('filter-project').value = savedProj;
+        filterProject = savedProj;
+      }
+    }
+
+    async function loadIssues() {
+      const tbody = document.getElementById('issues-tbody');
+      tbody.innerHTML = `<tr><td colspan="10" style="text-align:center;padding:30px;color:var(--text-4);">Loading…</td></tr>`;
+
+      let q = db.from('issues_concerns')
+        .select('*, projects(name, code), disciplines(name)')
+        .order('created_at', { ascending: false });
+
+      if (filterProject) q = q.eq('project_id', filterProject);
+      if (filterDisc)    q = q.eq('discipline_id', filterDisc);
+      if (filterStatus)  q = q.eq('status', filterStatus);
+
+      const { data, error } = await q;
+      if (error) { tbody.innerHTML = `<tr><td colspan="10" style="text-align:center;padding:30px;color:var(--red);">Error loading data.</td></tr>`; return; }
+
+      issuesData = data || [];
+      renderIssues();
+    }
+
+    function renderIssues() {
+      const tbody = document.getElementById('issues-tbody');
+      const list  = searchQ
+        ? issuesData.filter(i =>
+            i.concern?.toLowerCase().includes(searchQ) ||
+            i.action?.toLowerCase().includes(searchQ) ||
+            i.raised_by?.toLowerCase().includes(searchQ) ||
+            i.projects?.name?.toLowerCase().includes(searchQ) ||
+            i.disciplines?.name?.toLowerCase().includes(searchQ)
+          )
+        : issuesData;
+
+      if (!list.length) {
+        tbody.innerHTML = `<tr><td colspan="10" style="text-align:center;padding:40px;color:var(--text-4);">No issues found. Click "+ Add Issue" to get started.</td></tr>`;
+        return;
+      }
+
+      const STATUS_BADGE = {
+        'Open':        'badge-red',
+        'In Progress': 'badge-amber',
+        'Resolved':    'badge-green',
+        'Closed':      'badge-gray',
+        'On Hold':     'badge-blue',
+      };
+
+      tbody.innerHTML = list.map((item, idx) => `
+        <tr>
+          <td style="text-align:center;color:var(--text-4);font-size:12px;">${idx + 1}</td>
+          <td style="text-align:center;">
+            ${item.projects ? `<span class="badge badge-gray" style="font-family:monospace;">${item.projects.code}</span>` : '—'}
+          </td>
+          <td style="text-align:center;">
+            ${item.disciplines ? `<span class="badge badge-gray">${item.disciplines.name}</span>` : '—'}
+          </td>
+          <td><div class="concern-text">${item.concern || '—'}</div></td>
+          <td><div class="action-text">${item.action || '—'}</div></td>
+          <td style="text-align:center;">
+            <span class="badge ${STATUS_BADGE[item.status] || 'badge-gray'}">${item.status || '—'}</span>
+          </td>
+          <td style="text-align:center;font-size:12px;color:var(--text-3);">${item.date_raised ? formatDate(item.date_raised) : '—'}</td>
+          <td style="text-align:center;font-size:12px;color:var(--text-3);">${item.target_date ? formatDate(item.target_date) : '—'}</td>
+          <td style="text-align:center;">
+            <div class="table-actions">
+              <button class="btn btn-icon edit"   onclick="openEditModal(${idx})" title="Edit">${IC.edit}</button>
+              <button class="btn btn-icon delete" onclick="deleteIssue('${item.id}')" title="Delete">${IC.trash}</button>
+            </div>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    function onSearch(val) {
+      searchQ = val.toLowerCase();
+      renderIssues();
+    }
+
+    async function onFilter() {
+      filterProject = document.getElementById('filter-project').value;
+      filterDisc    = document.getElementById('filter-disc').value;
+      filterStatus  = document.getElementById('filter-status').value;
+      if (filterProject) localStorage.setItem('activeProjectId', filterProject);
+      await loadIssues();
+    }
+
+    function openAddModal() {
+      document.getElementById('i-id').value          = '';
+      document.getElementById('i-project').value     = localStorage.getItem('activeProjectId') || '';
+      document.getElementById('i-discipline').value  = '';
+      document.getElementById('i-status').value      = 'Open';
+      document.getElementById('i-date-raised').value = new Date().toISOString().slice(0, 10);
+      document.getElementById('i-concern').value     = '';
+      document.getElementById('i-action').value      = '';
+      document.getElementById('i-target-date').value = '';
+      document.getElementById('issue-modal-title').innerHTML = `${IC.plus} Add Issue / Concern`;
+      openModal('issue-modal');
+      setTimeout(() => document.getElementById('i-concern').focus(), 100);
+    }
+
+    function openEditModal(index) {
+      const item = issuesData[index];
+      if (!item) return;
+      document.getElementById('i-id').value          = item.id;
+      document.getElementById('i-project').value     = item.project_id    || '';
+      document.getElementById('i-discipline').value  = item.discipline_id || '';
+      document.getElementById('i-status').value      = item.status        || 'Open';
+      document.getElementById('i-date-raised').value = item.date_raised   ? item.date_raised.split('T')[0]   : '';
+      document.getElementById('i-target-date').value = item.target_date   ? item.target_date.split('T')[0]   : '';
+      document.getElementById('i-concern').value     = item.concern       || '';
+      document.getElementById('i-action').value      = item.action        || '';
+      document.getElementById('issue-modal-title').innerHTML = `${IC.edit} Edit Issue / Concern`;
+      openModal('issue-modal');
+      setTimeout(() => document.getElementById('i-concern').focus(), 100);
+    }
+
+    async function saveIssue() {
+      const btn         = document.getElementById('issue-save-btn');
+      const id          = document.getElementById('i-id').value;
+      const project_id  = document.getElementById('i-project').value     || null;
+      const discipline_id = document.getElementById('i-discipline').value || null;
+      const status      = document.getElementById('i-status').value;
+      const date_raised = document.getElementById('i-date-raised').value  || null;
+      const target_date = document.getElementById('i-target-date').value  || null;
+      const concern     = document.getElementById('i-concern').value.trim();
+      const action      = document.getElementById('i-action').value.trim()     || null;
+
+      if (!project_id)   { toast('Project is required.',  'error'); return; }
+      if (!discipline_id){ toast('Discipline is required.','error'); return; }
+      if (!concern)      { toast('Concern is required.',  'error'); document.getElementById('i-concern').focus(); return; }
+
+      btn.disabled = true; btn.textContent = 'Saving…';
+
+      const { error } = id
+        ? await db.from('issues_concerns').update({ project_id, discipline_id, status, date_raised, target_date, concern, action, updated_at: new Date().toISOString() }).eq('id', id)
+        : await db.from('issues_concerns').insert({ project_id, discipline_id, status, date_raised, target_date, concern, action });
+
+      btn.disabled = false; btn.innerHTML = `${IC.save} Save`;
+      if (error) { toast('Error: ' + error.message, 'error'); return; }
+      toast(id ? 'Issue updated.' : 'Issue added.', 'success');
+      closeModal('issue-modal');
+      await loadIssues();
+    }
+
+    async function deleteIssue(id) {
+      confirmDialog('Delete this issue? This cannot be undone.', async () => {
+        const { error } = await db.from('issues_concerns').delete().eq('id', id);
+        if (error) { toast('Error: ' + error.message, 'error'); return; }
+        toast('Issue deleted.', 'success');
+        await loadIssues();
+      });
+    }
+
+    initLayout('Issues and Concerns');
+  </script>
+</body>
+</html>

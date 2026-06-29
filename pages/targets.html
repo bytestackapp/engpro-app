@@ -1,0 +1,3118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Targets — EngPro App</title>
+  <link rel="stylesheet" href="../css/main.css" />
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <style>
+    /* ── Histogram grid ───────────────────────────────────── */
+    .histo-toolbar {
+      display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap;
+    }
+    .histo-outer {
+      overflow-x:auto;overflow-y:auto;
+      max-height:calc(100vh - 310px);
+      border:1px solid var(--border);border-radius:var(--radius);
+    }
+    .histo-table {
+      border-collapse:collapse;font-size:12px;white-space:nowrap;
+      min-width:100%;
+    }
+    .histo-table th, .histo-table td {
+      border:1px solid var(--border);padding:0;
+    }
+    /* sticky cols */
+    .histo-table .col-pos  { position:sticky;left:0;z-index:3;background:var(--bg-3);min-width:170px;max-width:200px;padding:6px 10px; }
+    .histo-table .col-disc { position:sticky;left:170px;z-index:3;background:var(--bg-3);min-width:80px;padding:6px 8px;text-align:center; }
+    .histo-table .col-allot{ position:sticky;left:250px;z-index:3;background:var(--bg-3);min-width:80px;padding:6px 8px;text-align:right; }
+    .histo-table .col-total{ position:sticky;left:330px;z-index:3;background:var(--bg-3);min-width:80px;padding:6px 8px;text-align:right; }
+    /* header row */
+    .histo-table thead th  { background:var(--bg-3);font-weight:600;color:var(--text-3);font-size:11px;text-align:center;padding:7px 6px;position:sticky;top:0;z-index:2; }
+    .histo-table thead th.col-pos  { z-index:4; }
+    .histo-table thead th.col-disc { z-index:4; }
+    .histo-table thead th.col-allot{ z-index:4; }
+    .histo-table thead th.col-total{ z-index:4; }
+    /* sub-header MP/MH */
+    .histo-table .sub-hdr  { background:var(--bg-4);font-size:10px;font-weight:700;color:var(--text-4);text-align:center;padding:3px 6px; }
+    .histo-table .sub-hdr.col-pos  { text-align:left; }
+    /* data cells */
+    .histo-table .row-mp td { background:var(--bg-2); }
+    .histo-table .row-mh td { background:var(--bg-1); }
+    .histo-table .cell-input {
+      width:54px;border:none;background:transparent;
+      text-align:right;padding:5px 6px;color:var(--text);font-size:12px;
+      font-family:var(--font-mono,monospace);
+      outline:none;
+    }
+    .histo-table .cell-input:focus { background:var(--accent-dim);color:var(--accent); }
+    .histo-table .cell-input:hover { background:var(--bg-4); }
+	
+	.cell-input {
+      width:54px;border:none;background:transparent;
+      text-align:right;padding:5px 6px;color:var(--text);font-size:12px;
+      font-family:var(--font-mono,monospace);
+      outline:none;
+    }
+    .cell-input:focus { background:var(--accent-dim);color:var(--accent); }
+    .cell-input:hover { background:var(--bg-4); }
+
+	.histo-table input[data-field="headcount"] { color: var(--accent); }
+	.histo-table input[data-field="headcount"]:focus { color: var(--accent); }
+	.histo-table .row-mp td,
+	.histo-table .row-mh td { height: 28px; max-height: 28px; }
+	
+    /* total col coloring */
+    .total-ok   { color:var(--green,#22c55e);font-weight:700; }
+    .total-over { color:var(--red,#ef4444);font-weight:700; }
+    .total-zero { color:var(--text-4); }
+    /* position label */
+    .pos-label  { font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:160px; }
+    .disc-badge { font-size:10px; }
+    /* save indicator */
+    .save-dot {
+      width:6px;height:6px;border-radius:50%;background:var(--accent);
+      display:inline-block;margin-left:5px;opacity:0;transition:opacity .3s;
+    }
+    .save-dot.dirty { opacity:1; }
+    /* import drop zone */
+    .import-drop {
+      border:2px dashed var(--border);border-radius:var(--radius);
+      padding:32px;text-align:center;color:var(--text-3);font-size:13px;cursor:pointer;
+      transition:border-color .2s,background .2s;
+    }
+    .import-drop:hover,.import-drop.drag-over {
+      border-color:var(--accent);background:var(--accent-dim);color:var(--text);
+    }
+    .import-preview { overflow-x:auto;max-height:320px;margin-top:14px; }
+    .import-preview table { font-size:11px;border-collapse:collapse;width:100%; }
+    .import-preview th { background:var(--bg-3);padding:5px 8px;border:1px solid var(--border);font-weight:600;text-align:center; }
+    .import-preview td { padding:4px 8px;border:1px solid var(--border);text-align:right; }
+    .import-preview td:first-child { text-align:left;font-weight:500; }
+    .import-preview tr:nth-child(even) td { background:var(--bg-2); }
+  </style>
+</head>
+<body>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="../js/supabase.js"></script>
+  <script src="../js/utils.js"></script>
+  <script src="../js/layout.js"></script>
+  <script src="../js/messaging.js"></script>
+
+  <script>
+    const SVG_SM = (p) => `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
+    const IC = {
+      edit:   SVG_SM('<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>'),
+      trash:  SVG_SM('<polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>'),
+      plus:   SVG_SM('<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>'),
+      save:   SVG_SM('<path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/>'),
+      target: SVG_SM('<circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/>'),
+      upload: SVG_SM('<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>'),
+      download: SVG_SM('<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>'),
+    };
+
+    let targetsData     = [];
+    let rolesData       = [];
+    let disciplinesData = [];
+    let projectsData    = [];
+	
+	let rocProjectId     = null;
+	let rocDiscs         = [];       // disciplines for selected project
+	let rocDocCodes      = [];       // all doc codes from admin
+	let rocWorkflowSteps = {};       // { activity_type: [step names] }
+	let rocItems         = {};       // { disc_id: { doc_code_id: { weight, id, steps: { step_name: { weight, id } } } } }
+	let rocDirty         = false;
+
+    // ── histogram state
+    let histoProjectId  = null;
+    let histoProject    = null;
+    let histoMonths     = [];   // array of Date (first of month)
+    let histoSchedule   = {};   // { target_id: { 'YYYY-MM': { manhours, headcount } } }
+    let histoDirty      = {};   // { target_id: { 'YYYY-MM': true } }
+    let histoSaving     = false;
+    let histoAutoSave   = null;
+
+    // ─── MODALS ───────────────────────────────────────────────────────────────
+    function injectModals() {
+      document.body.insertAdjacentHTML('beforeend', `
+        <!-- Target Modal -->
+        <div class="modal" id="target-modal">
+          <div class="modal-backdrop" onclick="closeModal('target-modal')"></div>
+          <div class="modal-box modal-sm">
+            <div class="modal-header">
+              <h3 id="target-modal-title" style="display:flex;align-items:center;gap:8px;">${IC.target} Add Position</h3>
+              <button class="modal-close" onclick="closeModal('target-modal')">✕</button>
+            </div>
+            <div class="modal-body">
+              <input type="hidden" id="t-id" />
+              <div class="form-group">
+                <label class="required">Project</label>
+                <select id="t-project"><option value="">— Select —</option></select>
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label class="required">Role</label>
+                  <select id="t-role" onchange="updatePositionLabel()"><option value="">— Select —</option></select>
+                </div>
+                <div class="form-group">
+                  <label class="required">Discipline</label>
+                  <select id="t-discipline" onchange="updatePositionLabel()"><option value="">— Select —</option></select>
+                </div>
+              </div>
+              <div class="form-group">
+                <label>Position</label>
+                <input type="text" id="t-position" placeholder="Auto-generated or customize" />
+                <div style="font-size:11px;color:var(--text-4);margin-top:4px;">Auto-fills from Role + Discipline. You can override it.</div>
+              </div>
+              <div class="form-group">
+                <label class="required">Allotted Manhours</label>
+                <input type="number" id="t-manhours" min="0" step="0.5" placeholder="e.g. 500" />
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button class="btn btn-ghost" onclick="closeModal('target-modal')">Cancel</button>
+              <button class="btn btn-primary" id="target-save-btn" onclick="saveTarget()" style="display:flex;align-items:center;gap:5px;">${IC.save} Save</button>
+            </div>
+          </div>
+        </div>
+		
+		<!-- Position Import Modal -->
+        <div class="modal" id="pos-import-modal">
+          <div class="modal-backdrop" onclick="closeModal('pos-import-modal')"></div>
+          <div class="modal-box" style="max-width:720px;">
+            <div class="modal-header">
+              <h3 style="display:flex;align-items:center;gap:8px;">${IC.upload} Import Position from Excel</h3>
+              <button class="modal-close" onclick="closeModal('pos-import-modal')">✕</button>
+            </div>
+            <div class="modal-body">
+              <div class="import-drop" id="pos-import-drop" onclick="document.getElementById('pos-import-file').click()"
+                ondragover="event.preventDefault();this.classList.add('drag-over')"
+                ondragleave="this.classList.remove('drag-over')"
+                ondrop="handlePosImportDrop(event)"
+                style="border:2px dashed var(--border);border-radius:var(--radius);padding:60px 32px;text-align:center;cursor:pointer;transition:border-color .2s,background .2s;">
+                <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.75" style="margin-bottom:14px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                <div style="font-size:14px;font-weight:600;color:var(--text);margin-bottom:6px;">Drop Excel file here or click to browse</div>
+                <div style="font-size:12px;color:var(--text-4);">.xlsx / .xls files supported</div>
+              </div>
+              <input type="file" id="pos-import-file" accept=".xlsx,.xls" style="display:none" onchange="handlePosImportFile(this)" />
+              <div id="pos-import-preview-wrap"></div>
+			  <div style="font-size:12px;color:var(--text-3);margin-top:12px;background:var(--bg-4);border:1px solid var(--border);border-radius:var(--radius);padding:10px 12px;">
+                <strong>Expected columns headers:</strong>
+                Position, Project Code, Role Name, Discipline Name and Allotted Manhours.<br>
+                Role Name, Discipline Name and Project Code must match existing app coding.
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button class="btn btn-ghost" onclick="closeModal('pos-import-modal')">Cancel</button>
+              <button class="btn btn-primary" id="pos-import-confirm-btn" onclick="confirmPosImport()" style="display:none;align-items:center;gap:5px;">${IC.save} Import</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Histogram Import Modal -->
+        <div class="modal" id="import-modal">
+          <div class="modal-backdrop" onclick="closeModal('import-modal')"></div>
+          <div class="modal-box" style="max-width:720px;">
+            <div class="modal-header">
+              <h3 style="display:flex;align-items:center;gap:8px;">${IC.upload} Import Histogram from Excel</h3>
+              <button class="modal-close" onclick="closeModal('import-modal')">✕</button>
+            </div>
+            <div class="modal-body">
+              <div class="import-drop" id="import-drop" onclick="document.getElementById('import-file').click()"
+                ondragover="event.preventDefault();this.classList.add('drag-over')"
+                ondragleave="this.classList.remove('drag-over')"
+                ondrop="handleImportDrop(event)"
+				style="border:2px dashed var(--border);border-radius:var(--radius);padding:60px 32px;text-align:center;cursor:pointer;transition:border-color .2s,background .2s;">
+                <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.75" style="margin-bottom:14px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                <div style="font-size:14px;font-weight:600;color:var(--text);margin-bottom:6px;">Drop Excel file here or click to browse</div>
+                <div style="font-size:12px;color:var(--text-4);">.xlsx / .xls files supported</div>
+              </div>
+              <input type="file" id="import-file" accept=".xlsx,.xls" style="display:none" onchange="handleImportFile(this)" />
+              <div id="import-preview-wrap"></div>
+              <div style="font-size:12px;color:var(--text-3);margin-top:12px;background:var(--bg-4);border:1px solid var(--border);border-radius:var(--radius);padding:10px 12px;">
+                <strong>Expected format:</strong> Standard histogram Excel with position names in column A,
+                discipline codes in column B, and alternating MP / MH rows per position across month columns.
+                Month headers in the format <code>Mon-YY</code> (e.g. <code>May-26</code>).
+              </div>			  
+            </div>
+            <div class="modal-footer">
+              <button class="btn btn-ghost" onclick="closeModal('import-modal')">Cancel</button>
+              <button class="btn btn-primary" id="import-confirm-btn" onclick="confirmImport()" style="display:none;align-items:center;gap:5px;">${IC.save} Import Data</button>
+            </div>
+          </div>
+        </div>
+		
+		<!-- Progress Import Modal -->
+        <div class="modal" id="prog-import-modal">
+          <div class="modal-backdrop" onclick="closeModal('prog-import-modal')"></div>
+          <div class="modal-box" style="max-width:600px;">
+            <div class="modal-header">
+              <h3 style="display:flex;align-items:center;gap:8px;">${IC.upload} Import Planned Progress</h3>
+              <button class="modal-close" onclick="closeModal('prog-import-modal')">✕</button>
+            </div>
+            <div class="modal-body">
+              <div class="import-drop" id="prog-import-drop" onclick="document.getElementById('prog-import-file').click()"
+                ondragover="event.preventDefault();this.classList.add('drag-over')"
+                ondragleave="this.classList.remove('drag-over')"
+                ondrop="handleProgImportDrop(event)"
+                style="border:2px dashed var(--border);border-radius:var(--radius);padding:60px 32px;text-align:center;cursor:pointer;transition:border-color .2s,background .2s;">
+                <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.75" style="margin-bottom:14px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                <div style="font-size:14px;font-weight:600;color:var(--text);margin-bottom:6px;">Drop Excel file here or click to browse</div>
+                <div style="font-size:12px;color:var(--text-4);">.xlsx / .xls files supported</div>
+              </div>
+              <input type="file" id="prog-import-file" accept=".xlsx,.xls" style="display:none" onchange="handleProgImportFile(this)" />
+              <div id="prog-import-preview-wrap"></div>
+              <div style="font-size:12px;color:var(--text-3);margin-top:12px;background:var(--bg-4);border:1px solid var(--border);border-radius:var(--radius);padding:10px 12px;">
+                <strong>Expected columns (row 1 = headers):</strong>
+				<code>Discipline</code>, <code>Week Start</code> (any date format), <code>Planned %</code> (0–100).
+				Each row = one discipline's planned progress for one week.
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button class="btn btn-ghost" onclick="closeModal('prog-import-modal')">Cancel</button>
+              <button class="btn btn-primary" id="prog-import-confirm-btn" onclick="confirmProgImport()" style="display:none;align-items:center;gap:5px;">${IC.save} Import</button>
+            </div>
+          </div>
+        </div>
+		
+		<!-- KPI Modal -->
+        <div class="modal" id="kpi-modal">
+          <div class="modal-backdrop" onclick="closeModal('kpi-modal')"></div>
+          <div class="modal-box" style="max-width:480px;">
+            <div class="modal-header">
+              <h3 id="kpi-modal-title" style="display:flex;align-items:center;gap:8px;">
+                ${IC.plus} Add Target KPI
+              </h3>
+              <button class="modal-close" onclick="closeModal('kpi-modal')">✕</button>
+            </div>
+            <div class="modal-body" style="display:flex;flex-direction:column;gap:16px;padding:0;">
+
+              <!-- Block 1: Details -->
+              <div style="padding:16px 20px;border-bottom:1px solid var(--border);">
+                <div style="font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--accent);margin-bottom:12px;">Details</div>
+                <input type="hidden" id="kpi-id" />
+                <div class="form-group">
+                  <label>Project</label>
+                  <input type="text" id="kpi-project-display" disabled style="opacity:0.6;cursor:not-allowed;" />
+                </div>
+                <div class="form-group">
+                  <label class="required">Discipline</label>
+                  <select id="kpi-discipline"></select>
+                </div>
+                <div class="form-group">
+                  <label>Activity Type</label>
+                  <select id="kpi-activity-type" onchange="onKpiActivityChange()">
+                    <option value="model">3D Model</option>
+                    <option value="drawing" selected>Drawings</option>
+                    <option value="test_package">Test Package</option>
+                    <option value="materials">Materials</option>
+                    <option value="calculations">Calculations</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label class="required">Doc Code</label>
+                  <select id="kpi-doc-code"></select>
+                </div>
+                <div class="form-group">
+                  <label class="required">Workflow Step</label>
+                  <select id="kpi-step"></select>
+                </div>
+                <div class="form-group" style="margin-bottom:0;">
+                  <label id="kpi-value-label">Target Value</label>
+                  <input type="number" id="kpi-value" min="0" step="0.01" placeholder="0.00" />
+                </div>
+              </div>
+
+              <!-- Block 2: Area Breakdown -->
+              <div style="padding:16px 20px;">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+				  <div style="font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--accent);">Estimated Output by Area</div>
+                  <span style="font-size:11px;color:var(--text-4);">Total: <strong id="kpi-area-total" style="color:var(--accent);">0</strong></span>
+                </div>
+                <div id="kpi-area-breakdown" style="overflow:hidden;max-height:240px;overflow-y:auto;">
+                  <div style="text-align:center;padding:20px;color:var(--text-4);font-size:12px;">Loading areas…</div>
+                </div>
+                <input type="hidden" id="kpi-estimated-output" />
+                <div style="font-size:11px;color:var(--text-4);margin-top:6px;">Auto-summed from area inputs. Can be filled in later.</div>
+              </div>
+
+            </div>
+            <div class="modal-footer">
+              <button class="btn btn-ghost" onclick="closeModal('kpi-modal')">Cancel</button>
+              <button class="btn btn-primary" id="kpi-save-btn" onclick="saveKpi()" style="display:flex;align-items:center;gap:5px;">${IC.save} Save</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- KPI Import Modal -->
+        <div class="modal" id="kpi-import-modal">
+          <div class="modal-backdrop" onclick="closeModal('kpi-import-modal')"></div>
+          <div class="modal-box" style="max-width:720px;">
+            <div class="modal-header">
+              <h3 style="display:flex;align-items:center;gap:8px;">${IC.upload} Import Target KPI from Excel</h3>
+              <button class="modal-close" onclick="closeModal('kpi-import-modal')">✕</button>
+            </div>
+            <div class="modal-body">
+              <div class="import-drop" id="kpi-import-drop" onclick="document.getElementById('kpi-import-file').click()"
+                ondragover="event.preventDefault();this.classList.add('drag-over')"
+                ondragleave="this.classList.remove('drag-over')"
+                ondrop="handleKpiImportDrop(event)"
+                style="border:2px dashed var(--border);border-radius:var(--radius);padding:60px 32px;text-align:center;cursor:pointer;transition:border-color .2s,background .2s;">
+                <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.75" style="margin-bottom:14px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                <div style="font-size:14px;font-weight:600;color:var(--text);margin-bottom:6px;">Drop Excel file here or click to browse</div>
+                <div style="font-size:12px;color:var(--text-4);">.xlsx / .xls files supported</div>
+              </div>
+              <input type="file" id="kpi-import-file" accept=".xlsx,.xls" style="display:none" onchange="handleKpiImportFile(this)" />
+              <div id="kpi-import-preview-wrap"></div>
+              <div style="font-size:12px;color:var(--text-3);margin-top:12px;background:var(--bg-4);border:1px solid var(--border);border-radius:var(--radius);padding:10px 12px;">
+                <strong>Expected column headers:</strong>
+                Discipline, Doc Code, Workflow Step, Target Value, Estimated Output.<br>
+                Discipline, Doc Code and Workflow Step must match existing app coding. Activity Type and Doc Type are derived automatically from the Doc Code.<br>
+                Optional: add one column per area name (matching the Area Breakdown table) to import per-area estimated output — these override the Estimated Output column when present.
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button class="btn btn-ghost" onclick="closeModal('kpi-import-modal')">Cancel</button>
+              <button class="btn btn-primary" id="kpi-import-confirm-btn" onclick="confirmKpiImport()" style="display:none;align-items:center;gap:5px;">${IC.save} Import</button>
+            </div>
+          </div>
+        </div>
+      `);
+
+      document.getElementById('t-position').addEventListener('input', () => {
+        document.getElementById('t-position').dataset.customized = 'yes';
+      });
+    }
+
+    // ─── PAGE INIT ────────────────────────────────────────────────────────────
+    async function pageInit(profile) {
+      injectModals();
+
+      document.getElementById('page-content').innerHTML = `
+        <div class="page-header">
+          <h1 style="display:flex;align-items:center;gap:10px;">${IC.target} Targets</h1>
+          <p>Define planned manhours per position and distribute them across the project schedule</p>
+        </div>
+
+        <div class="tabs">
+          <button class="tab-btn active" onclick="switchTab('positions', this)">
+            ${IC.target} Positions
+          </button>
+          <button class="tab-btn" onclick="switchTab('histogram', this)">
+            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="4" height="18"/><rect x="9" y="8" width="4" height="13"/><rect x="16" y="13" width="4" height="8"/></svg>
+            Histogram
+          </button>
+          <button class="tab-btn" onclick="switchTab('progress', this)">
+            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+            Progress
+          </button>
+		  <button class="tab-btn" onclick="switchTab('roc', this)">
+            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
+            Rules of Credit
+          </button>
+		  <button class="tab-btn" onclick="switchTab('kpi', this)">
+            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20V10"/><path d="M18 20V4"/><path d="M6 20v-4"/></svg>
+            Target KPI
+          </button>
+        </div>
+
+        <!-- Positions Tab -->
+        <div class="tab-panel active" id="tab-positions">
+          <div class="card">
+            <div class="card-header">
+              <span class="card-title">Positions &amp; Manhour Targets</span>
+              <div style="display:flex;align-items:center;gap:8px;">
+                <button class="btn btn-ghost btn-sm" onclick="openPositionImportModal()" style="display:flex;align-items:center;gap:5px;">${IC.upload} Import Excel</button>
+                <button class="btn btn-primary btn-sm" onclick="openAddTarget()" style="display:flex;align-items:center;gap:5px;">${IC.plus} Add Position</button>
+				<button class="btn btn-danger btn-sm" onclick="deleteAllTargets()" style="display:flex;align-items:center;gap:5px;">${IC.trash} Delete All</button>
+              </div>
+            </div>
+            <div class="card-body">
+              <div class="histo-toolbar">
+              <div style="font-size:12px;color:var(--text-3);font-weight:500;">Project:</div>
+              <select id="target-proj-select" onchange="onPositionProjectChange(this.value)" style="font-size:12px;padding:5px 8px;min-width:160px;max-width:320px;width:fit-content;">
+                <option value="">— Select a project —</option>
+              </select>
+            </div>
+            <div id="pos-content-wrap">
+              <div style="text-align:center;padding:60px;color:var(--text-4);font-size:13px;">
+                Select a project above to view and edit its positions.
+              </div>
+            </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Histogram Tab -->
+        <div class="tab-panel" id="tab-histogram">
+          <div class="card">
+            <div class="card-header">
+              <span class="card-title">Manhour Histogram</span>
+              <div style="display:flex;align-items:center;gap:8px;">
+                <span class="save-dot" id="histo-dirty-dot" title="Unsaved changes"></span>
+                <button class="btn btn-ghost btn-sm" onclick="openImportModal()" style="display:flex;align-items:center;gap:5px;">${IC.upload} Import Excel</button>
+                <button class="btn btn-primary btn-sm" id="histo-save-btn" onclick="saveHistogram()" style="display:flex;align-items:center;gap:5px;" title="Save now (auto-saves after 3s)">${IC.save} Save</button>
+				<button class="btn btn-danger btn-sm" onclick="clearAllHistogram()" style="display:flex;align-items:center;gap:5px;">${IC.trash} Clear All</button>
+              </div>
+            </div>
+            <div class="card-body">
+              <div class="histo-toolbar">
+                <div style="font-size:12px;color:var(--text-3);font-weight:500;">Project:</div>
+                <select id="histo-proj-select" onchange="onHistoProjectChange(this.value)" style="font-size:12px;padding:5px 8px;min-width:160px;max-width:320px;width:fit-content;">
+                  <option value="">— Select a project —</option>
+                </select>
+                <div id="histo-proj-info" style="font-size:11px;color:var(--text-4);"></div>
+              </div>
+              <div id="histo-content">
+                <div style="text-align:center;padding:60px;color:var(--text-4);font-size:13px;">
+                  Select a project above to view and edit its manhour histogram.
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Progress Tab -->
+        <div class="tab-panel" id="tab-progress">
+          <div class="card">
+            <div class="card-header">
+              <span class="card-title">Planned Progress</span>
+              <div style="display:flex;align-items:center;gap:8px;">
+                <span class="save-dot" id="prog-dirty-dot" title="Unsaved changes"></span>
+                <button class="btn btn-ghost btn-sm" onclick="exportProgExcel()" style="display:flex;align-items:center;gap:5px;">${IC.upload} Export Excel</button>
+                <button class="btn btn-ghost btn-sm" onclick="openProgImportModal()" style="display:flex;align-items:center;gap:5px;">${IC.download} Import Excel</button>
+                <button class="btn btn-primary btn-sm" id="prog-save-btn" onclick="saveProgress(true)" style="display:flex;align-items:center;gap:5px;">${IC.save} Save</button>
+                <button class="btn btn-danger btn-sm" onclick="clearAllProgress()" style="display:flex;align-items:center;gap:5px;">${IC.trash} Clear All</button>
+              </div>
+            </div>
+            <div class="card-body">
+              <div class="histo-toolbar">
+                <div style="font-size:12px;color:var(--text-3);font-weight:500;">Project:</div>
+                <select id="prog-proj-select" onchange="onProgProjectChange(this.value)" style="font-size:12px;padding:5px 8px;min-width:160px;max-width:320px;width:fit-content;">
+                  <option value="">— Select a project —</option>
+                </select>
+                <div id="prog-proj-info" style="font-size:11px;color:var(--text-4);"></div>
+              </div>
+              <div id="prog-content">
+                <div style="text-align:center;padding:60px;color:var(--text-4);font-size:13px;">
+                  Select a project above to view and edit its planned progress.
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+		
+		<!-- Rules of Credit Tab -->
+        <div class="tab-panel" id="tab-roc">
+          <div class="card">
+            <div class="card-header">
+              <span class="card-title">Rules of Credit (ROC)</span>
+              <div style="display:flex;align-items:center;gap:8px;">
+                <span class="save-dot" id="roc-dirty-dot" title="Unsaved changes"></span>
+                <button class="btn btn-primary btn-sm" id="roc-save-btn" onclick="saveRoc()" style="display:flex;align-items:center;gap:5px;">${IC.save} Save</button>
+              </div>
+            </div>
+            <div class="card-body">
+              <div class="histo-toolbar">
+                <div style="font-size:12px;color:var(--text-3);font-weight:500;">Project:</div>
+                <select id="roc-proj-select" onchange="onRocProjectChange(this.value)" style="font-size:12px;padding:5px 8px;min-width:160px;max-width:320px;width:fit-content;">
+                  <option value="">— Select a project —</option>
+                </select>
+              </div>
+              <div id="roc-content">
+                <div style="text-align:center;padding:60px;color:var(--text-4);font-size:13px;">Select a project to configure Rules of Credit.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+		
+		<!-- KPI Tab -->
+        <div class="tab-panel" id="tab-kpi">
+          <div class="card">
+            <div class="card-header">
+              <span class="card-title">Target KPI</span>
+              <div style="display:flex;align-items:center;gap:8px;">
+                <button class="btn btn-ghost btn-sm" onclick="exportKpiExcel()" style="display:flex;align-items:center;gap:5px;">${IC.upload} Export Excel</button>
+                <button class="btn btn-ghost btn-sm" onclick="openKpiImportModal()" style="display:flex;align-items:center;gap:5px;">${IC.download} Import Excel</button>
+                <button class="btn btn-primary btn-sm" onclick="openAddKpi()" style="display:flex;align-items:center;gap:5px;">${IC.plus} Add KPI</button>
+                <button class="btn btn-danger btn-sm" onclick="deleteAllKpi()" style="display:flex;align-items:center;gap:5px;">${IC.trash} Delete All</button>
+              </div>
+            </div>
+            <div class="card-body">
+              <div class="histo-toolbar">
+                <div style="font-size:12px;color:var(--text-3);font-weight:500;">Project:</div>
+                <select id="kpi-proj-select" onchange="onKpiProjectChange(this.value)" style="font-size:12px;padding:5px 8px;min-width:160px;max-width:320px;width:fit-content;">
+                  <option value="">— Select a project —</option>
+                </select>
+              </div>
+              <div id="kpi-content">
+                <div style="text-align:center;padding:60px;color:var(--text-4);font-size:13px;">
+                  Select a project above to view and edit its KPI targets.
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+
+      await loadRolesAndDiscs();
+      await loadTargets();
+    }
+
+    // ─── LOAD LOOKUPS ─────────────────────────────────────────────────────────
+    async function loadRolesAndDiscs() {
+      const [{ data: roles }, { data: discs }, { data: projects }] = await Promise.all([
+        db.from('roles').select('*').order('name'),
+        db.from('disciplines').select('*').order('name'),
+        db.from('projects').select('id,name,code,start_date,end_date').order('name'),
+      ]);
+      rolesData       = roles || [];
+      disciplinesData = discs || [];
+      projectsData    = projects || [];
+
+      // Position modal
+      document.getElementById('t-role').innerHTML = `<option value="">— Select —</option>` + rolesData.map(r => `<option value="${r.key}">${r.name}</option>`).join('');
+      document.getElementById('t-discipline').innerHTML = `<option value="">— Select —</option>` + disciplinesData.map(d => `<option value="${d.id}">${d.name}</option>`).join('');
+      document.getElementById('t-project').innerHTML = `<option value="">— Select —</option>` + projectsData.map(p => `<option value="${p.id}">${p.code} — ${p.name}</option>`).join('');
+
+      // Filters
+	  const posProjSel = document.getElementById('target-proj-select');
+      if (posProjSel) {
+        posProjSel.innerHTML = `<option value="">— Select a project —</option>` +
+          projectsData.map(p => `<option value="${p.id}">${p.code} — ${p.name}</option>`).join('');
+      }
+
+      // Histogram project select
+      document.getElementById('histo-proj-select').innerHTML = `<option value="">— Select a project —</option>` +
+        projectsData.map(p => {
+          const hasDate = p.start_date && p.end_date;
+          return `<option value="${p.id}" ${!hasDate ? 'style="color:var(--text-4)"' : ''}>${p.code} — ${p.name}${!hasDate ? ' (no dates set)' : ''}</option>`;
+        }).join('');
+		
+	  const kpiSel = document.getElementById('kpi-proj-select');
+         if (kpiSel) {
+           projectsData.forEach(p => {
+             kpiSel.innerHTML += `<option value="${p.id}">${p.code ? p.code + ' — ' : ''}${p.name}</option>`;
+           });
+         }
+        
+      // Progress project select
+      populateProgProjectSelect();
+
+      // ROC project select
+      const rocSel = document.getElementById('roc-proj-select');
+      if (rocSel) {
+        rocSel.innerHTML = `<option value="">— Select a project —</option>` +
+          projectsData.map(p => `<option value="${p.id}">${p.code ? p.code + ' — ' : ''}${p.name}</option>`).join('');
+      }
+    }
+
+    let posProjectId = null;
+
+    function onPositionProjectChange(id) {
+      posProjectId = id || null;
+      const wrap = document.getElementById('pos-content-wrap');
+      if (!posProjectId) {
+        wrap.innerHTML = `<div style="text-align:center;padding:60px;color:var(--text-4);font-size:13px;">Select a project above to view and edit its positions.</div>`;
+        return;
+      }
+      wrap.innerHTML = `
+        <div class="table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th style="text-align:left;">Position</th>
+                <th style="text-align:center;">Project</th>
+                <th style="text-align:center;">Role</th>
+                <th style="text-align:center;">Discipline</th>
+                <th style="text-align:center;">Allotted Manhours</th>
+                <th style="text-align:center;">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="target-tbody"></tbody>
+            <tfoot>
+              <tr style="border-top:2px solid var(--border-2);">
+                <td colspan="4" style="padding:10px 14px;font-size:12px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:0.06em;">Total Allotted Manhours</td>
+                <td id="target-total-mh" style="text-align:center;font-weight:700;color:var(--accent);font-variant-numeric:tabular-nums;padding:10px 14px;">—</td>
+                <td></td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>`;
+      filterTargets('');
+    }
+    
+    async function loadTargets() {
+      const tbody = document.getElementById('target-tbody');
+      if (tbody) tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:30px;color:var(--text-4);">Loading…</td></tr>`;
+      const { data, error } = await db.from('targets')
+        .select('*, disciplines(name), projects(name, code)')
+        .order('position');
+      if (error) {
+        if (tbody) tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:30px;color:var(--red);">Error loading targets.</td></tr>`;
+        return;
+      }
+      targetsData = (data || []).map(t => ({ ...t, roles: rolesData.find(r => r.key === t.role_key) || null }));
+      if (posProjectId) {
+        filterTargets(document.getElementById('target-search')?.value || '');
+      }
+    }
+
+    function renderTargets(list) {
+      const tbody = document.getElementById('target-tbody');
+      if (!list.length) { tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:40px;color:var(--text-4);">No positions yet. Click "+ Add Position" to get started.</td></tr>`; return; }
+      tbody.innerHTML = list.map((t, i) => {
+        const roleColor = t.roles?.badge_color || '#546E7A';
+        return `<tr>
+          <td style="font-weight:600;color:var(--text);">${t.position || '—'}</td>
+          <td style="text-align:center;">${t.projects ? `<span class="badge badge-gray" style="font-family:monospace;">${t.projects.code}</span>` : '<span style="color:var(--text-4);">—</span>'}</td>
+          <td style="text-align:center;">${t.roles ? `<span class="badge" style="background-color:${roleColor}22;color:${roleColor};border-color:${roleColor}55;">${t.roles.name}</span>` : '<span style="color:var(--text-4);">—</span>'}</td>
+          <td style="text-align:center;">${t.disciplines ? `<span class="badge badge-gray">${t.disciplines.name}</span>` : '<span style="color:var(--text-4);">—</span>'}</td>
+          <td style="text-align:center;font-weight:600;color:var(--accent);font-variant-numeric:tabular-nums;">${Number(t.allotted_manhours || 0).toLocaleString()} hrs</td>
+          <td style="text-align:center;">
+			<div class="table-actions" style="justify-content:center;">
+              <button class="btn btn-icon edit"   onclick="openEditTarget(${i})" title="Edit">${IC.edit}</button>
+              <button class="btn btn-icon delete" onclick="deleteTarget('${t.id}')" title="Delete">${IC.trash}</button>
+            </div>
+          </td>
+        </tr>`;
+      }).join('');
+      // Update total
+      const total = list.reduce((s, t) => s + (t.allotted_manhours || 0), 0);
+      const totalEl = document.getElementById('target-total-mh');
+      if (totalEl) totalEl.textContent = total > 0 ? Number(total).toLocaleString() + ' hrs' : '—';
+    }
+
+    function filterTargets(search) {
+      const roleFilter = document.getElementById('target-role-filter')?.value || '';
+      const discFilter = document.getElementById('target-disc-filter')?.value || '';
+      const q = (search || '').toLowerCase();
+      renderTargets(targetsData.filter(t => {
+        const matchProj   = t.project_id === posProjectId;   // always filter by selected project
+        const matchSearch = !q || t.position?.toLowerCase().includes(q) || t.roles?.name?.toLowerCase().includes(q) || t.disciplines?.name?.toLowerCase().includes(q);
+        const matchRole   = !roleFilter || t.role_key === roleFilter;
+        const matchDisc   = !discFilter || t.discipline_id === discFilter;
+        return matchProj && matchSearch && matchRole && matchDisc;
+      }));
+    }
+
+    function updatePositionLabel() {
+      const roleKey  = document.getElementById('t-role').value;
+      const discId   = document.getElementById('t-discipline').value;
+      const roleName = rolesData.find(r => r.key === roleKey)?.name || '';
+      const discName = disciplinesData.find(d => d.id === discId)?.name || '';
+      const posField = document.getElementById('t-position');
+      if (roleName && discName) {
+        posField.placeholder = `${roleName} - ${discName}`;
+        if (!posField.dataset.customized) posField.value = `${roleName} - ${discName}`;
+      }
+    }
+
+    function openAddTarget() {
+      document.getElementById('t-id').value = '';
+      document.getElementById('t-project').value = localStorage.getItem('activeProjectId') || '';
+      document.getElementById('t-role').value = '';
+      document.getElementById('t-discipline').value = '';
+      document.getElementById('t-position').value = '';
+      document.getElementById('t-position').dataset.customized = '';
+      document.getElementById('t-manhours').value = '';
+      document.getElementById('target-modal-title').innerHTML = `${IC.target} Add Position`;
+      openModal('target-modal');
+      setTimeout(() => document.getElementById('t-role').focus(), 100);
+    }
+
+    function openEditTarget(index) {
+      const t = targetsData[index];
+      if (!t) return;
+      document.getElementById('t-id').value         = t.id;
+      document.getElementById('t-project').value    = t.project_id || '';
+      document.getElementById('t-role').value       = t.role_key || '';
+      document.getElementById('t-discipline').value = t.discipline_id || '';
+      document.getElementById('t-position').value   = t.position || '';
+      document.getElementById('t-position').dataset.customized = 'yes';
+      document.getElementById('t-manhours').value   = t.allotted_manhours || '';
+      document.getElementById('target-modal-title').innerHTML = `${IC.target} Edit Position`;
+      openModal('target-modal');
+      setTimeout(() => document.getElementById('t-position').focus(), 100);
+    }
+
+    async function saveTarget() {
+      const btn = document.getElementById('target-save-btn');
+      const id  = document.getElementById('t-id').value;
+      const project_id     = document.getElementById('t-project').value || null;
+      const role_key       = document.getElementById('t-role').value;
+      const discipline_id  = document.getElementById('t-discipline').value || null;
+      const position       = document.getElementById('t-position').value.trim();
+      const allotted_manhours = parseFloat(document.getElementById('t-manhours').value);
+      if (!role_key)             { toast('Role is required.', 'error'); return; }
+      if (!position)             { toast('Position is required.', 'error'); document.getElementById('t-position').focus(); return; }
+      if (isNaN(allotted_manhours) || allotted_manhours < 0) { toast('Enter a valid manhour value.', 'error'); return; }
+      btn.disabled = true; btn.textContent = 'Saving…';
+      const { error } = id
+        ? await db.from('targets').update({ project_id, role_key, discipline_id, position, allotted_manhours }).eq('id', id)
+        : await db.from('targets').insert({ project_id, role_key, discipline_id, position, allotted_manhours });
+      btn.disabled = false; btn.innerHTML = `${IC.save} Save`;
+      if (error) { toast('Error: ' + error.message, 'error'); return; }
+      toast(id ? 'Position updated.' : 'Position added.', 'success');
+      closeModal('target-modal');
+      await loadTargets();
+    }
+
+    async function deleteTarget(id) {
+      confirmDialog('Delete this position target?', async () => {
+        const { error } = await db.from('targets').delete().eq('id', id);
+        if (error) { toast('Error: ' + error.message, 'error'); return; }
+        toast('Position deleted.', 'success');
+        await loadTargets();
+      });
+    }
+	
+	async function deleteAllTargets() {
+      if (!targetsData.length) { toast('No positions to delete.', 'info'); return; }
+      confirmDialog(`Delete all ${targetsData.length} position(s)? This cannot be undone.`, async () => {
+        const ids = targetsData.map(t => t.id);
+        const { error } = await db.from('targets').delete().in('id', ids);
+        if (error) { toast('Error: ' + error.message, 'error'); return; }
+        toast('All positions deleted.', 'success');
+        await loadTargets();
+      });
+    }
+
+    // ─── HISTOGRAM TAB ────────────────────────────────────────────────────────
+    async function onHistoProjectChange(projId) {
+      histoProjectId = projId || null;
+      histoProject   = projectsData.find(p => p.id === projId) || null;
+      histoSchedule  = {};
+      histoDirty     = {};
+      markDirty(false);
+
+      if (!projId || !histoProject) {
+        document.getElementById('histo-content').innerHTML = `<div style="text-align:center;padding:60px;color:var(--text-4);font-size:13px;">Select a project above to view and edit its manhour histogram.</div>`;
+        document.getElementById('histo-proj-info').textContent = '';
+        return;
+      }
+
+      if (!histoProject.start_date || !histoProject.end_date) {
+        document.getElementById('histo-content').innerHTML = `
+          <div style="text-align:center;padding:60px;color:var(--text-4);font-size:13px;">
+            This project has no start/end dates set.<br/>
+            <a href="admin.html" style="color:var(--accent);text-decoration:none;">Go to Admin → Projects</a> to set the dates.
+          </div>`;
+        document.getElementById('histo-proj-info').textContent = '';
+        return;
+      }
+
+      // Build months array
+      histoMonths = buildMonths(histoProject.start_date, histoProject.end_date);
+      document.getElementById('histo-proj-info').textContent =
+        `${fmtMonth(histoMonths[0])} → ${fmtMonth(histoMonths[histoMonths.length - 1])} · ${histoMonths.length} months`;
+
+      document.getElementById('histo-content').innerHTML = `<div style="text-align:center;padding:40px;color:var(--text-4);"><div class="spinner"></div></div>`;
+
+      // Load positions for this project
+      const projectTargets = targetsData.filter(t => t.project_id === projId);
+      if (!projectTargets.length) {
+        document.getElementById('histo-content').innerHTML = `
+          <div style="text-align:center;padding:60px;color:var(--text-4);font-size:13px;">
+            No positions defined for this project.<br/>
+            <span style="cursor:pointer;color:var(--accent);" onclick="switchTab('positions',document.querySelectorAll('.tab-btn')[0])">Go to Positions tab</span> to add them first.
+          </div>`;
+        return;
+      }
+
+      // Load existing schedule data
+      const targetIds = projectTargets.map(t => t.id);
+      const { data: schedRows } = await db.from('target_schedule')
+        .select('*')
+        .in('target_id', targetIds);
+
+      histoSchedule = {};
+      projectTargets.forEach(t => { histoSchedule[t.id] = {}; });
+      (schedRows || []).forEach(r => {
+        const key = r.period.substring(0, 7); // YYYY-MM
+        if (!histoSchedule[r.target_id]) histoSchedule[r.target_id] = {};
+        histoSchedule[r.target_id][key] = { manhours: r.manhours || 0, headcount: r.headcount || 0, db_id: r.id };
+      });
+
+      renderHistoGrid(projectTargets);
+    }
+
+    function buildMonths(startStr, endStr) {
+      const months = [];
+      const start  = new Date(startStr);
+      const end    = new Date(endStr);
+      start.setDate(1); end.setDate(1);
+      const cur = new Date(start);
+      while (cur <= end) {
+        months.push(new Date(cur));
+        cur.setMonth(cur.getMonth() + 1);
+      }
+      return months;
+    }
+
+    function fmtMonth(d) {
+      return d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
+    }
+
+    function periodKey(d) {
+      return d.toISOString().substring(0, 7); // YYYY-MM
+    }
+
+    function renderHistoGrid(projectTargets) {
+      const months = histoMonths;
+
+      let html = `<div class="histo-outer"><table class="histo-table">`;
+
+      // ── Header row ──
+      html += `<thead>
+        <tr>
+          <th class="col-pos" colspan="4" style="text-align:center;">PROJECT DETAILS</th>
+          ${months.map(m => `<th style="min-width:58px;">${fmtMonth(m)}</th>`).join('')}
+          <th style="min-width:70px;">ACTION</th>
+        </tr>`;
+      html += `</thead><tbody>`;
+
+      // ── Data rows (MP + MH per position) ──
+      projectTargets.forEach(t => {
+        const allotted = t.allotted_manhours || 0;
+        const discCode = t.disciplines?.name || '—';
+        const sched    = histoSchedule[t.id] || {};
+
+        // MP row
+        html += `<tr class="row-mp" data-tid="${t.id}" data-row="mp">
+          <td class="col-pos" rowspan="2">
+            <div class="pos-label" title="${t.position||''}">${t.position||'—'}</div>
+          </td>
+          <td class="col-disc" rowspan="2"><span class="badge badge-gray disc-badge">${discCode}</span></td>
+          <td class="col-allot" rowspan="2" style="font-weight:600;color:var(--accent);font-variant-numeric:tabular-nums;text-align:center;">${Number(allotted).toLocaleString()}</td>
+          <td class="col-total" id="total-mh-${t.id}" rowspan="2" style="text-align:center;">—</td>`;
+        months.forEach(m => {
+          const key = periodKey(m);
+          const val = sched[key]?.headcount || 0;
+          html += `<td style="line-height:1;"><input type="number" class="cell-input" min="0" step="1"
+            data-tid="${t.id}" data-period="${key}" data-field="headcount"
+            value="${val || ''}" placeholder="—"
+            onchange="onCellChange(this)"/></td>`;
+        });
+        html += `<td style="padding:4px 6px;text-align:center;vertical-align:middle;">
+          <div style="display:flex;justify-content:center;align-items:center;">
+            <button class="btn btn-icon delete" title="Clear MP" onclick="clearRow('${t.id}','headcount')"
+              style="display:flex;align-items:center;gap:3px;font-size:10px;padding:3px 6px;">
+              Clear
+            </button>
+          </div>
+        </td></tr>`;
+
+        // MH row
+        html += `<tr class="row-mh" data-tid="${t.id}" data-row="mh">`;
+        months.forEach(m => {
+          const key = periodKey(m);
+          const val = sched[key]?.manhours || 0;
+          html += `<td style="line-height:1;"><input type="number" class="cell-input" min="0" step="0.5"
+            data-tid="${t.id}" data-period="${key}" data-field="manhours"
+            value="${val || ''}" placeholder="—"
+            onchange="onCellChange(this)" /></td>`;
+        });
+        html += `<td style="padding:4px 6px;text-align:center;vertical-align:middle;">
+          <div style="display:flex;justify-content:center;align-items:center;">
+            <button class="btn btn-icon delete" title="Clear MH" onclick="clearRow('${t.id}','manhours')"
+              style="display:flex;align-items:center;gap:3px;font-size:10px;padding:3px 6px;">
+              Clear
+            </button>
+          </div>
+        </td></tr>`;
+      });
+
+      // ── Footer: monthly totals ──
+      html += `<tr style="background:var(--bg-4);">
+        <td class="col-pos" style="font-weight:700;color:var(--text-3);font-size:11px;padding:6px 10px;text-align:center;">MONTHLY MP</td>
+        <td class="col-disc"></td><td class="col-allot"></td><td class="col-total"></td>`;
+      months.forEach(m => {
+        html += `<td id="foot-mp-${periodKey(m)}" style="text-align:center;padding:5px 6px;font-weight:700;font-size:11px;color:var(--text-2);font-variant-numeric:tabular-nums;"></td>`;
+      });
+	  html += `<td id="foot-peak" style="text-align:center;font-weight:700;font-size:11px;font-variant-numeric:tabular-nums;"></td>`;
+      html += `</tr><tr style="background:var(--bg-4);">
+        <td class="col-pos" style="font-weight:700;color:var(--text-3);font-size:11px;padding:6px 10px;text-align:center;">MONTHLY MH</td>
+        <td class="col-disc"></td><td class="col-allot"></td><td class="col-total"></td>`;
+      months.forEach(m => {
+        html += `<td id="foot-mh-${periodKey(m)}" style="text-align:center;padding:5px 6px;font-weight:700;font-size:11px;color:var(--text-2);font-variant-numeric:tabular-nums;"></td>`;
+      });  
+	  html += `<td id="foot-total-mh" style="text-align:center;font-weight:700;font-size:11px;color:var(--accent);font-variant-numeric:tabular-nums;"></td>`;
+      html += `</tr></tbody></table></div>`;
+
+      // ── Sub-header legend ──
+      html = html.replace('<tbody>', `
+        <tbody>
+        <tr class="sub-hdr">
+          <td class="col-pos sub-hdr" rowspan="2" style="text-align:center;vertical-align:middle;">Position</td>
+          <td class="col-disc sub-hdr" rowspan="2" style="vertical-align:middle;">Disc</td>
+          <td class="col-allot sub-hdr" rowspan="2" style="vertical-align:middle;">Allotted</td>
+          <td class="col-total sub-hdr" rowspan="2" style="vertical-align:middle;">Total</td>
+          ${months.map(() => `<td class="sub-hdr" style="color:var(--accent);font-weight:700;">MP</td>`).join('')}
+          <td class="sub-hdr" rowspan="2" style="vertical-align:middle;">Action</td>
+        </tr>
+        <tr class="sub-hdr">
+          ${months.map(() => `<td class="sub-hdr" style="color:var(--text-3);">MH</td>`).join('')}
+        </tr>`
+      );
+      
+      document.getElementById('histo-content').innerHTML = html;
+      recalcAllTotals(projectTargets);
+    }
+
+    function onCellChange(input) {
+      const tid    = input.dataset.tid;
+      const period = input.dataset.period;
+      const field  = input.dataset.field;
+      const val    = parseFloat(input.value) || 0;
+
+      if (!histoSchedule[tid]) histoSchedule[tid] = {};
+      if (!histoSchedule[tid][period]) histoSchedule[tid][period] = { manhours: 0, headcount: 0 };
+      histoSchedule[tid][period][field] = val;
+
+      if (!histoDirty[tid]) histoDirty[tid] = {};
+      histoDirty[tid][period] = true;
+      markDirty(true);
+
+      // Recalc row total for this target
+      const projectTargets = targetsData.filter(t => t.project_id === histoProjectId);
+      const t = projectTargets.find(x => x.id === tid);
+      if (t) recalcRowTotal(t);
+      recalcColTotals(period);
+
+      // Auto-save debounce
+      clearTimeout(histoAutoSave);
+      histoAutoSave = setTimeout(saveHistogram, 3000);
+    }
+	
+	function clearRow(tid, field) {
+      confirmDialog(`Clear all ${field === 'headcount' ? 'MP' : 'MH'} values for this position?`, () => {
+        histoMonths.forEach(m => {
+          const key = periodKey(m);
+          if (!histoSchedule[tid]) histoSchedule[tid] = {};
+          if (!histoSchedule[tid][key]) histoSchedule[tid][key] = { manhours: 0, headcount: 0 };
+          histoSchedule[tid][key][field] = 0;
+          if (!histoDirty[tid]) histoDirty[tid] = {};
+          histoDirty[tid][key] = true;
+    
+          // Update input in DOM
+          const input = document.querySelector(
+            `input[data-tid="${tid}"][data-period="${key}"][data-field="${field}"]`
+          );
+          if (input) input.value = '';
+        });
+    
+        markDirty(true);
+        const projectTargets = targetsData.filter(t => t.project_id === histoProjectId);
+        const t = projectTargets.find(x => x.id === tid);
+        if (t) recalcRowTotal(t);
+        histoMonths.forEach(m => recalcColTotals(periodKey(m)));
+    
+        clearTimeout(histoAutoSave);
+        histoAutoSave = setTimeout(saveHistogram, 3000);
+      });
+    }
+
+    function recalcAllTotals(projectTargets) {
+      projectTargets.forEach(t => recalcRowTotal(t));
+      histoMonths.forEach(m => recalcColTotals(periodKey(m)));
+    }
+
+    function recalcRowTotal(t) {
+      const sched    = histoSchedule[t.id] || {};
+      const totalMH = histoMonths.reduce((s, m) => {
+        const entry = sched[periodKey(m)] || {};
+        return s + ((entry.headcount || 0) * (entry.manhours || 0) * 26);
+      }, 0);
+      const allotted = t.allotted_manhours || 0;
+      const el = document.getElementById(`total-mh-${t.id}`);
+      if (!el) return;
+      const pct = allotted > 0 ? Math.round(totalMH / allotted * 100) : 0;
+      let cls = totalMH === 0 ? 'total-zero' : totalMH > allotted ? 'total-over' : 'total-ok';
+      el.innerHTML = `<span class="${cls}" style="font-variant-numeric:tabular-nums;">${Number(totalMH).toLocaleString()}</span>
+        <div style="font-size:10px;color:var(--text-4);">${pct}%</div>`;
+    }
+
+    function recalcColTotals(period) {
+      const projectTargets = targetsData.filter(t => t.project_id === histoProjectId);
+      let totalMP = 0, totalMH = 0;
+      projectTargets.forEach(t => {
+        const sched = histoSchedule[t.id] || {};
+        totalMP += sched[period]?.headcount || 0;
+        totalMH += ((sched[period]?.headcount || 0) * (sched[period]?.manhours || 0) * 26);
+      });
+      const mpEl = document.getElementById(`foot-mp-${period}`);
+      const mhEl = document.getElementById(`foot-mh-${period}`);
+      if (mpEl) mpEl.textContent = totalMP || '';
+      if (mhEl) mhEl.textContent = totalMH ? Number(totalMH).toLocaleString() : '';
+    
+      // Peak MP — highest monthly total across all months
+      const allMpTotals = histoMonths.map(m => {
+        const el = document.getElementById('foot-mp-' + periodKey(m));
+        return el ? (parseFloat(el.textContent) || 0) : 0;
+      });
+      const peak = Math.max(...allMpTotals);
+      const peakEl = document.getElementById('foot-peak');
+      if (peakEl) peakEl.textContent = peak > 0 ? peak : '—';
+    
+      // Grand Total MH — sum of all monthly MH totals
+      const allMhTotals = histoMonths.map(m => {
+        const el = document.getElementById('foot-mh-' + periodKey(m));
+        return el ? (parseFloat(el.textContent.replace(/,/g, '')) || 0) : 0;
+      });
+      const grandTotal = allMhTotals.reduce((s, v) => s + v, 0);
+      const totalEl = document.getElementById('foot-total-mh');
+      if (totalEl) totalEl.textContent = grandTotal > 0 ? Number(grandTotal).toLocaleString() : '—';
+    }
+
+    function markDirty(isDirty) {
+      const dot = document.getElementById('histo-dirty-dot');
+      if (dot) dot.classList.toggle('dirty', isDirty);
+    }
+	
+	async function clearAllHistogram() {
+      if (!histoProjectId) { toast('No project selected.', 'info'); return; }
+      const projectTargets = targetsData.filter(t => t.project_id === histoProjectId);
+      if (!projectTargets.length) { toast('No positions in this project.', 'info'); return; }
+    
+      confirmDialog('Clear all histogram data for this project? This cannot be undone.', async () => {
+        const ids = projectTargets.map(t => t.id);
+        const { error } = await db.from('target_schedule').delete().in('target_id', ids);
+        if (error) { toast('Error: ' + error.message, 'error'); return; }
+    
+        // Reset local state
+        histoSchedule = {};
+        histoDirty    = {};
+        markDirty(false);
+    
+        toast('Histogram cleared.', 'success');
+        await onHistoProjectChange(histoProjectId);
+      });
+    }
+
+    async function saveHistogram(isManual = false) {
+      if (histoSaving) return;
+      const dirtyTargets = Object.keys(histoDirty);
+      if (!dirtyTargets.length) return;
+      histoSaving = true;
+      const btn = document.getElementById('histo-save-btn');
+      if (btn) { btn.textContent = 'Saving…'; btn.disabled = true; }
+    
+      const upserts = [];
+      dirtyTargets.forEach(tid => {
+        Object.keys(histoDirty[tid]).forEach(period => {
+          const entry = histoSchedule[tid]?.[period] || {};
+          upserts.push({
+            target_id: tid,
+            period:    period + '-01',
+            manhours:  entry.manhours  || 0,
+            headcount: entry.headcount || 0,
+          });
+        });
+      });
+    
+      const { error } = await db.from('target_schedule')
+        .upsert(upserts, { onConflict: 'target_id,period' });
+    
+      histoSaving = false;
+      if (btn) { btn.innerHTML = `${IC.save} Save`; btn.disabled = false; }
+      if (error) { toast('Error saving: ' + error.message, 'error'); return; }
+    
+      histoDirty = {};
+      markDirty(false);
+      toast(isManual ? 'Histogram saved.' : 'Histogram auto-saved.', 'success');
+    }
+
+    // ─── EXCEL IMPORT ─────────────────────────────────────────────────────────
+    let importParsedData = null;
+
+    function openImportModal() {
+      if (!histoProjectId) { toast('Select a project first.', 'error'); return; }
+      document.getElementById('import-preview-wrap').innerHTML = '';
+      document.getElementById('import-confirm-btn').style.display = 'none';
+      document.getElementById('import-file').value = '';
+      importParsedData = null;
+      openModal('import-modal');
+    }
+
+    function handleImportDrop(e) {
+      e.preventDefault();
+      document.getElementById('import-drop').classList.remove('drag-over');
+      const file = e.dataTransfer?.files?.[0];
+      if (file) processImportFile(file);
+    }
+
+    function handleImportFile(input) {
+      const file = input.files?.[0];
+      if (file) processImportFile(file);
+    }
+
+    function processImportFile(file) {
+      if (!file.name.match(/\.xlsx?$/i)) { toast('Please upload an .xlsx or .xls file.', 'error'); return; }
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const wb   = XLSX.read(e.target.result, { type: 'array' });
+          const ws   = wb.Sheets[wb.SheetNames[0]];
+          const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+          parseHistogramExcel(rows);
+        } catch (err) {
+          toast('Failed to read file: ' + err.message, 'error');
+        }
+      };
+      reader.readAsArrayBuffer(file);
+    }
+
+function parseHistogramExcel(rows) {
+  if (!rows.length) { toast('No data found in file.', 'error'); return; }
+
+  // Row 0 is the header — find month columns from date values
+  const headerRow = rows[0];
+  const monthCols = [];
+
+  headerRow.forEach((cell, ci) => {
+    if (ci < 2) return; // skip Position and Discipline columns
+    let date = null;
+
+    if (cell instanceof Date) {
+      date = cell;
+    } else if (typeof cell === 'number') {
+      // Excel serial date
+      date = new Date(Math.round((cell - 25569) * 86400 * 1000));
+    } else if (typeof cell === 'string') {
+      // Try "Jun-26" or "2026-06" or "06 01 2026"
+      const monthNames = { jan:0,feb:1,mar:2,apr:3,may:4,jun:5,jul:6,aug:7,sep:8,oct:9,nov:10,dec:11 };
+      const m1 = cell.trim().match(/^([A-Za-z]{3})-(\d{2})$/);
+      const m2 = cell.trim().match(/^(\d{4})-(\d{2})$/);
+      const m3 = cell.trim().match(/^(\d{2})\s(\d{2})\s(\d{4})$/);
+      if (m1) date = new Date(2000 + parseInt(m1[2]), monthNames[m1[1].toLowerCase()], 1);
+      else if (m2) date = new Date(parseInt(m2[1]), parseInt(m2[2]) - 1, 1);
+      else if (m3) date = new Date(parseInt(m3[3]), parseInt(m3[1]) - 1, 1);
+    }
+
+    if (date && !isNaN(date)) {
+      const y = date.getFullYear();
+      const mo = String(date.getMonth() + 1).padStart(2, '0');
+      const key = `${y}-${mo}`;
+      const label = date.toLocaleString('en', { month: 'short' }) + '-' + String(y).slice(2);
+      monthCols.push({ colIdx: ci, date, key, label });
+    }
+  });
+
+  if (!monthCols.length) {
+    toast('Could not find month columns in header row.', 'error');
+    return;
+  }
+
+  // Parse paired MP/MH rows starting from row 1
+  const parsed = [];
+  let i = 1;
+  while (i < rows.length) {
+    const rowA = rows[i];
+    const rowB = rows[i + 1];
+    if (!rowA) { i++; continue; }
+
+    const posName  = String(rowA[0] || '').trim();
+    const discCode = String(rowA[1] || '').trim();
+
+    if (!posName) { i++; continue; }
+
+    const mpVals = {}, mhVals = {};
+    monthCols.forEach(mc => {
+      const mpV = parseFloat(rowA[mc.colIdx]) || 0;
+      const mhV = rowB ? parseFloat(rowB[mc.colIdx]) || 0 : 0;
+      if (mpV) mpVals[mc.key] = mpV;
+      if (mhV) mhVals[mc.key] = mhV;
+    });
+
+    const hasData = Object.keys(mpVals).length > 0 || Object.keys(mhVals).length > 0;
+    if (hasData) {
+      parsed.push({ position: posName, discCode, mp: mpVals, mh: mhVals });
+    }
+    i += 2; // always skip 2 rows (MP + MH pair)
+  }
+
+  if (!parsed.length) {
+    toast('No data rows found in the file.', 'error');
+    return;
+  }
+
+  importParsedData = { parsed, monthCols };
+  renderImportPreview(parsed, monthCols);
+}
+
+    function parseMonthLabel(label) {
+      // "May-26" → Date(2026, 4, 1)
+      const months = { jan:0, feb:1, mar:2, apr:3, may:4, jun:5, jul:6, aug:7, sep:8, oct:9, nov:10, dec:11 };
+      const [mon, yr] = label.split('-');
+      const m = months[mon.toLowerCase()];
+      if (m === undefined) return null;
+      const y = parseInt(yr) + 2000;
+      return new Date(y, m, 1);
+    }
+
+    function renderImportPreview(parsed, monthCols) {
+      const displayMonths = monthCols.slice(0, 12); // show first 12 months in preview
+      const more = monthCols.length > 12 ? ` +${monthCols.length - 12} more` : '';
+
+      let html = `
+        <div style="margin-top:14px;margin-bottom:8px;font-size:12px;color:var(--text-3);">
+          <strong style="color:var(--text);">${parsed.length} positions</strong> found across
+          <strong style="color:var(--text);">${monthCols.length} months</strong>${more}.
+          Review below and confirm import.
+        </div>
+        <div class="import-preview"><table>
+          <thead><tr>
+            <th style="text-align:left;min-width:160px;">Position</th>
+            <th>Disc</th>
+            ${displayMonths.map(m => `<th>${m.label}</th>`).join('')}
+            ${more ? `<th>…</th>` : ''}
+          </tr></thead><tbody>`;
+
+      parsed.forEach(p => {
+        html += `<tr>
+          <td style="text-align:left;font-weight:500;">${p.position}</td>
+          <td style="text-align:center;">${p.discCode||'—'}</td>
+          ${displayMonths.map(m => {
+            const mh = p.mh[m.key] || 0;
+            const mp = p.mp[m.key] || 0;
+            return `<td title="MP:${mp} MH:${mh}">${mh ? Number(mh).toLocaleString() : '—'}</td>`;
+          }).join('')}
+          ${more ? `<td style="color:var(--text-4);">…</td>` : ''}
+        </tr>`;
+      });
+
+      html += `</tbody></table></div>
+        <div style="margin-top:10px;font-size:11px;color:var(--text-4);">
+          Positions are matched by name against existing entries for this project. Unmatched positions are skipped.
+          Existing schedule data for matched positions will be overwritten.
+        </div>`;
+
+      document.getElementById('import-preview-wrap').innerHTML = html;
+      document.getElementById('import-confirm-btn').style.display = 'flex';
+    }
+	
+	function switchTab(name, btn) {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById('tab-' + name).classList.add('active');
+      if (name === 'kpi') loadKpi();
+    }
+	
+	// ─── POSITION IMPORT ─────────────────────────────────────────────────────
+    let posImportParsed = null;
+    
+    function openPositionImportModal() {
+      document.getElementById('pos-import-preview-wrap').innerHTML = '';
+      document.getElementById('pos-import-confirm-btn').style.display = 'none';
+      document.getElementById('pos-import-file').value = '';
+      posImportParsed = null;
+      openModal('pos-import-modal');
+    }
+    
+    function handlePosImportDrop(e) {
+      e.preventDefault();
+      document.getElementById('pos-import-drop').classList.remove('drag-over');
+      const file = e.dataTransfer?.files?.[0];
+      if (file) processPosImportFile(file);
+    }
+    
+    function handlePosImportFile(input) {
+      const file = input.files?.[0];
+      if (file) processPosImportFile(file);
+    }
+    
+    function processPosImportFile(file) {
+      if (!file.name.match(/\.xlsx?$/i)) { toast('Please upload an .xlsx or .xls file.', 'error'); return; }
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const wb   = XLSX.read(e.target.result, { type: 'array' });
+          const ws   = wb.Sheets[wb.SheetNames[0]];
+          const rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
+          parsePosImportRows(rows);
+        } catch (err) {
+          toast('Failed to read file: ' + err.message, 'error');
+        }
+      };
+      reader.readAsArrayBuffer(file);
+    }
+    
+    function parsePosImportRows(rows) {
+      if (!rows.length) { toast('No data found in file.', 'error'); return; }
+	  
+	 // Normalize keys — strip whitespace and BOM from all header keys
+       rows = rows.map(row => {
+         const clean = {};
+         Object.keys(row).forEach(k => { clean[k.trim().replace(/^\uFEFF/, '')] = row[k]; });
+         return clean;
+       });
+    
+      const parsed = [];
+      const errors = [];
+    
+      rows.forEach((row, i) => {
+        const position  = String(row['Position'] || '').trim();
+        const roleRaw   = String(row['Role'] || '').trim();
+        const discRaw   = String(row['Discipline'] || '').trim();
+        const projRaw   = String(row['Project'] || '').trim();
+        const manhours  = parseFloat(row['Allotted Manhours']) || 0;
+    
+        if (!position) { errors.push(`Row ${i+2}: missing Position`); return; }
+        if (!roleRaw)  { errors.push(`Row ${i+2}: missing Role`); return; }
+    
+        // Match role by name or key
+        const role = rolesData.find(r =>
+          r.name.toLowerCase() === roleRaw.toLowerCase() ||
+          r.key.toLowerCase()  === roleRaw.toLowerCase()
+        );
+        if (!role) { errors.push(`Row ${i+2}: unknown role "${roleRaw}"`); return; }
+    
+        // Match discipline (optional)
+        const disc = discRaw ? disciplinesData.find(d =>
+          d.name.toLowerCase() === discRaw.toLowerCase()
+        ) : null;
+    
+        // Match project (optional) by name or code
+        const proj = projRaw ? projectsData.find(p =>
+          p.name.toLowerCase() === projRaw.toLowerCase() ||
+          p.code.toLowerCase() === projRaw.toLowerCase()
+        ) : null;
+    
+        parsed.push({ position, role_key: role.key, roleName: role.name, discipline_id: disc?.id || null, discName: disc?.name || '—', project_id: proj?.id || null, projCode: proj?.code || '—', allotted_manhours: manhours });
+      });
+    
+      if (errors.length) {
+        toast(errors.slice(0, 3).join(' | ') + (errors.length > 3 ? ` (+${errors.length-3} more)` : ''), 'error');
+        if (!parsed.length) return;
+      }
+    
+      posImportParsed = parsed;
+    
+      // Render preview
+      let html = `
+        <div style="margin:14px 0 8px;font-size:12px;color:var(--text-3);">
+          <strong style="color:var(--text);">${parsed.length} positions</strong> ready to import.
+          ${errors.length ? `<span style="color:var(--red);margin-left:8px;">${errors.length} rows skipped.</span>` : ''}
+        </div>
+        <div class="import-preview"><table>
+          <thead><tr>
+            <th style="text-align:left;">Position</th>
+            <th>Role</th><th>Discipline</th><th>Project</th><th>Allotted MH</th>
+          </tr></thead><tbody>
+          ${parsed.map(p => `<tr>
+            <td style="text-align:left;">${p.position}</td>
+            <td>${p.roleName}</td>
+            <td>${p.discName}</td>
+            <td style="font-family:monospace;">${p.projCode}</td>
+            <td>${Number(p.allotted_manhours).toLocaleString()}</td>
+          </tr>`).join('')}
+        </tbody></table></div>`;
+    
+      document.getElementById('pos-import-preview-wrap').innerHTML = html;
+      const btn = document.getElementById('pos-import-confirm-btn');
+      btn.style.display = 'flex';
+    }
+    
+    async function confirmPosImport() {
+      if (!posImportParsed?.length) return;
+      const btn = document.getElementById('pos-import-confirm-btn');
+      btn.textContent = 'Importing…'; btn.disabled = true;
+    
+      const { error } = await db.from('targets').insert(
+        posImportParsed.map(p => ({
+          position:          p.position,
+          role_key:          p.role_key,
+          discipline_id:     p.discipline_id,
+          project_id:        p.project_id,
+          allotted_manhours: p.allotted_manhours,
+        }))
+      );
+    
+      btn.innerHTML = `${IC.save} Import Positions`; btn.disabled = false;
+    
+      if (error) { toast('Import error: ' + error.message, 'error'); return; }
+    
+      toast(`${posImportParsed.length} positions imported successfully.`, 'success');
+      posImportParsed = null;
+      closeModal('pos-import-modal');
+      await loadTargets();
+    }
+
+async function confirmImport() {
+      if (!importParsedData) return;
+      const btn = document.getElementById('import-confirm-btn');
+      btn.textContent = 'Importing…'; btn.disabled = true;
+
+      const projectTargets = targetsData.filter(t => t.project_id === histoProjectId);
+      const { parsed, monthCols } = importParsedData;
+
+      const upserts = [];
+      let matched = 0;
+
+      parsed.forEach(p => {
+        const target = projectTargets.find(t =>
+          t.position?.toLowerCase().trim() === p.position.toLowerCase().trim()
+        );
+        if (!target) return;
+        matched++;
+        monthCols.forEach(mc => {
+          upserts.push({
+            target_id: target.id,
+            period:    mc.key + '-01',
+            headcount: p.mp[mc.key] || 0,
+            manhours:  p.mh[mc.key] || 0,
+          });
+        });
+      });
+
+      if (!upserts.length) {
+        toast('No positions matched. Check that position names in the Excel match exactly.', 'warning');
+        btn.innerHTML = `${IC.save} Import Data`; btn.disabled = false;
+        return;
+      }
+
+      const { error } = await db.from('target_schedule')
+        .upsert(upserts, { onConflict: 'target_id,period' });
+
+      btn.innerHTML = `${IC.save} Import Data`; btn.disabled = false;
+      if (error) { toast('Import error: ' + error.message, 'error'); return; }
+
+      toast(`${matched} position(s) imported successfully.`, 'success');
+      closeModal('import-modal');
+      importParsedData = null;
+      await onHistoProjectChange(histoProjectId);
+    }
+
+// ═══════════════════════════════════════════════════════════════════
+// PLANNED PROGRESS TAB — Weekly × Discipline × ROC
+// ═══════════════════════════════════════════════════════════════════
+let progProjectId  = null;
+let progProject    = null;   // full project object (has week_start_day)
+let progWeeks      = [];     // sorted array of week_start date strings 'YYYY-MM-DD'
+let progDiscs      = [];     // disciplines with positions in project [{id,name}]
+let progRoc        = {};     // { discipline_id: roc_pct }
+let progSchedule   = {};     // { discipline_id: { 'YYYY-MM-DD': pct } }
+let progDirty      = {};     // { discipline_id: { 'YYYY-MM-DD': true } }
+let progRocDirty   = {};     // { discipline_id: true }
+let progSaving     = false;
+let progAutoSave   = null;
+let progImportData = null;
+
+// ── Helpers ───────────────────────────────────────────────────────
+function getWeekStart(date, weekStartDay) {
+  // weekStartDay: 0=Sun,1=Mon,2=Tue,3=Wed,4=Thu,5=Fri,6=Sat
+  const d = new Date(date);
+  const day = d.getDay();
+  const diff = (day - weekStartDay + 7) % 7;
+  d.setDate(d.getDate() - diff);
+  return d.toISOString().substring(0, 10);
+}
+
+function generateWeeks(startDate, endDate, weekStartDay) {
+  const weeks = [];
+  let cur = new Date(getWeekStart(startDate, weekStartDay));
+  const end = new Date(endDate);
+  while (cur <= end) {
+    weeks.push(cur.toISOString().substring(0, 10));
+    cur.setDate(cur.getDate() + 7);
+  }
+  return weeks;
+}
+
+function fmtWeekRange(weekStart) {
+  const s = new Date(weekStart + 'T00:00:00');
+  const e = new Date(s); e.setDate(e.getDate() + 6);
+  const fmt = d => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  return `${fmt(s)} – ${fmt(e)}`;
+}
+
+function fmtWeekYear(weekStart) {
+  const s = new Date(weekStart + 'T00:00:00');
+  return String(s.getFullYear()).slice(2);
+}
+
+// ── Project selector ──────────────────────────────────────────────
+function populateProgProjectSelect() {
+  const sel = document.getElementById('prog-proj-select');
+  if (!sel) return;
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">— Select a project —</option>';
+  projectsData.forEach(p => {
+    const o = document.createElement('option');
+    o.value = p.id;
+    o.textContent = `${p.code} — ${p.name}`;
+    sel.appendChild(o);
+  });
+  if (cur) sel.value = cur;
+}
+
+async function onProgProjectChange(pid) {
+  progProjectId = pid;
+  progProject   = projectsData.find(p => p.id === pid) || null;
+  progWeeks     = [];
+  progDiscs     = [];
+  progRoc       = {};
+  progSchedule  = {};
+  progDirty     = {};
+  progRocDirty  = {};
+  markProgDirty(false);
+
+  const info    = document.getElementById('prog-proj-info');
+  const content = document.getElementById('prog-content');
+
+  if (!pid) {
+    content.innerHTML = `<div style="text-align:center;padding:60px;color:var(--text-4);font-size:13px;">Select a project above to view and edit its planned progress.</div>`;
+    if (info) info.textContent = '';
+    return;
+  }
+
+  content.innerHTML = `<div style="text-align:center;padding:40px;color:var(--text-4);">Loading…</div>`;
+
+  const weekStartDay = progProject?.week_start_day ?? 1;
+
+  // Get project date range from project record, fallback to target_schedule
+  let startDate = progProject?.start_date;
+  let endDate   = progProject?.end_date;
+
+  if (!startDate || !endDate) {
+    const { data: schedRows } = await db
+      .from('target_schedule')
+      .select('period, targets!inner(project_id)')
+      .eq('targets.project_id', pid)
+      .order('period', { ascending: true });
+
+    if (!schedRows?.length) {
+      content.innerHTML = `<div style="text-align:center;padding:60px;color:var(--text-4);font-size:13px;">No histogram data found. Please fill the Histogram tab first.</div>`;
+      return;
+    }
+    const periods = schedRows.map(r => r.period).sort();
+    startDate = periods[0];
+    endDate   = periods[periods.length - 1];
+  }
+
+  progWeeks = generateWeeks(startDate, endDate, weekStartDay);
+
+  if (info) {
+    info.textContent = `${fmtWeekRange(progWeeks[0])} → ${fmtWeekRange(progWeeks[progWeeks.length-1])} · ${progWeeks.length} weeks`;
+  }
+
+  // Get disciplines that have positions in this project
+  const { data: targRows } = await db
+    .from('targets')
+    .select('discipline_id, disciplines(id,name)')
+    .eq('project_id', pid)
+    .not('discipline_id', 'is', null);
+
+  const discMap = {};
+  (targRows || []).forEach(r => {
+    if (r.disciplines) discMap[r.disciplines.id] = r.disciplines.name;
+  });
+  progDiscs = Object.entries(discMap)
+    .map(([id, name]) => ({ id, name }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  if (!progDiscs.length) {
+    content.innerHTML = `<div style="text-align:center;padding:60px;color:var(--text-4);font-size:13px;">No disciplines found. Assign disciplines to positions in the Positions tab first.</div>`;
+    return;
+  }
+
+  // Load ROC
+  const { data: rocRows } = await db
+    .from('project_discipline_roc')
+    .select('*')
+    .eq('project_id', pid);
+  (rocRows || []).forEach(r => { progRoc[r.discipline_id] = parseFloat(r.roc) || 0; });
+
+  // Load existing planned progress
+  const { data: progRows } = await db
+    .from('planned_progress')
+    .select('*')
+    .eq('project_id', pid);
+  (progRows || []).forEach(r => {
+    if (!progSchedule[r.discipline_id]) progSchedule[r.discipline_id] = {};
+    progSchedule[r.discipline_id][r.week_start] = parseFloat(r.planned_pct);
+  });
+
+  renderProgGrid();
+}
+
+// ── Render grid ───────────────────────────────────────────────────
+function renderProgGrid() {
+  const content = document.getElementById('prog-content');
+  if (!progWeeks.length || !progDiscs.length) return;
+
+  // Group weeks by month (week belongs to month of its start date)
+  const monthGroups = [];
+  let curMonth = null, curCount = 0;
+  progWeeks.forEach(w => {
+    const d = new Date(w + 'T00:00:00');
+    const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+    const label = d.toLocaleString('en', { month: 'short' }).toUpperCase() + ' ' + String(d.getFullYear()).slice(2);
+    if (key !== curMonth) {
+      if (curMonth) monthGroups.push({ label: monthGroups[monthGroups.length]?.label || label, count: curCount });
+      // store label with the key
+      curMonth = key;
+      curCount = 1;
+      monthGroups.push({ label, count: 0, key }); // placeholder, count filled at end
+    } else {
+      curCount++;
+    }
+  });
+  // Fix: build properly
+  const monthGroupsFinal = [];
+  let lastKey = null;
+  progWeeks.forEach(w => {
+    const d = new Date(w + 'T00:00:00');
+    const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+    const label = d.toLocaleString('en', { month: 'short' }).toUpperCase() + ' \'' + String(d.getFullYear()).slice(2);
+    if (key !== lastKey) { monthGroupsFinal.push({ label, count: 1 }); lastKey = key; }
+    else monthGroupsFinal[monthGroupsFinal.length-1].count++;
+  });
+
+  let html = `
+  <div style="overflow-x:auto;">
+  <table class="histo-table" style="border-collapse:collapse;">
+    <thead>
+      <tr>
+        <th class="col-pos" style="min-width:120px;text-align:left;position:sticky;left:0;z-index:4;background:var(--bg-4);">DISCIPLINE</th>
+        ${monthGroupsFinal.map(g => `<th colspan="${g.count}" style="text-align:center;border-left:2px solid var(--border-2);white-space:nowrap;">${g.label}</th>`).join('')}
+      </tr>
+      <tr>
+        <th class="col-pos" style="position:sticky;left:0;z-index:4;background:var(--bg-4);font-size:10px;color:var(--text-4);">Week of</th>
+        ${progWeeks.map(w => `<th style="min-width:90px;text-align:center;font-size:10px;white-space:nowrap;border-left:1px solid var(--border);">${fmtWeekRange(w)}</th>`).join('')}
+      </tr>
+    </thead>
+    <tbody>
+      ${progDiscs.map(d => {
+        const sched = progSchedule[d.id] || {};
+        const roc   = progRoc[d.id] || 0;
+        return `<tr data-disc-id="${d.id}">
+          <td class="col-pos" style="position:sticky;left:0;z-index:3;background:var(--bg-3);font-weight:600;font-size:12px;">${d.name}</td>
+          ${progWeeks.map(w => {
+            const val = sched[w];
+            return `<td style="padding:3px 4px;text-align:center;border-left:1px solid var(--border);">
+              <div style="position:relative;display:inline-flex;align-items:center;">
+                <input type="number" class="cell-input" min="0" max="100" step="0.01"
+                  data-prog-disc="${d.id}" data-prog-week="${w}"
+                  value="${val != null ? val : ''}"
+                  placeholder="—"
+                  onchange="onProgCellChange(this)"
+                  style="text-align:center;width:64px;" />
+                <span style="position:absolute;right:4px;font-size:9px;color:var(--text-4);">%</span>
+              </div>
+            </td>`;
+          }).join('')}
+        </tr>`;
+      }).join('')}
+    </tbody>
+    <tfoot>
+      <tr style="border-top:2px solid var(--border-2);">
+        <td class="col-pos" style="position:sticky;left:0;z-index:3;background:var(--bg-4);font-weight:700;font-size:11px;color:var(--text);text-transform:uppercase;letter-spacing:.05em;">Overall %</td>
+        ${progWeeks.map(w => {
+          const overall = progDiscs.reduce((s, d) => {
+            const pct = (progSchedule[d.id] || {})[w];
+            const roc = progRoc[d.id] || 0;
+            return s + (pct != null ? (pct * roc / 100) : 0);
+          }, 0);
+          return `<td id="prog-overall-${w}" style="text-align:center;font-weight:700;color:var(--accent);font-size:12px;border-left:1px solid var(--border);">${overall > 0 ? overall.toFixed(1) + '%' : '—'}</td>`;
+        }).join('')}
+      </tr>
+    </tfoot>
+  </table>
+  </div>`;
+
+  content.innerHTML = html;
+}
+
+function recalcProgOverall(week) {
+  const cell = document.getElementById(`prog-overall-${week}`);
+  if (!cell) return;
+  const overall = progDiscs.reduce((s, d) => {
+    const pct = (progSchedule[d.id] || {})[week];
+    const roc = progRoc[d.id] || 0;
+    return s + (pct != null ? (pct * roc / 100) : 0);
+  }, 0);
+  cell.textContent = overall > 0 ? overall.toFixed(1) + '%' : '—';
+}
+
+// ── Cell changes ──────────────────────────────────────────────────
+function onProgCellChange(input) {
+  const discId = input.dataset.progDisc;
+  const week   = input.dataset.progWeek;
+  const val    = parseFloat(input.value);
+  if (!progSchedule[discId]) progSchedule[discId] = {};
+  progSchedule[discId][week] = isNaN(val) ? null : Math.min(100, Math.max(0, val));
+  if (!progDirty[discId]) progDirty[discId] = {};
+  progDirty[discId][week] = true;
+  markProgDirty(true);
+  recalcProgOverall(week);
+  clearTimeout(progAutoSave);
+  progAutoSave = setTimeout(saveProgress, 3000);
+}
+
+function markProgDirty(dirty) {
+  const dot = document.getElementById('prog-dirty-dot');
+  const btn = document.getElementById('prog-save-btn');
+  if (dot) dot.style.display = dirty ? 'inline-block' : 'none';
+  if (btn) btn.style.opacity = dirty ? '1' : '0.6';
+}
+
+// ── RULES OF CREDIT ───────────────────────────────────────────────
+
+async function onRocProjectChange(projId) {
+  rocProjectId = projId || null;
+  rocDiscs     = [];
+  rocDocCodes  = [];
+  rocWorkflowSteps = {};
+  rocItems     = {};
+  rocDirty     = false;
+  markRocDirty(false);
+
+  const content = document.getElementById('roc-content');
+  if (!projId) {
+    content.innerHTML = `<div style="text-align:center;padding:60px;color:var(--text-4);font-size:13px;">Select a project to configure Rules of Credit.</div>`;
+    return;
+  }
+  content.innerHTML = `<div style="text-align:center;padding:40px;color:var(--text-4);">Loading…</div>`;
+
+  // Load all disciplines that have positions in this project
+  const { data: targRows } = await db.from('targets')
+    .select('discipline_id, disciplines(id,name)')
+    .eq('project_id', projId)
+    .not('discipline_id', 'is', null);
+  const discMap = {};
+  (targRows || []).forEach(r => {
+    if (r.disciplines) discMap[r.disciplines.id] = r.disciplines.name;
+  });
+  rocDiscs = Object.entries(discMap).map(([id,name]) => ({ id, name })).sort((a,b) => a.name.localeCompare(b.name));
+
+  // Load doc codes
+  const { data: codes } = await db.from('document_codes').select('id, type, code, activity_type').order('type');
+  rocDocCodes = codes || [];
+
+  // Load workflow steps per activity type
+  const { data: steps } = await db.from('workflow_steps').select('name, activity_type, sort_order').order('sort_order');
+  rocWorkflowSteps = {};
+  (steps || []).forEach(s => {
+    const t = s.activity_type || 'drawing';
+    if (!rocWorkflowSteps[t]) rocWorkflowSteps[t] = [];
+    rocWorkflowSteps[t].push(s.name);
+  });
+
+  // Load existing ROC items for this project
+  const { data: items } = await db.from('roc_items')
+    .select('id, discipline_id, doc_code_id, weight, roc_step_items(id, step_name, weight)')
+    .eq('project_id', projId);
+
+  rocItems = {};
+  (items || []).forEach(item => {
+    if (!rocItems[item.discipline_id]) rocItems[item.discipline_id] = {};
+    rocItems[item.discipline_id][item.doc_code_id] = {
+      id:     item.id,
+      weight: parseFloat(item.weight) || 0,
+      steps:  {}
+    };
+    (item.roc_step_items || []).forEach(s => {
+      rocItems[item.discipline_id][item.doc_code_id].steps[s.step_name] = {
+        id:     s.id,
+        weight: parseFloat(s.weight) || 0
+      };
+    });
+  });
+
+  // Load existing discipline-level ROC (project_discipline_roc)
+  const { data: discRoc } = await db.from('project_discipline_roc')
+    .select('discipline_id, roc')
+    .eq('project_id', projId);
+  rocDiscs = rocDiscs.map(d => ({
+    ...d,
+    roc: parseFloat((discRoc || []).find(r => r.discipline_id === d.id)?.roc || 0)
+  }));
+
+  renderRocGrid();
+}
+
+function renderRocGrid() {
+  const content = document.getElementById('roc-content');
+  if (!rocDiscs.length) {
+    content.innerHTML = `<div style="text-align:center;padding:60px;color:var(--text-4);font-size:13px;">No disciplines found for this project. Add positions with disciplines first.</div>`;
+    return;
+  }
+
+  const discTotal = rocDiscs.reduce((s, d) => s + (d.roc || 0), 0);
+  const discOk    = Math.abs(discTotal - 100) < 0.01;
+
+  let html = `<div style="display:flex;gap:20px;align-items:flex-start;flex-wrap:wrap;">`;
+
+  // ── Level 1: Discipline weights ──
+  html += `
+  <div style="min-width:260px;flex-shrink:0;">
+    <div style="font-size:11px;font-weight:700;color:var(--text-3);letter-spacing:.06em;margin-bottom:8px;text-transform:uppercase;">① Discipline Weights</div>
+    <table style="width:100%;border-collapse:collapse;font-size:13px;">
+      <thead>
+        <tr style="background:var(--bg-3);">
+          <th style="text-align:left;padding:8px 12px;font-size:11px;font-weight:700;color:var(--text-3);">DISCIPLINE</th>
+          <th style="text-align:center;padding:8px 12px;font-size:11px;font-weight:700;color:var(--text-3);">WEIGHT %</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${rocDiscs.map(d => `
+          <tr style="border-bottom:1px solid var(--border);cursor:pointer;" onclick="selectRocDisc('${d.id}')" id="roc-disc-row-${d.id}">
+            <td style="padding:9px 12px;font-weight:500;">${d.name}</td>
+            <td style="padding:9px 12px;text-align:center;">
+              <div style="display:inline-flex;align-items:center;gap:4px;">
+                <input type="number" min="0" max="100" step="0.1"
+                  data-disc-roc="${d.id}"
+                  value="${d.roc || ''}"
+                  placeholder="0"
+                  onclick="event.stopPropagation()"
+                  onchange="onDiscRocChange(this)"
+                  style="width:60px;text-align:center;background:var(--bg-4);border:1px solid var(--border-2);border-radius:var(--radius);padding:4px 6px;color:var(--text);font-size:12px;outline:none;" />
+                <span style="font-size:11px;color:var(--text-4);">%</span>
+              </div>
+            </td>
+          </tr>
+        `).join('')}
+      </tbody>
+      <tfoot>
+        <tr style="border-top:2px solid var(--border-2);background:var(--bg-3);">
+          <td style="padding:8px 12px;font-size:12px;font-weight:700;color:var(--text-3);">TOTAL</td>
+          <td style="padding:8px 12px;text-align:center;">
+            <span id="roc-disc-total" style="font-size:13px;font-weight:700;color:${discOk ? 'var(--green,#22c55e)' : 'var(--red,#ef4444)'};">${discTotal.toFixed(1)}%</span>
+          </td>
+        </tr>
+      </tfoot>
+    </table>
+  </div>`;
+
+  // ── Level 2 & 3: Doc codes + steps (shown after discipline click) ──
+  html += `
+  <div id="roc-doccode-panel" style="flex:1;min-width:280px;display:none;">
+    <div style="font-size:11px;font-weight:700;color:var(--text-3);letter-spacing:.06em;margin-bottom:8px;text-transform:uppercase;">② Doc Code Weights <span id="roc-disc-label" style="color:var(--accent);font-weight:600;"></span></div>
+    <div id="roc-doccode-content"></div>
+  </div>
+  <div id="roc-step-panel" style="flex:1;min-width:260px;display:none;">
+    <div style="font-size:11px;font-weight:700;color:var(--text-3);letter-spacing:.06em;margin-bottom:8px;text-transform:uppercase;">③ Step Weights <span id="roc-doccode-label" style="color:var(--accent);font-weight:600;"></span></div>
+    <div id="roc-step-content"></div>
+  </div>`;
+
+  html += `</div>`;
+  content.innerHTML = html;
+}
+
+
+// ── Save ──────────────────────────────────────────────────────────
+async function saveProgress(isManual = false) {
+  if (progSaving) return;
+  const hasDirtyProgress = Object.keys(progDirty).length > 0;
+  const hasDirtyRoc      = Object.keys(progRocDirty).length > 0;
+  if (!hasDirtyProgress && !hasDirtyRoc) return;
+  progSaving = true;
+  const btn = document.getElementById('prog-save-btn');
+  if (btn) { btn.textContent = 'Saving…'; btn.disabled = true; }
+
+  const errors = [];
+
+  // Save progress
+  if (hasDirtyProgress) {
+    const upserts = [];
+    Object.keys(progDirty).forEach(discId => {
+      Object.keys(progDirty[discId]).forEach(week => {
+        upserts.push({
+          project_id:    progProjectId,
+          discipline_id: discId,
+          week_start:    week,
+          planned_pct:   progSchedule[discId]?.[week] ?? null,
+        });
+      });
+    });
+    const { error } = await db.from('planned_progress')
+      .upsert(upserts, { onConflict: 'project_id,discipline_id,week_start' });
+    if (error) errors.push(error.message);
+    else progDirty = {};
+  }
+
+  // Save ROC
+  if (hasDirtyRoc) {
+    const upserts = Object.keys(progRocDirty).map(discId => ({
+      project_id:    progProjectId,
+      discipline_id: discId,
+      roc:           progRoc[discId] || 0,
+    }));
+    const { error } = await db.from('project_discipline_roc')
+      .upsert(upserts, { onConflict: 'project_id,discipline_id' });
+    if (error) errors.push(error.message);
+    else progRocDirty = {};
+  }
+
+  // Save the "Overall %" row (discipline_id = null) for every week —
+  // recomputed whenever progress or ROC changes, since either can shift the overall.
+  // Uses delete-then-insert since NULL discipline_id isn't reliably matched by upsert onConflict.
+  if (hasDirtyProgress || hasDirtyRoc) {
+    const overallRows = progWeeks.map(week => {
+      const overall = progDiscs.reduce((s, d) => {
+        const pct = (progSchedule[d.id] || {})[week];
+        const roc = progRoc[d.id] || 0;
+        return s + (pct != null ? (pct * roc / 100) : 0);
+      }, 0);
+      return {
+        project_id:    progProjectId,
+        discipline_id: null,
+        week_start:    week,
+        planned_pct:   overall,
+      };
+    });
+
+    if (overallRows.length) {
+      const { error: delError } = await db.from('planned_progress')
+        .delete()
+        .eq('project_id', progProjectId)
+        .is('discipline_id', null);
+      if (delError) errors.push('Overall (clear): ' + delError.message);
+
+      const { error: insError } = await db.from('planned_progress').insert(overallRows);
+      if (insError) errors.push('Overall (save): ' + insError.message);
+    }
+  }
+
+  progSaving = false;
+  if (btn) { btn.innerHTML = `${IC.save} Save`; btn.disabled = false; }
+  if (errors.length) { toast('Error: ' + errors.join(' | '), 'error'); return; }
+
+  markProgDirty(false);
+  toast(isManual ? 'Progress saved.' : 'Progress auto-saved.', 'success');
+}
+
+// ── RULES OF CREDIT ───────────────────────────────────────────────
+
+async function onRocProjectChange(projId) {
+  rocProjectId = projId || null;
+  rocDiscs     = [];
+  rocDocCodes  = [];
+  rocWorkflowSteps = {};
+  rocItems     = {};
+  rocDirty     = false;
+  markRocDirty(false);
+
+  const content = document.getElementById('roc-content');
+  if (!projId) {
+    content.innerHTML = `<div style="text-align:center;padding:60px;color:var(--text-4);font-size:13px;">Select a project to configure Rules of Credit.</div>`;
+    return;
+  }
+  content.innerHTML = `<div style="text-align:center;padding:40px;color:var(--text-4);">Loading…</div>`;
+
+  const { data: targRows } = await db.from('targets')
+    .select('discipline_id, disciplines(id,name)')
+    .eq('project_id', projId)
+    .not('discipline_id', 'is', null);
+  const discMap = {};
+  (targRows || []).forEach(r => {
+    if (r.disciplines) discMap[r.disciplines.id] = r.disciplines.name;
+  });
+  rocDiscs = Object.entries(discMap).map(([id,name]) => ({ id, name })).sort((a,b) => a.name.localeCompare(b.name));
+
+  const { data: codes } = await db.from('document_codes').select('id, type, code, activity_type').order('type');
+  rocDocCodes = codes || [];
+
+  const { data: steps } = await db.from('workflow_steps').select('name, activity_type, sort_order').order('sort_order');
+  rocWorkflowSteps = {};
+  (steps || []).forEach(s => {
+    const t = s.activity_type || 'drawing';
+    if (!rocWorkflowSteps[t]) rocWorkflowSteps[t] = [];
+    rocWorkflowSteps[t].push(s.name);
+  });
+
+  const { data: items } = await db.from('roc_items')
+    .select('id, discipline_id, doc_code_id, weight, roc_step_items(id, step_name, weight)')
+    .eq('project_id', projId);
+  rocItems = {};
+  (items || []).forEach(item => {
+    if (!rocItems[item.discipline_id]) rocItems[item.discipline_id] = {};
+    rocItems[item.discipline_id][item.doc_code_id] = {
+      id:     item.id,
+      weight: parseFloat(item.weight) || 0,
+      steps:  {}
+    };
+    (item.roc_step_items || []).forEach(s => {
+      rocItems[item.discipline_id][item.doc_code_id].steps[s.step_name] = {
+        id:     s.id,
+        weight: parseFloat(s.weight) || 0
+      };
+    });
+  });
+
+  const { data: discRoc } = await db.from('project_discipline_roc')
+    .select('discipline_id, roc')
+    .eq('project_id', projId);
+  rocDiscs = rocDiscs.map(d => ({
+    ...d,
+    roc: parseFloat((discRoc || []).find(r => r.discipline_id === d.id)?.roc || 0)
+  }));
+
+  renderRocGrid();
+}
+
+let rocExpandedDiscs = new Set();
+let rocExpandedCodes = new Set();
+
+function renderRocGrid() {
+  const content = document.getElementById('roc-content');
+  if (!rocDiscs.length) {
+    content.innerHTML = `<div style="text-align:center;padding:60px;color:var(--text-4);font-size:13px;">No disciplines found for this project. Add positions with disciplines first.</div>`;
+    return;
+  }
+
+  content.innerHTML = `
+  <table style="width:100%;border-collapse:collapse;font-size:13px;max-width:720px;">
+    <thead>
+      <tr style="background:var(--bg-3);">
+        <th style="text-align:left;padding:8px 12px;font-size:11px;font-weight:700;color:var(--text-3);">ITEM</th>
+        <th style="text-align:center;padding:8px 12px;font-size:11px;font-weight:700;color:var(--text-3);width:120px;">WEIGHT %</th>
+      </tr>
+    </thead>
+    <tbody id="roc-tree-body"></tbody>
+  </table>
+  <p style="font-size:11px;color:var(--text-4);margin-top:12px;">Click a row to expand. Discipline weights must sum to 100% overall; each discipline's doc codes must sum to 100%; each doc code's steps must sum to 100%.</p>
+  `;
+
+  renderRocTreeBody();
+}
+
+function renderRocTreeBody() {
+  const body = document.getElementById('roc-tree-body');
+  if (!body) return;
+
+  const discTotal = rocDiscs.reduce((s, d) => s + (d.roc || 0), 0);
+  const discOk    = Math.abs(discTotal - 100) < 0.01;
+
+  let rows = '';
+
+  rocDiscs.forEach(d => {
+    const isOpen = rocExpandedDiscs.has(d.id);
+    rows += `
+      <tr style="border-bottom:1px solid var(--border);cursor:pointer;" onclick="toggleRocDisc('${d.id}')">
+        <td style="padding:9px 12px;font-weight:700;">
+          <span style="display:inline-block;width:14px;color:var(--text-4);">${isOpen ? '▾' : '▸'}</span>
+          ${d.name}
+        </td>
+        <td style="padding:9px 12px;text-align:center;">
+          <div style="display:inline-flex;align-items:center;gap:4px;" onclick="event.stopPropagation()">
+            <input type="number" min="0" max="100" step="0.1"
+              data-disc-roc="${d.id}" value="${d.roc || ''}" placeholder="0"
+              onchange="onDiscRocChange(this)"
+              style="width:60px;text-align:center;background:var(--bg-4);border:1px solid var(--border-2);border-radius:var(--radius);padding:4px 6px;color:var(--text);font-size:12px;outline:none;font-weight:700;" />
+            <span style="font-size:11px;color:var(--text-4);">%</span>
+          </div>
+        </td>
+      </tr>`;
+
+    if (isOpen) {
+      const discCodes = rocItems[d.id] || {};
+      const codeTotal = rocDocCodes.reduce((s, c) => s + (discCodes[c.id]?.weight || 0), 0);
+      const codeOk    = Math.abs(codeTotal - 100) < 0.01;
+
+      rocDocCodes.forEach(c => {
+        const codeKey   = d.id + '|' + c.id;
+        const codeOpen  = rocExpandedCodes.has(codeKey);
+        const val       = discCodes[c.id]?.weight || 0;
+
+        rows += `
+          <tr style="border-bottom:1px solid var(--border);cursor:pointer;background:var(--bg-2);" onclick="toggleRocCode('${d.id}','${c.id}')">
+            <td style="padding:8px 12px 8px 36px;">
+              <span style="display:inline-block;width:14px;color:var(--text-4);">${codeOpen ? '▾' : '▸'}</span>
+              <span class="badge badge-gray" style="font-family:monospace;margin-right:6px;">${c.code}</span>
+              <span style="color:var(--text-2);">${c.type}</span>
+            </td>
+            <td style="padding:8px 12px;text-align:center;">
+              <div style="display:inline-flex;align-items:center;gap:4px;" onclick="event.stopPropagation()">
+                <input type="number" min="0" max="100" step="0.1"
+                  data-code-roc="${c.id}" data-disc="${d.id}" value="${val || ''}" placeholder="0"
+                  onchange="onDocCodeRocChange(this)"
+                  style="width:60px;text-align:center;background:var(--bg-4);border:1px solid var(--border-2);border-radius:var(--radius);padding:4px 6px;color:var(--text);font-size:12px;outline:none;" />
+                <span style="font-size:11px;color:var(--text-4);">%</span>
+              </div>
+            </td>
+          </tr>`;
+
+        if (codeOpen) {
+          const actType  = c.activity_type || 'drawing';
+          const steps    = rocWorkflowSteps[actType] || [];
+          const stepData = rocItems[d.id]?.[c.id]?.steps || {};
+
+          if (!steps.length) {
+            rows += `
+              <tr style="border-bottom:1px solid var(--border);">
+                <td colspan="2" style="padding:8px 12px 8px 60px;color:var(--text-4);font-size:12px;">No workflow steps configured for activity type "${actType}". Add them in Admin → Workflow Steps.</td>
+              </tr>`;
+          } else {
+            steps.forEach(name => {
+              const sVal = stepData[name]?.weight || 0;
+              rows += `
+                <tr style="border-bottom:1px solid var(--border);">
+                  <td style="padding:7px 12px 7px 60px;color:var(--text-3);">${name}</td>
+                  <td style="padding:7px 12px;text-align:center;">
+                    <div style="display:inline-flex;align-items:center;gap:4px;">
+                      <input type="number" min="0" max="100" step="0.1"
+                        data-step-roc="${name}" data-disc="${d.id}" data-code="${c.id}" value="${sVal || ''}" placeholder="0"
+                        onchange="onStepRocChange(this)"
+                        style="width:60px;text-align:center;background:var(--bg-4);border:1px solid var(--border-2);border-radius:var(--radius);padding:4px 6px;color:var(--text);font-size:12px;outline:none;" />
+                      <span style="font-size:11px;color:var(--text-4);">%</span>
+                    </div>
+                  </td>
+                </tr>`;
+            });
+
+           const stepTotal = steps.reduce((s, n) => s + (stepData[n]?.weight || 0), 0);
+            const stepOk    = Math.abs(stepTotal - 100) < 0.01;
+            rows += `
+              <tr style="border-bottom:1px solid var(--border-2);background:var(--bg-3);">
+                <td style="padding:6px 12px 6px 60px;font-size:11px;font-weight:700;color:var(--text-4);">Total</td>
+                <td style="padding:6px 12px;text-align:center;">
+                  <span style="font-size:12px;font-weight:700;color:${stepOk ? 'var(--green,#22c55e)' : '#38bdf8'};">${stepTotal.toFixed(1)}%</span>
+                </td>
+              </tr>`;
+          }
+        }
+      });
+
+      rows += `
+        <tr style="border-bottom:1px solid var(--border-2);background:var(--bg-3);">
+          <td style="padding:6px 12px 6px 36px;font-size:11px;font-weight:700;color:var(--text-4);">Subtotal</td>
+          <td style="padding:6px 12px;text-align:center;">
+            <span style="font-size:12px;font-weight:700;color:${codeOk ? 'var(--green,#22c55e)' : 'var(--accent,#f59e0b)'};">${codeTotal.toFixed(1)}%</span>
+          </td>
+        </tr>`;
+    }
+  });
+
+  rows += `
+    <tr style="border-top:2px solid var(--border-2);background:var(--bg-3);">
+      <td style="padding:10px 12px;font-size:12px;font-weight:700;color:var(--text-3);">OVERALL TOTAL</td>
+      <td style="padding:10px 12px;text-align:center;">
+        <span id="roc-disc-total" style="font-size:14px;font-weight:700;color:${discOk ? 'var(--green,#22c55e)' : 'var(--red,#ef4444)'};">${discTotal.toFixed(1)}%</span>
+      </td>
+    </tr>`;
+
+  body.innerHTML = rows;
+}
+
+function toggleRocDisc(discId) {
+  if (rocExpandedDiscs.has(discId)) rocExpandedDiscs.delete(discId);
+  else rocExpandedDiscs.add(discId);
+  renderRocTreeBody();
+}
+
+function toggleRocCode(discId, codeId) {
+  const key = discId + '|' + codeId;
+  if (rocExpandedCodes.has(key)) rocExpandedCodes.delete(key);
+  else rocExpandedCodes.add(key);
+  renderRocTreeBody();
+}
+
+function onDiscRocChange(input) {
+  const discId = input.dataset.discRoc;
+  const val    = Math.min(100, Math.max(0, parseFloat(input.value) || 0));
+  const disc   = rocDiscs.find(d => d.id === discId);
+  if (disc) disc.roc = val;
+  rocDirty = true;
+  markRocDirty(true);
+  renderRocTreeBody();
+}
+
+function onDocCodeRocChange(input) {
+  const docCodeId = input.dataset.codeRoc;
+  const discId    = input.dataset.disc;
+  const val       = Math.min(100, Math.max(0, parseFloat(input.value) || 0));
+  if (!rocItems[discId]) rocItems[discId] = {};
+  if (!rocItems[discId][docCodeId]) rocItems[discId][docCodeId] = { weight: 0, steps: {} };
+  rocItems[discId][docCodeId].weight = val;
+  rocDirty = true;
+  markRocDirty(true);
+  renderRocTreeBody();
+}
+
+function onStepRocChange(input) {
+  const stepName  = input.dataset.stepRoc;
+  const discId    = input.dataset.disc;
+  const docCodeId = input.dataset.code;
+  const val       = Math.min(100, Math.max(0, parseFloat(input.value) || 0));
+  if (!rocItems[discId]) rocItems[discId] = {};
+  if (!rocItems[discId][docCodeId]) rocItems[discId][docCodeId] = { weight: 0, steps: {} };
+  if (!rocItems[discId][docCodeId].steps[stepName]) rocItems[discId][docCodeId].steps[stepName] = { weight: 0 };
+  rocItems[discId][docCodeId].steps[stepName].weight = val;
+  rocDirty = true;
+  markRocDirty(true);
+  renderRocTreeBody();
+}
+
+async function saveRoc() {
+  if (!rocProjectId) { toast('Select a project first.', 'error'); return; }
+  if (!rocDirty)     return;
+  const btn = document.getElementById('roc-save-btn');
+  if (btn) { btn.textContent = 'Saving…'; btn.disabled = true; }
+
+  const discUpserts = rocDiscs.map(d => ({
+    project_id:    rocProjectId,
+    discipline_id: d.id,
+    roc:           d.roc || 0
+  }));
+  if (discUpserts.length) {
+    const { error } = await db.from('project_discipline_roc')
+      .upsert(discUpserts, { onConflict: 'project_id,discipline_id' });
+    if (error) { toast('Error saving discipline ROC: ' + error.message, 'error'); if (btn) { btn.innerHTML = `${IC.save} Save`; btn.disabled = false; } return; }
+  }
+
+  for (const [discId, codes] of Object.entries(rocItems)) {
+  for (const [docCodeId, codeData] of Object.entries(codes)) {
+    const itemPayload = { project_id: rocProjectId, discipline_id: discId, doc_code_id: docCodeId, weight: codeData.weight || 0 };
+    const { data: upserted, error: iErr } = await db.from('roc_items')
+      .upsert(itemPayload, { onConflict: 'project_id,discipline_id,doc_code_id', ignoreDuplicates: false })
+      .select('id').single();
+    if (iErr) { toast('Error saving ROC item: ' + iErr.message, 'error'); continue; }
+
+    let rocItemId = upserted?.id || codeData.id;
+    if (!rocItemId) {
+      const { data: existing } = await db.from('roc_items')
+        .select('id')
+        .eq('project_id', rocProjectId)
+        .eq('discipline_id', discId)
+        .eq('doc_code_id', docCodeId)
+        .single();
+      rocItemId = existing?.id;
+    }
+    if (!rocItemId) { toast('Error: could not resolve roc_item id', 'error'); continue; }
+
+    const stepUpserts = Object.entries(codeData.steps || {}).map(([stepName, stepData]) => ({
+      roc_item_id: rocItemId,
+      step_name:   stepName,
+      weight:      stepData.weight || 0
+    }));
+    if (stepUpserts.length) {
+      const { error: sErr } = await db.from('roc_step_items')
+        .upsert(stepUpserts, { onConflict: 'roc_item_id,step_name' });
+      if (sErr) { toast('Error saving step weights: ' + sErr.message, 'error'); }
+    }
+  }
+}
+
+  if (btn) { btn.innerHTML = `${IC.save} Save`; btn.disabled = false; }
+  rocDirty = false;
+  markRocDirty(false);
+  await onRocProjectChange(rocProjectId);
+  toast('Rules of Credit saved.', 'success');
+}
+
+function markRocDirty(dirty) {
+  const dot = document.getElementById('roc-dirty-dot');
+  const btn = document.getElementById('roc-save-btn');
+  if (dot) dot.classList.toggle('dirty', dirty);
+  if (btn) btn.style.opacity = dirty ? '1' : '0.6';
+}
+
+
+// ── Clear All ─────────────────────────────────────────────────────
+async function clearAllProgress() {
+  if (!progProjectId) { toast('No project selected.', 'info'); return; }
+  confirmDialog('Clear all planned progress for this project? ROC values will be kept.', async () => {
+    const { error } = await db.from('planned_progress').delete().eq('project_id', progProjectId);
+    if (error) { toast('Error: ' + error.message, 'error'); return; }
+    progSchedule = {};
+    progDirty    = {};
+    markProgDirty(false);
+    toast('Planned progress cleared.', 'success');
+    renderProgGrid();
+  });
+}
+
+// ── Import ────────────────────────────────────────────────────────
+function openProgImportModal() {
+  document.getElementById('prog-import-preview-wrap').innerHTML = '';
+  document.getElementById('prog-import-confirm-btn').style.display = 'none';
+  document.getElementById('prog-import-file').value = '';
+  progImportData = null;
+  openModal('prog-import-modal');
+}
+
+function handleProgImportDrop(e) {
+  e.preventDefault();
+  document.getElementById('prog-import-drop').classList.remove('drag-over');
+  const file = e.dataTransfer?.files?.[0];
+  if (file) processProgImportFile(file);
+}
+
+function handleProgImportFile(input) {
+  const file = input.files?.[0];
+  if (file) processProgImportFile(file);
+}
+
+function processProgImportFile(file) {
+  if (!file.name.match(/\.xlsx?$/i)) { toast('Please upload an .xlsx or .xls file.', 'error'); return; }
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const wb   = XLSX.read(e.target.result, { type: 'array' });
+      const ws   = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
+      parseProgImportRows(rows);
+    } catch (err) {
+      toast('Failed to read file: ' + err.message, 'error');
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function parseProgImportRows(rows) {
+  if (!rows.length) { toast('No data found in file.', 'error'); return; }
+
+  const parsed = [];
+  const errors = [];
+
+  rows.forEach((row, i) => {
+    const discRaw   = String(row['Discipline'] || '').trim();
+    const rawPeriod = String(row['Week Start'] || row['Period'] || '').trim();
+    const pct       = parseFloat(row['Planned %'] ?? row['Planned'] ?? '');
+
+    const disc = progDiscs.find(d => d.name.toLowerCase() === discRaw.toLowerCase());
+    if (!disc) { errors.push(`Row ${i+2}: discipline "${discRaw}" not found`); return; }
+
+    let week = '';
+    const d1 = new Date(rawPeriod);
+    if (!isNaN(d1)) {
+      week = getWeekStart(d1, progProject?.week_start_day ?? 1);
+    } else if (rawPeriod.match(/^\d{4}-\d{2}-\d{2}$/)) {
+      week = getWeekStart(rawPeriod, progProject?.week_start_day ?? 1);
+    }
+
+    if (!week) { errors.push(`Row ${i+2}: invalid date "${rawPeriod}"`); return; }
+    if (isNaN(pct)) { errors.push(`Row ${i+2}: invalid Planned %`); return; }
+
+    parsed.push({ discId: disc.id, discName: disc.name, week, pct: Math.min(100, Math.max(0, pct)) });
+  });
+
+  if (errors.length) {
+    toast(errors.slice(0, 3).join(' | ') + (errors.length > 3 ? ` (+${errors.length-3} more)` : ''), 'error');
+    if (!parsed.length) return;
+  }
+
+  progImportData = parsed;
+
+  let html = `
+    <div style="margin:14px 0 8px;font-size:12px;color:var(--text-3);">
+      <strong style="color:var(--text);">${parsed.length} rows</strong> ready to import.
+      ${errors.length ? `<span style="color:var(--red);margin-left:8px;">${errors.length} rows skipped.</span>` : ''}
+    </div>
+    <div class="import-preview"><table>
+      <thead><tr><th>Discipline</th><th>Week</th><th>Planned %</th></tr></thead>
+      <tbody>
+        ${parsed.map(p => `<tr>
+          <td>${p.discName}</td>
+          <td>${fmtWeekRange(p.week)}</td>
+          <td style="color:var(--accent);">${p.pct}%</td>
+        </tr>`).join('')}
+      </tbody>
+    </table></div>`;
+
+  document.getElementById('prog-import-preview-wrap').innerHTML = html;
+  document.getElementById('prog-import-confirm-btn').style.display = 'flex';
+}
+
+function exportProgExcel() {
+  if (!progProjectId || !progWeeks.length || !progDiscs.length) {
+    toast('No progress data to export. Select a project first.', 'info');
+    return;
+  }
+
+  const rows = [];
+
+  // Header row
+  rows.push(['Discipline', 'Week Start', 'Week Range', 'Planned %']);
+
+  // Data rows — one row per discipline per week
+  progDiscs.forEach(d => {
+    progWeeks.forEach(w => {
+      const val = (progSchedule[d.id] || {})[w];
+      rows.push([
+        d.name,
+        w,
+        fmtWeekRange(w),
+        val != null ? val : '',
+      ]);
+    });
+  });
+
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+
+  // Column widths
+  ws['!cols'] = [
+    { wch: 20 },  // Discipline
+    { wch: 12 },  // Week Start
+    { wch: 22 },  // Week Range
+    { wch: 12 },  // Planned %
+  ];
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Planned Progress');
+
+  const proj = projectsData.find(p => p.id === progProjectId);
+  const fileName = `PlannedProgress_${proj?.code || 'export'}_${new Date().toISOString().substring(0,10)}.xlsx`;
+  XLSX.writeFile(wb, fileName);
+  toast('Exported successfully.', 'success');
+}
+
+async function confirmProgImport() {
+  if (!progImportData?.length) return;
+  const btn = document.getElementById('prog-import-confirm-btn');
+  btn.textContent = 'Importing…'; btn.disabled = true;
+
+  const upserts = progImportData.map(p => ({
+    project_id:    progProjectId,
+    discipline_id: p.discId,
+    week_start:    p.week,
+    planned_pct:   p.pct,
+  }));
+
+  const { error } = await db.from('planned_progress')
+    .upsert(upserts, { onConflict: 'project_id,discipline_id,week_start' });
+
+  btn.innerHTML = `${IC.save} Import`; btn.disabled = false;
+  if (error) { toast('Import error: ' + error.message, 'error'); return; }
+
+  progImportData.forEach(p => {
+    if (!progSchedule[p.discId]) progSchedule[p.discId] = {};
+    progSchedule[p.discId][p.week] = p.pct;
+  });
+  toast(`${progImportData.length} rows imported.`, 'success');
+  progImportData = null;
+  closeModal('prog-import-modal');
+  renderProgGrid();
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// TARGET KPI TAB
+// ═══════════════════════════════════════════════════════════════════
+let kpiData       = [];
+let kpiFiltered   = [];
+let stepsData     = [];
+let docCodesData  = [];
+let kpiProjectId  = null;
+let kpiAreaItems  = [];
+let kpiImportParsed = null;
+
+const KPI_ACT_LABELS = {
+  model:        '3D Model',
+  drawing:      'Drawings',
+  test_package: 'Test Package',
+  materials:    'Materials',
+  calculations: 'Calculations',
+};
+
+function recalcKpiAreaTotal() {
+  const inputs = document.querySelectorAll('.kpi-area-input');
+  const total  = Array.from(inputs).reduce((s, inp) => s + (parseFloat(inp.value) || 0), 0);
+  const totalEl = document.getElementById('kpi-area-total');
+  if (totalEl) totalEl.textContent = total.toLocaleString();
+  const hidden = document.getElementById('kpi-estimated-output');
+  if (hidden) hidden.value = total;
+}
+
+const KPI_UNITS = {
+  model:        'MH / %',
+  drawing:      'MH / Sheet',
+  test_package: 'MH / Package',
+  materials:    'MH / Item',
+  calculations: 'MH / Calc',
+};
+
+function onKpiProjectChange(projId) {
+  kpiProjectId = projId || null;
+  if (!kpiProjectId) {
+    document.getElementById('kpi-content').innerHTML = `
+      <div style="text-align:center;padding:60px;color:var(--text-4);font-size:13px;">
+        Select a project above to view and edit its KPI targets.
+      </div>`;
+    return;
+  }
+  loadKpi();
+}
+
+async function loadKpi() {
+  const container = document.getElementById('kpi-content');
+  if (!container) return;
+  if (!kpiProjectId) return;
+
+  // ── 1. Load areas FIRST so the table header renders correctly ──
+  const proj = projectsData.find(p => p.id === kpiProjectId);
+  if (proj) {
+    const { data: structData } = await db
+      .from('structure_items')
+      .select('id, area_system_module, priority_shipment')
+      .eq('project_code', proj.code)
+      .order('priority_shipment')
+      .order('area_system_module');
+    kpiAreaItems = structData || [];
+  } else {
+    kpiAreaItems = [];
+  }
+
+  // ── 2. Now render the shell (header uses kpiAreaItems) ──
+  container.innerHTML = `
+    <div class="toolbar">
+      <div class="search-box">
+        <input type="text" id="kpi-search" placeholder="Search by discipline, doc code, or step…" oninput="filterKpi(this.value)" />
+      </div>
+      <select class="filter-select" id="kpi-disc-filter" onchange="filterKpi(document.getElementById('kpi-search').value)" style="min-width:160px;">
+        <option value="">All Disciplines</option>
+        ${disciplinesData.map(d => `<option value="${d.id}">${d.name}</option>`).join('')}
+      </select>
+      <select class="filter-select" id="kpi-activity-filter" onchange="filterKpi(document.getElementById('kpi-search').value)" style="min-width:160px;">
+        <option value="">All Activity Types</option>
+        <option value="model">3D Model</option>
+        <option value="drawing">Drawings</option>
+        <option value="test_package">Test Package</option>
+        <option value="materials">Materials</option>
+        <option value="calculations">Calculations</option>
+      </select>
+    </div>
+    <div class="table-wrapper">
+      <table>
+        <thead>
+          <tr>
+            <th style="text-align:center;">Project</th>
+            <th style="text-align:left;">Discipline</th>
+            <th style="text-align:left;">Doc Code</th>
+            <th style="text-align:center;">Activity</th>
+            <th style="text-align:left;">Workflow Step</th>
+            <th style="text-align:center;">Target Value</th>
+            <th style="text-align:center;">Estimated Output</th>
+            <th style="text-align:center;">Unit</th>
+            ${kpiAreaItems.map(a => `<th style="text-align:center;min-width:90px;white-space:normal;max-width:120px;">${a.area_system_module}</th>`).join('')}
+            <th style="text-align:center;">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="kpi-tbody">
+          <tr><td colspan="${9 + kpiAreaItems.length}" style="text-align:center;padding:30px;color:var(--text-4);">Loading…</td></tr>
+        </tbody>
+      </table>
+    </div>`;
+
+  // ── 3. Load KPI rows, steps, doc codes ──
+  const [
+    { data: kpiRows },
+    { data: steps },
+    { data: docCodes },
+  ] = await Promise.all([
+    db.from('target_kpi').select(`
+      id, target_value, estimated_output,
+      projects(id, code, name),
+      disciplines(id, name),
+      document_codes(id, code, type, activity_type),
+      workflow_steps(id, name, sort_order, activity_type)
+    `).eq('project_id', kpiProjectId),
+    db.from('workflow_steps').select('*').order('activity_type').order('sort_order'),
+    db.from('document_codes').select('*').order('code'),
+  ]);
+
+  // ── 4. Load area breakdowns for all KPIs ──
+  const kpiIds = (kpiRows || []).map(k => k.id);
+  let kpiAreaMap = {};
+  if (kpiIds.length) {
+    const { data: areaBreakdown } = await db
+      .from('target_kpi_areas')
+      .select('kpi_id, structure_item_id, estimated_output')
+      .in('kpi_id', kpiIds);
+    (areaBreakdown || []).forEach(r => {
+      if (!kpiAreaMap[r.kpi_id]) kpiAreaMap[r.kpi_id] = {};
+      kpiAreaMap[r.kpi_id][r.structure_item_id] = r.estimated_output;
+    });
+  }
+
+  kpiData      = (kpiRows || []).map(k => ({ ...k, _areas: kpiAreaMap[k.id] || {} }));
+  stepsData    = steps    || [];
+  docCodesData = docCodes || [];
+
+  filterKpi('');
+}
+
+function filterKpi(search) {
+  const disc     = document.getElementById('kpi-disc-filter')?.value  || '';
+  const activity = document.getElementById('kpi-activity-filter')?.value || '';
+  const q        = (search || '').toLowerCase();
+
+  kpiFiltered = kpiData.filter(k => {
+    if (disc     && k.disciplines?.id !== disc) return false;
+    if (activity && k.document_codes?.activity_type !== activity) return false;
+    if (q) {
+      const hay = [
+        k.disciplines?.name,
+        k.document_codes?.code,
+        k.document_codes?.type,
+        k.workflow_steps?.name,
+      ].join(' ').toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  });
+
+  renderKpi();
+}
+
+function renderKpi() {
+  const tbody = document.getElementById('kpi-tbody');
+  if (!tbody) return;
+
+  if (!kpiFiltered.length) {
+    tbody.innerHTML = `<tr><td colspan="${9 + kpiAreaItems.length}" style="text-align:center;padding:40px;color:var(--text-4);">No KPI records found. Click "+ Add KPI" to get started.</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = kpiFiltered.map(k => {
+    const actType = k.document_codes?.activity_type || 'drawing';
+    const unit    = KPI_UNITS[actType] || '—';
+    const actBadge = actType === 'model'
+      ? '<span class="badge badge-blue">3D Model</span>'
+      : actType === 'test_package'
+      ? '<span class="badge badge-orange">Test Package</span>'
+      : actType === 'materials'
+      ? '<span class="badge" style="background:rgba(168,85,247,0.15);color:#a855f7;">Materials</span>'
+      : actType === 'calculations'
+      ? '<span class="badge" style="background:rgba(236,72,153,0.15);color:#ec4899;">Calculations</span>'
+      : '<span class="badge badge-green">Drawing</span>';
+
+    return `<tr>
+      <td style="text-align:center;"><span class="badge badge-gray" style="font-family:monospace;">${k.projects?.code || '—'}</span></td>
+      <td style="font-weight:600;">${k.disciplines?.name || '—'}</td>
+      <td>
+        <span class="badge badge-gray" style="font-family:monospace;">${k.document_codes?.code || '—'}</span>
+        <span style="margin-left:6px;font-size:11px;color:var(--text-3);">${k.document_codes?.type || ''}</span>
+      </td>
+      <td style="text-align:center;">${actBadge}</td>
+      <td>${k.workflow_steps?.name || '—'}</td>
+      <td style="text-align:center;font-weight:600;color:var(--accent);font-variant-numeric:tabular-nums;">${Number(k.target_value).toLocaleString()}</td>
+      <td style="text-align:center;font-weight:600;color:var(--text);font-variant-numeric:tabular-nums;">
+        ${k.estimated_output != null && k.estimated_output > 0 ? Number(k.estimated_output).toLocaleString() : '—'}
+      </td>
+      <td style="text-align:center;font-size:11px;color:var(--text-3);">${unit}</td>
+      ${kpiAreaItems.map(a => {
+        const val = k._areas?.[a.id];
+        return `<td style="text-align:center;font-variant-numeric:tabular-nums;font-size:12px;color:${val > 0 ? 'var(--text)' : 'var(--text-4)'};">
+          ${val > 0 ? Number(val).toLocaleString() : '—'}
+        </td>`;
+      }).join('')}
+      <td style="text-align:center;">
+        <div class="table-actions" style="justify-content:center;">
+          <button class="btn btn-icon edit"   onclick="openEditKpi('${k.id}')" title="Edit">${IC.edit}</button>
+          <button class="btn btn-icon delete" onclick="deleteKpi('${k.id}')"   title="Delete">${IC.trash}</button>
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function onKpiActivityChange() {
+  const actType = document.getElementById('kpi-activity-type').value;
+  populateKpiDocCodes(actType);
+  populateKpiSteps(actType);
+  document.getElementById('kpi-value-label').textContent =
+    `Target Value (${KPI_UNITS[actType] || ''})`;
+}
+
+function populateKpiDocCodes(actType) {
+  const sel = document.getElementById('kpi-doc-code');
+  const filtered = docCodesData.filter(d => (d.activity_type || 'drawing') === actType);
+  sel.innerHTML = filtered.length
+    ? filtered.map(d => `<option value="${d.id}">${d.code} — ${d.type}</option>`).join('')
+    : '<option value="">No doc codes for this activity type</option>';
+}
+
+function populateKpiSteps(actType) {
+  const sel = document.getElementById('kpi-step');
+  const filtered = stepsData.filter(s => (s.activity_type || 'drawing') === actType);
+  sel.innerHTML = filtered.length
+    ? filtered.map(s => `<option value="${s.id}">${s.sort_order}. ${s.name}</option>`).join('')
+    : '<option value="">No steps for this activity type</option>';
+}
+
+async function renderKpiAreaBreakdown(kpiId) {
+  const wrap = document.getElementById('kpi-area-breakdown');
+  const totalEl = document.getElementById('kpi-area-total');
+  if (!wrap) return;
+
+  wrap.innerHTML = `<div style="text-align:center;padding:20px;color:var(--text-4);font-size:12px;">Loading areas…</div>`;
+
+  // Load structure items for this project
+  const proj = projectsData.find(p => p.id === kpiProjectId);
+  if (!proj) {
+    wrap.innerHTML = `<div style="text-align:center;padding:20px;color:var(--text-4);font-size:12px;">No project selected.</div>`;
+    return;
+  }
+
+  const { data: structItems } = await db
+    .from('structure_items')
+    .select('id, area_system_module, priority_shipment')
+    .eq('project_code', proj.code)
+    .order('priority_shipment')
+    .order('area_system_module');
+
+  kpiAreaItems = structItems || [];
+
+  if (!kpiAreaItems.length) {
+    wrap.innerHTML = `<div style="text-align:center;padding:20px;color:var(--text-4);font-size:12px;">No areas found for this project. Add them in the Structure page.</div>`;
+    if (totalEl) totalEl.textContent = '0';
+    return;
+  }
+
+  // Load existing area breakdown if editing
+  let existingMap = {};
+  if (kpiId) {
+    const { data: areaRows } = await db
+      .from('target_kpi_areas')
+      .select('structure_item_id, estimated_output')
+      .eq('kpi_id', kpiId);
+    (areaRows || []).forEach(r => { existingMap[r.structure_item_id] = r.estimated_output; });
+  }
+
+  wrap.innerHTML = kpiAreaItems.map(item => {
+    const val = existingMap[item.id] ?? '';
+    return `
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:5px 0;gap:10px;">
+        <span style="font-size:12px;color:var(--text);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${item.area_system_module}">${item.area_system_module}</span>
+        <input type="number" class="kpi-area-input cell-input" min="0" step="1" placeholder="0"
+          data-structure-id="${item.id}"
+          value="${val}"
+          oninput="recalcKpiAreaTotal()"
+          style="width:90px;text-align:center;border:1px solid var(--border);border-radius:var(--radius);padding:6px 8px;" />
+      </div>`;
+  }).join('');
+
+  recalcKpiAreaTotal();
+}
+
+// ─── KPI EXPORT / IMPORT EXCEL ─────────────────────────────────────────────
+function exportKpiExcel() {
+  if (!kpiProjectId || !kpiData.length) {
+    toast('No KPI data to export. Select a project first.', 'info');
+    return;
+  }
+
+  const header = [
+    'Discipline', 'Doc Code', 'Doc Type', 'Activity Type', 'Workflow Step',
+    'Target Value', 'Estimated Output',
+    ...kpiAreaItems.map(a => a.area_system_module),
+  ];
+  const rows = [header];
+
+  kpiData.forEach(k => {
+    const actType  = k.document_codes?.activity_type || 'drawing';
+    const actLabel = KPI_ACT_LABELS[actType] || actType;
+    const row = [
+      k.disciplines?.name || '',
+      k.document_codes?.code || '',
+      k.document_codes?.type || '',
+      actLabel,
+      k.workflow_steps?.name || '',
+      k.target_value ?? '',
+      k.estimated_output ?? '',
+    ];
+    kpiAreaItems.forEach(a => row.push(k._areas?.[a.id] ?? ''));
+    rows.push(row);
+  });
+
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols'] = [
+    { wch: 18 }, { wch: 14 }, { wch: 16 }, { wch: 14 }, { wch: 24 }, { wch: 14 }, { wch: 16 },
+    ...kpiAreaItems.map(() => ({ wch: 14 })),
+  ];
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Target KPI');
+
+  const proj = projectsData.find(p => p.id === kpiProjectId);
+  const fileName = `TargetKPI_${proj?.code || 'export'}_${new Date().toISOString().substring(0,10)}.xlsx`;
+  XLSX.writeFile(wb, fileName);
+  toast('Exported successfully.', 'success');
+}
+
+function openKpiImportModal() {
+  if (!kpiProjectId) { toast('Select a project first.', 'error'); return; }
+  document.getElementById('kpi-import-preview-wrap').innerHTML = '';
+  document.getElementById('kpi-import-confirm-btn').style.display = 'none';
+  document.getElementById('kpi-import-file').value = '';
+  kpiImportParsed = null;
+  openModal('kpi-import-modal');
+}
+
+function handleKpiImportDrop(e) {
+  e.preventDefault();
+  document.getElementById('kpi-import-drop').classList.remove('drag-over');
+  const file = e.dataTransfer?.files?.[0];
+  if (file) processKpiImportFile(file);
+}
+
+function handleKpiImportFile(input) {
+  const file = input.files?.[0];
+  if (file) processKpiImportFile(file);
+}
+
+function processKpiImportFile(file) {
+  if (!file.name.match(/\.xlsx?$/i)) { toast('Please upload an .xlsx or .xls file.', 'error'); return; }
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const wb   = XLSX.read(e.target.result, { type: 'array' });
+      const ws   = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
+      parseKpiImportRows(rows);
+    } catch (err) {
+      toast('Failed to read file: ' + err.message, 'error');
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function parseKpiImportRows(rows) {
+  if (!rows.length) { toast('No data found in file.', 'error'); return; }
+
+  // Normalize header keys — strip whitespace / BOM from all header keys
+  rows = rows.map(row => {
+    const clean = {};
+    Object.keys(row).forEach(k => { clean[k.trim().replace(/^\uFEFF/, '')] = row[k]; });
+    return clean;
+  });
+
+  const fixedCols = ['Discipline', 'Doc Code', 'Doc Type', 'Activity Type', 'Workflow Step', 'Target Value', 'Estimated Output'];
+  const areaCols  = Object.keys(rows[0] || {}).filter(k => !fixedCols.includes(k));
+
+  const parsed = [];
+  const errors = [];
+
+  rows.forEach((row, i) => {
+    const discRaw = String(row['Discipline']    || '').trim();
+    const codeRaw = String(row['Doc Code']      || '').trim();
+    const stepRaw = String(row['Workflow Step'] || '').trim();
+    const targetV = parseFloat(row['Target Value']);
+
+    if (!discRaw)        { errors.push(`Row ${i+2}: missing Discipline`); return; }
+    if (!codeRaw)        { errors.push(`Row ${i+2}: missing Doc Code`); return; }
+    if (!stepRaw)        { errors.push(`Row ${i+2}: missing Workflow Step`); return; }
+    if (isNaN(targetV))  { errors.push(`Row ${i+2}: invalid Target Value`); return; }
+
+    const disc = disciplinesData.find(d => d.name.toLowerCase() === discRaw.toLowerCase());
+    if (!disc) { errors.push(`Row ${i+2}: discipline "${discRaw}" not found`); return; }
+
+    const docCode = docCodesData.find(d => d.code.toLowerCase() === codeRaw.toLowerCase());
+    if (!docCode) { errors.push(`Row ${i+2}: doc code "${codeRaw}" not found`); return; }
+
+    const actType = docCode.activity_type || 'drawing';
+    const step = stepsData.find(s =>
+      s.name.toLowerCase() === stepRaw.toLowerCase() &&
+      (s.activity_type || 'drawing') === actType
+    );
+    if (!step) { errors.push(`Row ${i+2}: workflow step "${stepRaw}" not found for activity type "${KPI_ACT_LABELS[actType] || actType}"`); return; }
+
+    // Area breakdown — match any extra column headers to area names
+    const areas = {};
+    let areaSum = 0;
+    let hasAreaCols = false;
+    areaCols.forEach(colName => {
+      const area = kpiAreaItems.find(a => a.area_system_module.toLowerCase() === colName.toLowerCase());
+      if (!area) return;
+      hasAreaCols = true;
+      const v = parseFloat(row[colName]);
+      if (!isNaN(v) && v !== 0) { areas[area.id] = v; areaSum += v; }
+    });
+
+    const estimated_output = hasAreaCols ? areaSum : (parseFloat(row['Estimated Output']) || 0);
+
+    parsed.push({
+      discipline_id: disc.id,    discName: disc.name,
+      doc_code_id:   docCode.id, docCode:  docCode.code,
+      step_id:       step.id,    stepName: step.name,
+      activityType:  actType,
+      target_value:  targetV,
+      estimated_output,
+      areas,
+    });
+  });
+
+  if (errors.length) {
+    toast(errors.slice(0, 3).join(' | ') + (errors.length > 3 ? ` (+${errors.length-3} more)` : ''), 'error');
+    if (!parsed.length) return;
+  }
+
+  kpiImportParsed = parsed;
+
+  let html = `
+    <div style="margin:14px 0 8px;font-size:12px;color:var(--text-3);">
+      <strong style="color:var(--text);">${parsed.length} rows</strong> ready to import.
+      ${errors.length ? `<span style="color:var(--red);margin-left:8px;">${errors.length} rows skipped.</span>` : ''}
+    </div>
+    <div class="import-preview"><table>
+      <thead><tr>
+        <th style="text-align:left;">Discipline</th><th>Doc Code</th><th>Activity</th><th>Step</th><th>Target Value</th><th>Est. Output</th>
+      </tr></thead>
+      <tbody>
+        ${parsed.map(p => `<tr>
+          <td style="text-align:left;">${p.discName}</td>
+          <td style="font-family:monospace;">${p.docCode}</td>
+          <td>${KPI_ACT_LABELS[p.activityType] || p.activityType}</td>
+          <td>${p.stepName}</td>
+          <td style="color:var(--accent);">${Number(p.target_value).toLocaleString()}</td>
+          <td>${p.estimated_output ? Number(p.estimated_output).toLocaleString() : '—'}</td>
+        </tr>`).join('')}
+      </tbody>
+    </table></div>`;
+
+  document.getElementById('kpi-import-preview-wrap').innerHTML = html;
+  document.getElementById('kpi-import-confirm-btn').style.display = 'flex';
+}
+
+async function confirmKpiImport() {
+  if (!kpiImportParsed?.length) return;
+  const btn = document.getElementById('kpi-import-confirm-btn');
+  btn.textContent = 'Importing…'; btn.disabled = true;
+
+  let success = 0;
+  const errors = [];
+
+  for (const p of kpiImportParsed) {
+    const payload = {
+      project_id:        kpiProjectId,
+      discipline_id:     p.discipline_id,
+      doc_code_id:        p.doc_code_id,
+      step_id:            p.step_id,
+      target_value:       p.target_value,
+      estimated_output:   p.estimated_output,
+    };
+    const { data, error } = await db.from('target_kpi').insert(payload).select('id').single();
+    if (error) { errors.push(error.message); continue; }
+    success++;
+
+    const areaEntries = Object.entries(p.areas || {});
+    if (areaEntries.length) {
+      const areaRows = areaEntries.map(([structure_item_id, val]) => ({
+        kpi_id:            data.id,
+        structure_item_id,
+        estimated_output:  val,
+      }));
+      await db.from('target_kpi_areas').insert(areaRows);
+    }
+  }
+
+  btn.innerHTML = `${IC.save} Import`; btn.disabled = false;
+
+  if (errors.length) {
+    toast(`${success} imported, ${errors.length} failed.${errors[0] ? ' ' + errors[0] : ''}`, errors.length === kpiImportParsed.length ? 'error' : 'warning');
+  } else {
+    toast(`${success} KPI row(s) imported.`, 'success');
+  }
+
+  kpiImportParsed = null;
+  closeModal('kpi-import-modal');
+  await loadKpi();
+}
+
+async function openAddKpi() {
+  if (!kpiProjectId) { toast('Select a project first.', 'error'); return; }
+  const proj = projectsData.find(p => p.id === kpiProjectId);
+  document.getElementById('kpi-id').value               = '';
+  document.getElementById('kpi-value').value            = '';
+  document.getElementById('kpi-estimated-output').value = '0';
+  document.getElementById('kpi-project-display').value  = proj ? `${proj.code} — ${proj.name}` : '—';
+  document.getElementById('kpi-discipline').innerHTML =
+    disciplinesData.map(d => `<option value="${d.id}">${d.name}</option>`).join('');
+  document.getElementById('kpi-activity-type').value = 'drawing';
+  onKpiActivityChange();
+  document.getElementById('kpi-modal-title').innerHTML = `${IC.plus} Add Target KPI`;
+  await renderKpiAreaBreakdown(null);
+  openModal('kpi-modal');
+}
+
+async function openEditKpi(id) {
+  const k = kpiData.find(x => x.id === id);
+  if (!k) return;
+  const actType = k.document_codes?.activity_type || 'drawing';
+
+  document.getElementById('kpi-id').value               = k.id;
+  document.getElementById('kpi-value').value            = k.target_value || '';
+  document.getElementById('kpi-estimated-output').value = k.estimated_output != null ? k.estimated_output : '0';
+  document.getElementById('kpi-project-display').value  = k.projects ? `${k.projects.code} — ${k.projects.name}` : '—';
+  document.getElementById('kpi-discipline').innerHTML =
+    disciplinesData.map(d => `<option value="${d.id}" ${d.id === k.disciplines?.id ? 'selected' : ''}>${d.name}</option>`).join('');
+  document.getElementById('kpi-activity-type').value = actType;
+  onKpiActivityChange();
+  document.getElementById('kpi-doc-code').value = k.document_codes?.id || '';
+  document.getElementById('kpi-step').value     = k.workflow_steps?.id || '';
+  document.getElementById('kpi-modal-title').innerHTML = `${IC.edit} Edit Target KPI`;
+  await renderKpiAreaBreakdown(k.id);
+  openModal('kpi-modal');
+}
+
+async function saveKpi() {
+  const btn              = document.getElementById('kpi-save-btn');
+  const id               = document.getElementById('kpi-id').value;
+  const discipline_id    = document.getElementById('kpi-discipline').value;
+  const doc_code_id      = document.getElementById('kpi-doc-code').value;
+  const step_id          = document.getElementById('kpi-step').value;
+  const target_value     = parseFloat(document.getElementById('kpi-value').value);
+  const estimated_output = parseFloat(document.getElementById('kpi-estimated-output').value) || 0;
+
+  if (!discipline_id)      { toast('Select a discipline.', 'error'); return; }
+  if (!doc_code_id)        { toast('Select a doc code.', 'error'); return; }
+  if (!step_id)            { toast('Select a workflow step.', 'error'); return; }
+  if (isNaN(target_value)) { toast('Enter a valid target value.', 'error'); return; }
+
+  btn.disabled = true; btn.textContent = 'Saving…';
+
+  // Save or update the KPI record
+  const payload = { discipline_id, doc_code_id, step_id, target_value, estimated_output, project_id: kpiProjectId };
+  let kpiId = id;
+  if (id) {
+    const { error } = await db.from('target_kpi').update(payload).eq('id', id);
+    if (error) { btn.disabled = false; btn.innerHTML = `${IC.save} Save`; toast('Error: ' + error.message, 'error'); return; }
+  } else {
+    const { data, error } = await db.from('target_kpi').insert(payload).select('id').single();
+    if (error) { btn.disabled = false; btn.innerHTML = `${IC.save} Save`; toast('Error: ' + error.message, 'error'); return; }
+    kpiId = data.id;
+  }
+
+  // Save area breakdown — collect all inputs with a value
+  const areaInputs = document.querySelectorAll('.kpi-area-input');
+  if (areaInputs.length) {
+    const areaRows = Array.from(areaInputs)
+      .map(inp => ({
+        kpi_id:            kpiId,
+        structure_item_id: inp.dataset.structureId,
+        estimated_output:  parseFloat(inp.value) || 0,
+      }));
+
+    // Delete existing then re-insert (simpler than upsert with compound key)
+    await db.from('target_kpi_areas').delete().eq('kpi_id', kpiId);
+    if (areaRows.length) {
+      const { error: areaErr } = await db.from('target_kpi_areas').insert(areaRows);
+      if (areaErr) { toast('KPI saved but area breakdown failed: ' + areaErr.message, 'warning'); }
+    }
+  }
+
+  btn.disabled = false; btn.innerHTML = `${IC.save} Save`;
+  toast(id ? 'KPI updated.' : 'KPI added.', 'success');
+  closeModal('kpi-modal');
+  await loadKpi();
+}
+
+async function deleteKpi(id) {
+  confirmDialog('Delete this KPI?', async () => {
+    const { error } = await db.from('target_kpi').delete().eq('id', id);
+    if (error) { toast('Error: ' + error.message, 'error'); return; }
+    toast('KPI deleted.', 'success');
+    await loadKpi();
+  });
+}
+
+	
+    initLayout('Targets');
+  </script>
+</body>
+</html>

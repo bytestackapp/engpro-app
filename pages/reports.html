@@ -1,0 +1,767 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Reports — EngPro App</title>
+  <link rel="stylesheet" href="../css/main.css" />
+  <style>
+    /* ── REPORT PAGE STYLES ── */
+    .report-list { display:flex; flex-direction:column; gap:10px; }
+    .report-card {
+      display:flex; align-items:center; gap:16px;
+      background:var(--bg-4); border:1px solid var(--border);
+      border-radius:var(--radius-lg); padding:16px 20px;
+      cursor:pointer; transition:border-color .15s, background .15s;
+    }
+    .report-card:hover { border-color:var(--accent); background:var(--accent-dim); }
+    .report-card-icon { width:40px; height:40px; border-radius:var(--radius); background:var(--accent-dim); display:flex; align-items:center; justify-content:center; color:var(--accent); flex-shrink:0; }
+    .report-card-body { flex:1; }
+    .report-card-title { font-size:14px; font-weight:600; color:var(--text); }
+    .report-card-desc  { font-size:12px; color:var(--text-3); margin-top:2px; }
+
+    /* ── SETTINGS TABLE ── */
+    .settings-table { width:100%; border-collapse:collapse; font-size:13px; }
+	.settings-table th { color:var(--text-3); font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.5px; padding:8px 12px; border:none; border-bottom:2px solid var(--border); }
+	.settings-table td { padding:8px 12px; border:none; border-bottom:1px solid var(--border); }
+	.settings-table input { width:100%; background:transparent; border:none; outline:none; color:var(--text); font-size:13px; padding:2px 4px; }
+	.settings-table input:focus { background:var(--bg-4); border-radius:4px; }
+	.settings-table tr:hover td { background:var(--bg-4); }
+	.settings-table tbody tr:last-child td { border-bottom:none; }
+
+    /* ── PRINT / PDF STYLES ── */
+    @media print {
+      body * { visibility:hidden; }
+      #pdf-preview, #pdf-preview * { visibility:visible; }
+      #pdf-preview { position:fixed; top:0; left:0; width:100%; }
+      @page { size:A3 landscape; margin:10mm; }
+    }
+
+    /* ── PDF PREVIEW ── */
+    #pdf-preview {
+      font-family: Arial, sans-serif;
+      font-size: 9px;
+      color: #000;
+      background: #fff;
+    }
+    .pdf-page { padding:8mm; page-break-after:always; }
+    .pdf-page:last-child { page-break-after:auto; }
+
+    /* Header */
+    .pdf-header {
+      display:grid; grid-template-columns:120px 1fr auto;
+      border:2px solid #000; margin-bottom:6px;
+    }
+    .pdf-logo-cell {
+      border-right:2px solid #000; display:flex;
+      align-items:center; justify-content:center; padding:8px;
+    }
+    .pdf-logo-box {
+      width:80px; height:50px; border:2px dashed #ccc;
+      display:flex; align-items:center; justify-content:center;
+      font-size:10px; color:#999; font-weight:700;
+    }
+    .pdf-title-cell {
+      display:flex; align-items:center; justify-content:center;
+      font-size:16px; font-weight:700; text-transform:uppercase; letter-spacing:1px;
+    }
+    .pdf-meta-cell {
+      border-left:2px solid #000; padding:8px 12px;
+      font-size:9px; line-height:1.8; min-width:200px;
+    }
+    .pdf-meta-cell div { display:flex; gap:4px; }
+    .pdf-meta-label { font-weight:700; min-width:80px; }
+
+    /* Section headers */
+    .pdf-section-header {
+      background:#E8E8E8; border:1px solid #999;
+      padding:4px 8px; font-weight:700; font-style:italic;
+      margin-bottom:0; font-size:9px;
+    }
+    .pdf-subsection-header {
+      background:#D4D4D4; border:1px solid #999; border-top:none;
+      padding:4px 8px; font-weight:700; font-style:italic;
+      margin-bottom:0; font-size:9px;
+    }
+
+    /* Report tables */
+    .pdf-table { width:100%; border-collapse:collapse; font-size:8px; }
+    .pdf-table th, .pdf-table td {
+      border:1px solid #999; padding:3px 5px; text-align:center;
+    }
+    .pdf-table th { background:#F4A460; font-weight:700; font-style:italic; }
+    .pdf-table th.group-header { background:#E8943A; font-size:9px; }
+    .pdf-table td.area-col { text-align:left; font-style:italic; }
+    .pdf-table tr.total-row td { font-weight:700; font-style:italic; background:#F9D89C; }
+    .pdf-table tr:nth-child(even) td { background:#FEF0D8; }
+    .pdf-table tr:nth-child(odd)  td { background:#fff; }
+    .pdf-table tr.total-row td    { background:#F9D89C !important; }
+    .pdf-table td.dash { color:#999; }
+  </style>
+</head>
+<body>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="../js/supabase.js"></script>
+  <script src="../js/utils.js"></script>
+  <script src="../js/layout.js"></script>
+  <script src="../js/messaging.js"></script>
+
+  <script>
+    const SVG_SM = (p) => `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
+    const IC = {
+      plus:     SVG_SM('<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>'),
+      save:     SVG_SM('<path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/>'),
+      trash:    SVG_SM('<polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/>'),
+      settings: SVG_SM('<circle cx="12" cy="12" r="3"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2m-3.22-6.78-1.42 1.42M6.64 17.36l-1.42 1.42m0-11.56 1.42 1.42m8.48 8.48 1.42 1.42"/>'),
+      report:   SVG_SM('<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/>'),
+      print:    SVG_SM('<polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/>'),
+      back:     SVG_SM('<polyline points="15 18 9 12 15 6"/>'),
+    };
+
+    let projectsData    = [];
+    let disciplinesData = [];
+    let docCodesData    = [];
+    let settingsData    = [];
+    let activeProject   = null;
+    let activeView      = 'home';
+
+    // Step name mappings
+    const STEP_PREPARED = 'Draft';
+    const STEP_IFA      = 'Issued for Approval';
+    const STEP_IFC      = 'Issued for Construction';
+
+    function injectModals() {
+      document.body.insertAdjacentHTML('beforeend', `
+        <div class="modal" id="area-modal">
+          <div class="modal-backdrop" onclick="closeModal('area-modal')"></div>
+          <div class="modal-box modal-sm" style="max-width: 460px; width: 90%;">
+            <div class="modal-header">
+              <h3 id="area-modal-title" style="display:flex;align-items:center;gap:8px;">
+                ${IC.plus} Add Quota
+              </h3>
+              <button class="modal-close" onclick="closeModal('area-modal')">✕</button>
+            </div>
+            <div class="modal-body">
+              <input type="hidden" id="a-id" />
+              <div class="form-group">
+                <label class="required">Area / Tank No.</label>
+                <input type="text" id="a-area" placeholder="e.g. Tank T-30 CRT" />
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label class="required">Document Code</label>
+                  <select id="a-doccode"><option value="">— Select —</option></select>
+                </div>
+                <div class="form-group">
+                  <label class="required">Discipline</label>
+                  <select id="a-discipline" onchange="onDisciplineChange(this)"><option value="">— Select —</option></select>
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label class="required">Estimated Qty</label>
+                  <input type="number" id="a-qty" min="0" step="1" placeholder="0" />
+                </div>
+                <div class="form-group" id="a-diainch-group" style="display:none;">
+                  <label>Dia Inch</label>
+                  <input type="number" id="a-diainch" min="0" step="0.01" placeholder="0.00" />
+                </div>
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button class="btn btn-ghost" onclick="closeModal('area-modal')">Cancel</button>
+              <button class="btn btn-primary" id="area-save-btn" onclick="saveAreaSetting()" style="display:flex;align-items:center;gap:5px;">
+                ${IC.save} Save
+              </button>
+            </div>
+          </div>
+        </div>
+      `);
+    }
+
+    async function pageInit(profile) {
+      injectModals();
+
+      const content = document.getElementById('page-content');
+      content.innerHTML = `
+        <div class="page-header">
+          <h1 style="display:flex;align-items:center;gap:10px;">
+            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+            Reports
+          </h1>
+          <p>Select a project to get started</p>
+        </div>
+
+        <!-- Project Selector -->
+        <div class="card" style="margin-bottom:20px;">
+          <div class="card-body" style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
+            <div style="font-size:13px;font-weight:600;color:var(--text-2);white-space:nowrap;">Active Project:</div>
+            <select id="report-project" onchange="onProjectChange(this.value)" style="flex:1;min-width:200px;max-width:400px;">
+              <option value="">— Select Project —</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Main Report Area -->
+        <div id="report-main" style="display:none;">
+
+          <!-- Tabs -->
+          <div class="tabs" id="report-tabs">
+            <button class="tab-btn active" onclick="switchReportTab('reports', this)">
+              ${IC.report} Reports
+            </button>
+            <button class="tab-btn" onclick="switchReportTab('settings', this)">
+              ${IC.settings} Settings
+            </button>
+          </div>
+
+          <!-- Reports Tab -->
+          <div class="tab-panel active" id="tab-reports">
+            <div class="report-list">
+              <div class="report-card" onclick="openWeeklyReport()">
+                <div class="report-card-icon">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                </div>
+                <div class="report-card-body">
+                  <div class="report-card-title">Weekly Progress Report</div>
+                  <div class="report-card-desc">Engineering deliverables summary, progress by area and discipline, and activity log for a selected week range.</div>
+                </div>
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+              </div>
+            </div>
+          </div>
+
+          <!-- Settings Tab -->
+          <div class="tab-panel" id="tab-settings">
+            <div class="card">
+              <div class="card-header">
+                <span class="card-title">Report Settings — Quotas</span>
+                <button class="btn btn-primary btn-sm" onclick="openAddArea()" style="display:flex;align-items:center;gap:5px;">
+                  ${IC.plus} Add Quota
+                </button>
+              </div>
+              <div class="card-body">
+                <p style="font-size:12px;color:var(--text-3);margin-bottom:16px;">
+                  Define all project areas and their estimated quantities per discipline. These values drive the progress calculations in all reports.
+                </p>
+                <div class="toolbar" style="margin-bottom:12px;">
+                  <select class="filter-select" id="settings-disc-filter" onchange="renderSettingsTable()">
+                    <option value="">All Disciplines</option>
+                  </select>
+                </div>
+                <div id="settings-table-wrap">
+                  <p style="color:var(--text-4);font-size:13px;text-align:center;padding:30px;">Loading…</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Weekly Report View (replaces main when active) -->
+        <div id="weekly-view" style="display:none;">
+          <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;flex-wrap:wrap;">
+            <button class="btn btn-ghost btn-sm" onclick="closeWeeklyReport()" style="display:flex;align-items:center;gap:5px;">
+              ${IC.back} Back
+            </button>
+            <h2 style="font-size:16px;font-weight:700;color:var(--text);margin:0;flex:1;">Weekly Progress Report</h2>
+            <button class="btn btn-primary btn-sm" onclick="window.print()" style="display:flex;align-items:center;gap:5px;">
+              ${IC.print} Print / Export PDF
+            </button>
+          </div>
+
+          <!-- Week Range Picker -->
+          <div class="card" style="margin-bottom:16px;">
+            <div class="card-body" style="display:flex;align-items:flex-end;gap:14px;flex-wrap:wrap;">
+              <div class="form-group" style="margin:0;">
+                <label>Week From</label>
+                <input type="date" id="week-from" />
+              </div>
+              <div class="form-group" style="margin:0;">
+                <label>Week To</label>
+                <input type="date" id="week-to" />
+              </div>
+              <button class="btn btn-primary" onclick="generateWeeklyReport()" style="display:flex;align-items:center;gap:5px;">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+                Generate
+              </button>
+            </div>
+          </div>
+
+          <!-- PDF Preview -->
+          <div id="pdf-preview"></div>
+        </div>
+      `;
+
+      await loadBaseData();
+
+      // Pre-select from localStorage
+      const saved = localStorage.getItem('activeProjectId');
+      if (saved) {
+        document.getElementById('report-project').value = saved;
+        await onProjectChange(saved);
+      }
+    }
+
+    async function loadBaseData() {
+      const [projRes, discRes, docRes] = await Promise.all([
+        db.from('projects').select('*').order('name'),
+        db.from('disciplines').select('*').order('name'),
+        db.from('document_codes').select('*').order('code'),
+      ]);
+      projectsData    = projRes.data  || [];
+      disciplinesData = discRes.data  || [];
+      docCodesData    = docRes.data   || [];
+
+      // Populate project dropdown
+      const projSel = document.getElementById('report-project');
+      projSel.innerHTML = `<option value="">— Select Project —</option>` +
+        projectsData.map(p => `<option value="${p.id}">${p.code} — ${p.name}</option>`).join('');
+
+      // Populate discipline filter in settings
+      const discFil = document.getElementById('settings-disc-filter');
+      discFil.innerHTML = `<option value="">All Disciplines</option>` +
+        disciplinesData.map(d => `<option value="${d.id}">${d.name}</option>`).join('');
+
+      // Populate area modal selects
+      const aDisc = document.getElementById('a-discipline');
+      aDisc.innerHTML = `<option value="">— Select —</option>` +
+        disciplinesData.map(d => `<option value="${d.id}">${d.name}</option>`).join('');
+
+      const aDoc = document.getElementById('a-doccode');
+      aDoc.innerHTML = `<option value="">— Select —</option>` +
+        docCodesData.map(d => `<option value="${d.id}" data-code="${d.code}">${d.type}</option>`).join('');
+    }
+
+    async function onProjectChange(projectId) {
+      activeProject = projectId || null;
+      const main = document.getElementById('report-main');
+      if (!activeProject) { main.style.display = 'none'; return; }
+      localStorage.setItem('activeProjectId', activeProject);
+      main.style.display = 'block';
+      document.getElementById('weekly-view').style.display = 'none';
+      await loadSettings();
+    }
+
+    function switchReportTab(tab, btn) {
+      document.querySelectorAll('#report-tabs .tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('#report-main .tab-panel').forEach(p => p.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById(`tab-${tab}`).classList.add('active');
+    }
+
+    // ── SETTINGS ─────────────────────────────────────────────
+
+    async function loadSettings() {
+      if (!activeProject) return;
+      const { data, error } = await db.from('report_settings')
+        .select('*, disciplines(name)')
+        .eq('project_id', activeProject)
+        .order('sort_order');
+      settingsData = data || [];
+      renderSettingsTable();
+    }
+
+    function renderSettingsTable() {
+  const wrap    = document.getElementById('settings-table-wrap');
+  const discFil = document.getElementById('settings-disc-filter').value;
+  const list    = discFil ? settingsData.filter(s => s.discipline_id === discFil) : settingsData;
+
+  if (!list.length) {
+    wrap.innerHTML = `<p style="color:var(--text-4);font-size:13px;text-align:center;padding:30px;">No areas defined yet. Click "+ Add Quota" to get started.</p>`;
+    return;
+  }
+
+  const rows = list.map(s => {
+    const dc   = docCodesData.find(d => d.id === s.doc_code_id);
+    const disc = s.disciplines?.name || '—';
+    const isPiping = disc.toLowerCase() === 'piping';
+    return `
+      <tr>
+        <td style="color:var(--accent);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;">${disc}</td>
+        <td style="font-weight:600;color:var(--text);">${s.area}</td>
+        <td style="text-align:center;">${dc ? dc.type : '—'}</td>
+        <td style="text-align:center;">${s.estimated_qty ?? '—'}</td>
+        <td style="text-align:center;">${isPiping ? (s.dia_inch ?? '—') : '—'}</td>
+        <td style="text-align:center;">
+          <div class="table-actions">
+            <button class="btn btn-icon edit"   onclick="openEditArea('${s.id}')" title="Edit">${SVG_SM('<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>')}</button>
+            <button class="btn btn-icon delete" onclick="deleteAreaSetting('${s.id}')" title="Delete">${SVG_SM('<polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/>')}</button>
+          </div>
+        </td>
+      </tr>
+    `;
+  }).join('');
+
+  wrap.innerHTML = `
+    <table class="settings-table">
+      <thead>
+        <tr>
+          <th style="text-align:left;">Discipline</th>
+          <th style="text-align:left;">Area / Tank No.</th>
+          <th style="text-align:center;">Document Code</th>
+          <th style="text-align:center;">Est. Qty</th>
+          <th style="text-align:center;">Dia Inch</th>
+          <th style="text-align:center;">Actions</th>
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>
+  `;
+}
+
+    function onDisciplineChange(sel) {
+      const isPiping = sel.options[sel.selectedIndex]?.text.trim().toLowerCase() === 'piping';
+      const group = document.getElementById('a-diainch-group');
+      group.style.display = isPiping ? '' : 'none';
+      if (!isPiping) document.getElementById('a-diainch').value = '';
+    }
+
+    function openAddArea() {
+      document.getElementById('a-id').value         = '';
+      document.getElementById('a-area').value       = '';
+      document.getElementById('a-discipline').value = '';
+      document.getElementById('a-doccode').value    = '';
+      document.getElementById('a-qty').value        = '';
+      document.getElementById('a-diainch').value    = '';
+      document.getElementById('a-diainch-group').style.display = 'none';
+      document.getElementById('area-modal-title').innerHTML = `${IC.plus} Add Quota`;
+      openModal('area-modal');
+      setTimeout(() => document.getElementById('a-area').focus(), 100);
+    }
+
+    function openEditArea(id) {
+      const s = settingsData.find(x => x.id === id);
+      if (!s) return;
+      document.getElementById('a-id').value         = s.id;
+      document.getElementById('a-area').value       = s.area          || '';
+      document.getElementById('a-discipline').value = s.discipline_id || '';
+      document.getElementById('a-doccode').value    = s.doc_code_id   || '';
+      document.getElementById('a-qty').value        = s.estimated_qty ?? '';
+      document.getElementById('a-diainch').value    = s.dia_inch      ?? '';
+      const discSel = document.getElementById('a-discipline');
+      const isPiping = discSel.options[discSel.selectedIndex]?.text.trim().toLowerCase() === 'piping';
+      document.getElementById('a-diainch-group').style.display = isPiping ? '' : 'none';
+      document.getElementById('area-modal-title').innerHTML = `${IC.save} Edit Quota`;
+      openModal('area-modal');
+      setTimeout(() => document.getElementById('a-area').focus(), 100);
+    }
+
+    async function saveAreaSetting() {
+      const btn           = document.getElementById('area-save-btn');
+      const id            = document.getElementById('a-id').value;
+      const area          = document.getElementById('a-area').value.trim();
+      const discipline_id = document.getElementById('a-discipline').value;
+      const doc_code_id   = document.getElementById('a-doccode').value   || null;
+      const estimated_qty = parseInt(document.getElementById('a-qty').value)     || null;
+      const dia_inch      = parseFloat(document.getElementById('a-diainch').value) || null;
+
+      if (!area)          { toast('Area is required.',       'error'); document.getElementById('a-area').focus();      return; }
+      if (!discipline_id) { toast('Discipline is required.', 'error'); document.getElementById('a-discipline').focus(); return; }
+      if (!doc_code_id)   { toast('Document code is required.', 'error'); document.getElementById('a-doccode').focus(); return; }
+
+      btn.disabled = true; btn.textContent = 'Saving…';
+      const { error } = id
+        ? await db.from('report_settings').update({ area, discipline_id, doc_code_id, estimated_qty, dia_inch }).eq('id', id)
+        : await db.from('report_settings').insert({ project_id: activeProject, area, discipline_id, doc_code_id, estimated_qty, dia_inch });
+      btn.disabled = false; btn.innerHTML = `${IC.save} Save`;
+
+      if (error) { toast('Error: ' + error.message, 'error'); return; }
+      toast(id ? 'Quota updated.' : 'Quota added.', 'success');
+      closeModal('area-modal');
+      await loadSettings();
+    }
+
+    async function deleteAreaSetting(id) {
+      confirmDialog('Delete this area setting?', async () => {
+        const { error } = await db.from('report_settings').delete().eq('id', id);
+        if (error) { toast('Error: ' + error.message, 'error'); return; }
+        toast('Deleted.', 'success');
+        await loadSettings();
+      });
+    }
+
+    // ── WEEKLY REPORT ─────────────────────────────────────────
+
+    function openWeeklyReport() {
+      document.getElementById('report-main').style.display  = 'none';
+      document.getElementById('weekly-view').style.display  = 'block';
+
+      // Default to current week (Mon–Sun)
+      const now   = new Date();
+      const day   = now.getDay();
+      const mon   = new Date(now); mon.setDate(now.getDate() - (day === 0 ? 6 : day - 1));
+      const sun   = new Date(mon); sun.setDate(mon.getDate() + 6);
+      document.getElementById('week-from').value = mon.toISOString().slice(0,10);
+      document.getElementById('week-to').value   = sun.toISOString().slice(0,10);
+      document.getElementById('pdf-preview').innerHTML = `<p style="text-align:center;padding:40px;color:var(--text-4);">Click "Generate" to preview the report.</p>`;
+    }
+
+    function closeWeeklyReport() {
+      document.getElementById('weekly-view').style.display  = 'none';
+      document.getElementById('report-main').style.display  = 'block';
+    }
+
+    async function generateWeeklyReport() {
+      const from = document.getElementById('week-from').value;
+      const to   = document.getElementById('week-to').value;
+      if (!from || !to) { toast('Please select a week range.', 'error'); return; }
+
+      const preview = document.getElementById('pdf-preview');
+      preview.innerHTML = `<p style="text-align:center;padding:40px;color:var(--text-4);">Generating report…</p>`;
+
+      // Fetch all data
+      const proj = projectsData.find(p => p.id === activeProject);
+
+      // 1. All drawings for this project
+      const { data: drawings } = await db.from('drawings')
+        .select('id, drawing_number, title, area, discipline_id, drawing_activities(step_done, created_at, manhours)')
+        .eq('project_id', activeProject);
+
+      // 2. Activities within date range
+      const { data: activities } = await db.from('drawing_activities')
+        .select('*, drawings(drawing_number, title, area, discipline_id, disciplines(name)), users(full_name)')
+        .eq('project_id', activeProject)
+        .gte('created_at', from + 'T00:00:00')
+        .lte('created_at', to   + 'T23:59:59')
+        .order('created_at', { ascending: false });
+
+      // 3. Report settings (areas)
+      const settings = settingsData.filter(s => s.project_id === activeProject || true);
+
+      // Build report HTML
+      const html = buildWeeklyReportHTML(proj, drawings || [], activities || [], settings, from, to);
+      preview.innerHTML = html;
+    }
+
+    function buildWeeklyReportHTML(proj, drawings, activities, settings, from, to) {
+      const fromDate = new Date(from);
+      const toDate   = new Date(to);
+      const fmtDate  = (d) => d.toLocaleDateString('en-US', { day:'numeric', month:'short', year:'numeric' });
+      const weekStr  = `${fmtDate(fromDate)} - ${fmtDate(toDate)}`;
+
+      // Group settings by discipline
+      const settingsByDisc = {};
+      settings.forEach(s => {
+        if (!settingsByDisc[s.discipline_id]) settingsByDisc[s.discipline_id] = [];
+        settingsByDisc[s.discipline_id].push(s);
+      });
+
+      // Group drawings by discipline
+      const drawingsByDisc = {};
+      drawings.forEach(d => {
+        if (!drawingsByDisc[d.discipline_id]) drawingsByDisc[d.discipline_id] = [];
+        drawingsByDisc[d.discipline_id].push(d);
+      });
+
+      // Helper: count drawings for an area+discipline that have reached a step
+      const countStep = (discId, area, stepName) => {
+        const discDrawings = drawingsByDisc[discId] || [];
+        const areaDrawings = area
+          ? discDrawings.filter(d => (d.area || '').trim().toLowerCase() === area.trim().toLowerCase())
+          : discDrawings;
+        return areaDrawings.filter(d =>
+          (d.drawing_activities || []).some(a => a.step_done === stepName)
+        ).length;
+      };
+
+      const pct = (done, total) => total > 0 ? Math.round(done / total * 100) + '%' : '-';
+      const dash = (val) => val != null && val !== '' ? val : '<span class="dash">-</span>';
+
+      // ── PAGE HEADER ──
+      const pageHeader = (title) => `
+        <div class="pdf-header">
+          <div class="pdf-logo-cell">
+            <div class="pdf-logo-box">LOGO</div>
+          </div>
+          <div class="pdf-title-cell">${title}</div>
+          <div class="pdf-meta-cell">
+            <div><span class="pdf-meta-label">Project</span><span>: ${proj?.name || '—'}</span></div>
+            <div><span class="pdf-meta-label">Week</span><span>: ${weekStr}</span></div>
+            <div><span class="pdf-meta-label">Prepared By</span><span>: Engineering</span></div>
+          </div>
+        </div>
+      `;
+
+      let pages = '';
+
+      // ── PAGE 1: ENGINEERING DELIVERABLES (per discipline) ──
+      Object.entries(settingsByDisc).forEach(([discId, discSettings]) => {
+        const disc = disciplinesData.find(d => d.id === discId);
+        if (!disc) return;
+
+        const areas = discSettings.sort((a, b) => a.sort_order - b.sort_order);
+        let totalEstQty = 0, totalPrepared = 0, totalIFA = 0, totalIFC = 0;
+        let totalEstDI  = 0, totalPrepDI   = 0, totalIFADI = 0, totalIFCDI = 0;
+        const hasDI = areas.some(a => a.estimated_di);
+
+        const rows = areas.map(area => {
+          const prepared = countStep(discId, area.area, STEP_PREPARED);
+          const ifa      = countStep(discId, area.area, STEP_IFA);
+          const ifc      = countStep(discId, area.area, STEP_IFC);
+          const estQty   = area.estimated_qty || 0;
+          const estDI    = area.estimated_di  || 0;
+
+          // DI proportional estimate (prepared/total * estDI)
+          const prepDI  = estQty > 0 ? Math.round(prepared / estQty * estDI) : 0;
+          const ifaDI   = estQty > 0 ? Math.round(ifa      / estQty * estDI) : 0;
+          const ifcDI   = estQty > 0 ? Math.round(ifc      / estQty * estDI) : 0;
+
+          totalEstQty  += estQty;
+          totalPrepared+= prepared;
+          totalIFA     += ifa;
+          totalIFC     += ifc;
+          totalEstDI   += estDI;
+          totalPrepDI  += prepDI;
+          totalIFADI   += ifaDI;
+          totalIFCDI   += ifcDI;
+
+          return `
+            <tr>
+              <td class="area-col">${area.area}</td>
+              <td>${dash(estQty || null)}</td>
+              ${hasDI ? `<td>${dash(estDI || null)}</td>` : ''}
+              <td>${dash(prepared || null)}</td>
+              ${hasDI ? `<td>${dash(prepDI || null)}</td>` : ''}
+              <td>${dash(ifa || null)}</td>
+              ${hasDI ? `<td>${dash(ifaDI || null)}</td>` : ''}
+              <td>${dash(ifc || null)}</td>
+              ${hasDI ? `<td>${dash(ifcDI || null)}</td>` : ''}
+              <td></td>
+            </tr>
+          `;
+        });
+
+        pages += `
+          <div class="pdf-page">
+            ${pageHeader('WEEKLY PROGRESS REPORT')}
+            <div class="pdf-section-header">Engineering Deliverables</div>
+            <div class="pdf-subsection-header">${disc.name.toUpperCase()} DRAWINGS</div>
+            <table class="pdf-table">
+              <thead>
+                <tr>
+                  <th rowspan="2" class="area-col" style="text-align:left;min-width:120px;">Area / Tank No.</th>
+                  <th colspan="${hasDI ? 2 : 1}" class="group-header">Estimated</th>
+                  <th colspan="${hasDI ? 2 : 1}" class="group-header">Prepared</th>
+                  <th colspan="${hasDI ? 2 : 1}" class="group-header">IFA</th>
+                  <th colspan="${hasDI ? 2 : 1}" class="group-header">IFC</th>
+                  <th rowspan="2">Remarks</th>
+                </tr>
+                <tr>
+                  <th>Qty</th>${hasDI ? '<th>DI</th>' : ''}
+                  <th>Qty</th>${hasDI ? '<th>DI</th>' : ''}
+                  <th>Qty</th>${hasDI ? '<th>DI</th>' : ''}
+                  <th>Qty</th>${hasDI ? '<th>DI</th>' : ''}
+                </tr>
+              </thead>
+              <tbody>
+                ${rows.join('')}
+                <tr class="total-row">
+                  <td class="area-col"><strong>Total</strong></td>
+                  <td><strong>${totalEstQty}</strong></td>
+                  ${hasDI ? `<td><strong>${totalEstDI}</strong></td>` : ''}
+                  <td><strong>${totalPrepared}</strong></td>
+                  ${hasDI ? `<td><strong>${totalPrepDI}</strong></td>` : ''}
+                  <td><strong>${totalIFA}</strong></td>
+                  ${hasDI ? `<td><strong>${totalIFADI}</strong></td>` : ''}
+                  <td><strong>${totalIFC}</strong></td>
+                  ${hasDI ? `<td><strong>${totalIFCDI}</strong></td>` : ''}
+                  <td></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        `;
+      });
+
+      // ── PAGE 2: PROGRESS BY DISCIPLINE (per area) ──
+      const allAreas = [...new Set(settings.map(s => s.area))].sort();
+      const discs    = disciplinesData.filter(d => settingsByDisc[d.id]);
+
+      pages += `
+        <div class="pdf-page">
+          ${pageHeader('WEEKLY PROGRESS REPORT')}
+          <div class="pdf-section-header">Construction Engineering Progress</div>
+          <table class="pdf-table">
+            <thead>
+              <tr>
+                <th rowspan="2" style="text-align:left;min-width:120px;">Area / Tank No.</th>
+                <th class="group-header">Over-All</th>
+                ${discs.map(d => `<th class="group-header">${d.name}</th>`).join('')}
+                <th rowspan="2">Remarks</th>
+              </tr>
+              <tr>
+                <th>Progress (%)</th>
+                ${discs.map(() => `<th>Progress (%)</th>`).join('')}
+              </tr>
+            </thead>
+            <tbody>
+              ${allAreas.map(area => {
+                const discPcts = discs.map(d => {
+                  const s = settingsByDisc[d.id]?.find(x => x.area === area);
+                  if (!s || !s.estimated_qty) return null;
+                  const ifc = countStep(d.id, area, STEP_IFC);
+                  return Math.round(ifc / s.estimated_qty * 100);
+                });
+                const validPcts = discPcts.filter(p => p !== null);
+                const overall   = validPcts.length ? Math.round(validPcts.reduce((a,b) => a+b, 0) / validPcts.length) : null;
+                return `
+                  <tr>
+                    <td class="area-col">${area}</td>
+                    <td>${overall !== null ? overall + '%' : '<span class="dash">-</span>'}</td>
+                    ${discPcts.map(p => `<td>${p !== null ? p + '%' : '<span class="dash">-</span>'}</td>`).join('')}
+                    <td></td>
+                  </tr>
+                `;
+              }).join('')}
+            </tbody>
+          </table>
+        </div>
+      `;
+
+      // ── PAGE 3: ACTIVITY LOG (within week range) ──
+      const actRows = activities.length
+        ? activities.map(a => `
+            <tr>
+              <td style="white-space:nowrap;">${formatDate(a.created_at)}</td>
+              <td style="font-weight:700;">${a.drawings?.drawing_number || '—'}</td>
+              <td style="text-align:left;max-width:150px;">${a.drawings?.title || '—'}</td>
+              <td>${a.step_done || '—'}</td>
+              <td>${a.users?.full_name || '—'}</td>
+              <td>${a.drawings?.disciplines?.name || '—'}</td>
+              <td style="text-align:right;">${a.manhours || 0}</td>
+              <td>${a.remarks || ''}</td>
+            </tr>
+          `).join('')
+        : `<tr><td colspan="8" style="text-align:center;padding:10px;color:#999;">No activities recorded for this week.</td></tr>`;
+
+      pages += `
+        <div class="pdf-page">
+          ${pageHeader('WEEKLY PROGRESS REPORT')}
+          <div class="pdf-section-header">Activity Log — ${weekStr}</div>
+          <table class="pdf-table">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Drawing No.</th>
+                <th style="text-align:left;">Title</th>
+                <th>Step</th>
+                <th>Engineer</th>
+                <th>Discipline</th>
+                <th>MH</th>
+                <th>Remarks</th>
+              </tr>
+            </thead>
+            <tbody>${actRows}</tbody>
+          </table>
+        </div>
+      `;
+
+      return pages;
+    }
+
+    initLayout('Reports');
+  </script>
+</body>
+</html>

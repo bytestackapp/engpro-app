@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>EngPro App — Sign In</title>
+  <link rel="stylesheet" href="css/main.css" />
+  <link rel="icon" href="/favicon.png" type="image/png" />
+</head>
+<body class="login-page">
+
+  <div class="login-card">
+    <div class="login-logo">
+      <div class="login-logo-icon">⚙️</div>
+      <div>
+        <div class="login-appname">EngPro App</div>
+        <div class="login-tagline">Track. Manage. Deliver.</div>
+      </div>
+    </div>
+
+    <div class="login-error" id="login-error"></div>
+
+    <div class="form-group">
+      <label for="email">Email Address</label>
+      <input type="email" id="email" placeholder="you@company.com" autocomplete="email" />
+    </div>
+
+    <div class="form-group">
+      <label for="password">Password</label>
+      <input type="password" id="password" placeholder="••••••••" autocomplete="current-password" />
+    </div>
+
+    <div class="login-options">
+      <label class="checkbox-label">
+        <input type="checkbox" id="remember" /> Remember me
+      </label>
+      <!-- FIX [L1]: button disabled during async call to prevent double-sends -->
+      <a href="#" class="forgot-link" id="forgot-link" onclick="handleForgotPassword()">Forgot password?</a>
+    </div>
+
+    <button class="btn btn-primary login-btn" id="login-btn" onclick="handleLogin()">Sign In</button>
+
+    <p class="login-footer">Engineering Activity &amp; Manhour Monitoring System</p>
+  </div>
+
+  <!-- Toast container (used instead of alert()) -->
+  <div id="toast-container"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/supabase.js"></script>
+  <script src="js/utils.js"></script>
+  <script>
+    // Auto-redirect if already logged in
+    db.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) window.location.href = 'pages/dashboard.html';
+    });
+
+    document.getElementById('password').addEventListener('keydown', e => {
+      if (e.key === 'Enter') handleLogin();
+    });
+
+    async function handleLogin() {
+      const email    = document.getElementById('email').value.trim();
+      const password = document.getElementById('password').value;
+      const btn      = document.getElementById('login-btn');
+      const errEl    = document.getElementById('login-error');
+
+      if (!email || !password) { showError('Please enter your email and password.'); return; }
+
+      btn.textContent = 'Signing in…';
+      btn.disabled    = true;
+      errEl.style.display = 'none';
+
+      try {
+        // FIX [C1]: Use signIn() from supabase.js — runs the is_active check
+        // before granting access. Previously called db.auth.signInWithPassword()
+        // directly, which allowed deactivated accounts to log in successfully.
+        await signIn(email, password);
+        window.location.href = 'pages/dashboard.html';
+      } catch (err) {
+        showError(err.message || 'Invalid credentials. Please try again.');
+        btn.textContent = 'Sign In';
+        btn.disabled    = false;
+      }
+    }
+
+    function showError(msg) {
+      const el = document.getElementById('login-error');
+      el.textContent   = msg;
+      el.style.display = 'block';
+    }
+
+    async function handleForgotPassword() {
+      const email   = document.getElementById('email').value.trim();
+      const link    = document.getElementById('forgot-link');
+
+      if (!email) { showError('Enter your email address first.'); return; }
+
+      // FIX [L1]: Disable link during async call to prevent multiple reset emails
+      link.style.pointerEvents = 'none';
+      link.style.opacity       = '0.5';
+
+      try {
+        await db.auth.resetPasswordForEmail(email);
+        // FIX [H1]: Use toast() instead of native alert()
+        toast('If that email exists, a reset link has been sent.', 'info');
+      } catch (err) {
+        toast('Failed to send reset email. Please try again.', 'error');
+      } finally {
+        link.style.pointerEvents = '';
+        link.style.opacity       = '';
+      }
+    }
+  </script>
+</body>
+</html>

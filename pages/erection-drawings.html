@@ -1,0 +1,1424 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Erection Drawings — EngPro App</title>
+  <link rel="stylesheet" href="../css/main.css" />
+  <style>
+    /* ── DISCIPLINE PICKER ── */
+    .disc-picker-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+      gap: 12px;
+      margin-top: 8px;
+    }
+    .disc-card {
+      background: var(--bg-4);
+      border: 1px solid var(--border-2);
+      border-radius: var(--radius-lg);
+      padding: 20px 14px;
+      text-align: center;
+      cursor: pointer;
+      transition: all var(--speed);
+      display: flex; flex-direction: column;
+      align-items: center; gap: 8px;
+    }
+    .disc-card:hover {
+      border-color: var(--accent);
+      background: var(--accent-dim);
+      transform: translateY(-2px);
+      box-shadow: 0 4px 16px rgba(240,121,0,0.2);
+    }
+    .disc-card-icon { width: 32px; height: 32px; display:flex; align-items:center; justify-content:center; color: var(--accent); }
+    .disc-card-name { font-size: 12px; font-weight: 600; color: var(--text-2); }
+    .disc-card:hover .disc-card-name { color: var(--accent-light); }
+
+    /* ── ACTIVE DISCIPLINE HEADER ── */
+    .disc-header {
+      display: flex; align-items: center; gap: 12px;
+      margin-bottom: 18px;
+    }
+    .disc-header-badge {
+      display: flex; align-items: center; gap: 8px;
+      background: var(--accent-dim);
+      border: 1px solid var(--accent);
+      border-radius: var(--radius-lg);
+      padding: 6px 14px;
+      font-size: 13px; font-weight: 600;
+      color: var(--accent-light);
+      cursor: pointer;
+      transition: all var(--speed);
+    }
+    .disc-header-badge:hover { background: var(--accent); color: #000; }
+
+    /* ── COLUMN MANAGER ── */
+    .col-manager { display: flex; flex-direction: column; gap: 6px; }
+    .col-item {
+      display: flex; align-items: center; gap: 10px;
+      padding: 8px 10px;
+      background: var(--bg-4);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      font-size: 13px; color: var(--text-2);
+    }
+    .col-item input[type="checkbox"] { accent-color: var(--accent); width: auto; }
+    .col-item.locked { opacity: 0.5; }
+    .col-add-row { display: flex; gap: 8px; margin-top: 10px; }
+    .col-add-row input { flex: 1; }
+
+    /* ── COMPACT TOOLBAR ── */
+    .table-toolbar {
+      display: flex; align-items: center; gap: 8px;
+      margin-bottom: 12px; flex-wrap: wrap;
+    }
+    .search-box-sm { position: relative; width: 200px; }
+    .search-box-sm input { padding-left: 28px; font-size: 12px; padding-top:6px; padding-bottom:6px; }
+    .search-box-sm::before {
+      content: '';
+      position: absolute; left: 9px; top: 50%; transform: translateY(-50%);
+      width: 13px; height: 13px;
+      background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='13' height='13' viewBox='0 0 24 24' fill='none' stroke='%23555' stroke-width='2'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cpath d='m21 21-4.35-4.35'/%3E%3C/svg%3E") no-repeat center;
+    }
+    .toolbar-right { margin-left: auto; display: flex; gap: 6px; align-items: center; }
+
+    /* ── TABLE EXPAND/COLLAPSE ── */
+    .expand-table-btn {
+      transition: all var(--speed);
+    }
+    .expand-table-btn:hover {
+      background: var(--bg-3);
+    }
+
+    /* ── TABLE WRAPPER WITH SCROLL ── */
+    .table-wrapper {
+      overflow-x: auto;
+      overflow-y: auto;
+      max-height: calc(100vh - 280px);
+      position: relative;
+    }
+    .table-wrapper.expanded {
+      overflow-x: auto;
+    }
+    .table-wrapper table {
+      width: max-content;
+      min-width: 100%;
+      border-collapse: collapse;
+    }
+    .table-wrapper.expanded table {
+      width: max-content;
+      min-width: 100%;
+    }
+
+    /* ── TABLE ALIGNMENT ── */
+    table thead th {
+      position: sticky;
+      top: 0;
+      z-index: 2;
+      background: var(--bg-3);
+    }	
+	
+    table th, table td {
+      text-align: center;
+      padding: 10px 12px;
+    }
+    table th:first-child, table td:first-child {
+      text-align: left;
+    }
+  </style>
+</head>
+<body>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="../js/supabase.js"></script>
+  <script src="../js/utils.js"></script>
+  <script src="../js/layout.js"></script>
+  <script src="../js/messaging.js"></script>
+
+  <script>
+    // ── STATE ──────────────────────────────────────────────
+    let activeDiscipline  = null;
+    let activeProject     = null;
+    let drawings          = [];
+    // FIX [L4]: engineers array removed — was fetched but never used on this page.
+    let allDisciplines    = [];
+    let currentPage       = 1;
+    let filterStatus      = '';
+    let searchQ           = '';
+    let tableExpanded     = false;
+    const perPage         = 25;
+    let importData        = [];
+	let structureItems    = [];
+
+    const BASE_COLS = [
+      { key: 'drawing_number', label: 'DRAWING NUMBER',  locked: true,  visible: true, isDefaultView: true, lockedInDefaultView: true },
+      { key: 'revision',       label: 'REV.',             locked: true,  visible: true, isDefaultView: true, lockedInDefaultView: true },
+      { key: 'title',          label: 'TITLE',            locked: true,  visible: true, isDefaultView: true, lockedInDefaultView: true },
+      { key: 'area',           label: 'AREA / SYSTEM',    locked: true,  visible: true, isDefaultView: true, lockedInDefaultView: true },
+      { key: 'status',         label: 'STATUS',           locked: true,  visible: true, isDefaultView: true, lockedInDefaultView: true },
+      { key: 'created_by',     label: 'CREATED BY',       locked: true,  visible: true, isDefaultView: true, lockedInDefaultView: true },
+      { key: 'checked_by',     label: 'CHECKED BY',       locked: true,  visible: true, isDefaultView: true, lockedInDefaultView: true },
+      { key: 'manhours',       label: 'MANHOURS',         locked: false, visible: true, isDefaultView: true, lockedInDefaultView: false },
+      { key: 'created_at',     label: 'DATE CREATED',     locked: false, visible: false, isDefaultView: false, lockedInDefaultView: false },
+    ];
+
+    // Normalise any column label to ALL CAPS for consistent display
+    const toColLabel = (str) => (str || '').toUpperCase();
+
+    let activeCols  = [];
+    let pendingCols = [];
+    // FIX [L4]: importColMappings removed — column mapping uses DOM inputs directly.
+
+    const SVG = (path) => `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">${path}</svg>`;
+    const SVG_SM = (path) => `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${path}</svg>`;
+
+    const DISC_ICONS = {
+      'Piping':          SVG('<path d="M3 12h4m10 0h4M7 12a5 5 0 0 0 10 0M7 12a5 5 0 0 1 10 0M9 12V7m6 5V7"/>'),
+      'Mechanical':      SVG('<circle cx="12" cy="12" r="3"/><path d="M12 2v3m0 14v3M4.22 4.22l2.12 2.12m11.32 11.32 2.12 2.12M2 12h3m14 0h3M4.22 19.78l2.12-2.12M18.66 5.34l-2.12 2.12"/>'),
+      'Structural':      SVG('<path d="M3 21h18M3 7l9-4 9 4M4 7v14M20 7v14M9 21V11h6v10"/>'),
+      'Civil':           SVG('<path d="M3 21h18M9 21V9l3-6 3 6v12M3 10l3-6m12 6-3-6"/>'),
+      'Architectural':   SVG('<path d="M3 21h18M3 21V8l9-5 9 5v13M9 21v-6h6v6"/>'),
+      'Electrical':      SVG('<path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/>'),
+      'Instrumentation': SVG('<circle cx="12" cy="12" r="9"/><path d="M12 8v4l3 3"/><circle cx="12" cy="12" r="1"/>'),
+      'EI Support':      SVG('<path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/>'),
+      'HSE':             SVG('<path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/>'),
+      'MP Support':      SVG('<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>'),
+      'Process':         SVG('<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>'),
+	  'EI Support':      SVG('<path d="M5 4v16h14" stroke-linecap="square"/>'),
+	  'MP Support':      SVG('<path d="M8 4h8M8 20h8M12 4v16M6 4h4M14 4h4M6 20h4M14 20h4"/>'),
+    };
+    const DISC_ICON_DEFAULT = SVG('<path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>');
+
+    const IC = {
+      columns:  SVG_SM('<path d="M12 3h7a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-7m0-18H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h7m0-18v18"/>'),
+      upload:   SVG_SM('<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>'),
+      download: SVG_SM('<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>'),
+      plus:     SVG_SM('<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>'),
+      edit:     SVG_SM('<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>'),
+      trash:    SVG_SM('<polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6m4-6v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>'),
+      register: SVG_SM('<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/>'),
+      settings: SVG_SM('<circle cx="12" cy="12" r="3"/><path d="M12 2v2m0 16v2M4.22 4.22l1.42 1.42m12.72 12.72 1.42 1.42M2 12h2m16 0h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>'),
+	  pin:      SVG_SM('<line x1="12" y1="17" x2="12" y2="22"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24z"/>'),
+	  folder:   SVG_SM('<path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>'),
+	  lock:     SVG_SM('<rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>'),
+      chevron:  SVG_SM('<polyline points="6 9 12 15 18 9"/>'),
+    };
+
+    // ── PAGE INIT (called by layout.js after auth + DOM rebuild) ──
+    async function pageInit(profile) {
+      // Inject all modals into the new DOM that initLayout built
+      injectModals();
+      await loadDisciplinesAndPicker();
+    }
+
+    // ── INJECT MODALS ─────────────────────────────────────
+    function injectModals() {
+      document.body.insertAdjacentHTML('beforeend', `
+
+        <!-- ── DISCIPLINE PICKER MODAL ── -->
+        <div class="modal active" id="disc-picker-modal">
+          <div class="modal-backdrop"></div>
+          <div class="modal-box modal-lg">
+            <div class="modal-header">
+              <h3 style="display:flex;align-items:center;gap:8px;"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/></svg> Select Discipline</h3>
+              <p style="font-size:12px;color:var(--text-3);font-weight:400;margin-top:2px;">Choose a discipline to open its drawing register</p>
+            </div>
+            <div class="modal-body">
+              <div class="disc-picker-grid" id="disc-picker-grid">
+                <div class="loading-state" style="grid-column:1/-1;padding:30px;"><div class="spinner"></div><span>Loading…</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── ADD / EDIT DRAWING MODAL ── -->
+        <div class="modal" id="drawing-modal">
+          <div class="modal-backdrop" onclick="closeModal('drawing-modal')"></div>
+          <div class="modal-box modal-lg">
+            <div class="modal-header">
+              <h3 id="modal-title">Add Drawing</h3>
+              <button class="modal-close" onclick="closeModal('drawing-modal')">✕</button>
+            </div>
+            <div class="modal-body">
+              <input type="hidden" id="edit-id" />
+              <div class="form-row">
+                <div class="form-group">
+                  <label class="required">Drawing Number</label>
+                  <input type="text" id="f-number" placeholder="e.g. P&amp;ID-001" />
+                </div>
+                <div class="form-group">
+                  <label class="required">Document Title</label>
+                  <input type="text" id="f-title" placeholder="Description of drawing" />
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Discipline</label>
+                  <select id="f-discipline"><option value="">Select…</option></select>
+                </div>
+				<div class="form-group">
+                  <label>Project</label>
+                  <select id="f-project" onchange="loadStructureItems(this.value)"><option value="">— None —</option></select>
+                </div>
+                <div class="form-group">
+                  <label>Area / System / Unit</label>
+                  <input type="text" id="f-area" placeholder="e.g. Area 1 / Utilities" />
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Revision</label>
+                  <input type="text" id="f-revision" placeholder="A, 0, 1…" />
+                </div>
+                <div class="form-group">
+                  <label>Status</label>
+                  <select id="f-status" disabled>
+                    <option>Not Started</option><option>Draft</option><option>Detailed</option>
+                    <option>Checked</option><option>Issued</option>
+                    <option>Issued for Approval</option><option>Issued for Construction</option>
+                    <option>Completed</option>
+                  </select>
+                  <p style="font-size:11px;color:var(--text-4);margin-top:4px;">Status auto-updates based on Engineering Input</p>
+                </div>
+              </div>
+              <div id="extra-fields"></div>
+            </div>
+            <div class="modal-footer">
+              <button class="btn btn-ghost" onclick="closeModal('drawing-modal')">Cancel</button>
+              <button class="btn btn-primary" onclick="saveDrawing()">Save Drawing</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── IMPORT EXCEL MODAL ── -->
+        <div class="modal" id="import-modal">
+          <div class="modal-backdrop" onclick="closeModal('import-modal');resetImportFile();"></div>
+          <div class="modal-box modal-lg" style="max-width:680px;">
+            <div class="modal-header">
+              <h3 style="display:flex;align-items:center;gap:8px;"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg> Import from Excel</h3>
+              <button class="modal-close" onclick="closeModal('import-modal')">✕</button>
+            </div>
+            <div class="modal-body" style="padding:0;">
+
+              <!-- ── UPLOAD ZONE (shown before file selected) ── -->
+              <div id="import-upload-zone" style="padding:24px;">
+                <label for="import-file" id="import-dropzone" style="
+                  display:flex;flex-direction:column;align-items:center;justify-content:center;
+                  border:2px dashed var(--border-2);border-radius:var(--radius-lg);
+                  padding:48px 24px;cursor:pointer;transition:all var(--speed);
+                  background:var(--bg-4);gap:12px;
+                " 
+                ondragover="event.preventDefault();this.style.borderColor='var(--accent)';this.style.background='var(--accent-dim)';"
+                ondragleave="this.style.borderColor='var(--border-2)';this.style.background='var(--bg-4)';"
+                ondrop="event.preventDefault();this.style.borderColor='var(--border-2)';this.style.background='var(--bg-4)';handleImportFileDrop(event.dataTransfer.files[0]);">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                  <div style="text-align:center;">
+                    <p style="font-size:14px;font-weight:600;color:var(--text-2);margin:0;">Drop Excel file here or click to browse</p>
+                    <p style="font-size:12px;color:var(--text-4);margin:4px 0 0;">.xlsx / .xls files supported</p>
+                  </div>
+                </label>
+                <input type="file" id="import-file" accept=".xlsx,.xls" style="display:none;" />
+              </div>
+
+              <!-- ── AFTER FILE SELECTED: two-block layout ── -->
+              <div id="import-details-section" style="display:none;">
+
+                <!-- BLOCK 1: IMPORT DETAILS -->
+                <div style="padding:20px 24px;border-bottom:1px solid var(--border);">
+                  <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;">
+                    
+                    <!-- Left: file info -->
+                    <div style="flex:1;">
+                      <p style="font-size:10px;font-weight:700;letter-spacing:1px;color:var(--accent);text-transform:uppercase;margin:0 0 12px;">Import Details</p>
+                      <div style="display:flex;flex-direction:column;gap:8px;">
+                        <div style="display:flex;gap:10px;align-items:center;">
+                          <span style="font-size:11px;color:var(--text-4);width:80px;flex-shrink:0;">File</span>
+                          <span id="import-filename" style="font-size:13px;font-weight:600;color:var(--text-2);"></span>
+                        </div>
+                        <div style="display:flex;gap:10px;align-items:center;">
+                          <span style="font-size:11px;color:var(--text-4);width:80px;flex-shrink:0;">Rows found</span>
+                          <span id="import-rowcount" style="font-size:13px;font-weight:600;color:var(--text-2);"></span>
+                        </div>
+                        <div id="import-remarks-row" style="display:none;align-items:flex-start;gap:10px;">
+                          <span style="font-size:11px;color:var(--text-4);width:80px;flex-shrink:0;padding-top:2px;">Remarks</span>
+                          <span id="import-remarks" style="font-size:12px;line-height:1.5;"></span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+				
+				<!-- Project Filter -->
+				<div style="padding:20px 24px;border-bottom:1px solid var(--border);">
+                  <p style="font-size:10px;font-weight:700;letter-spacing:1px;color:var(--accent);text-transform:uppercase;margin:0 0 12px;">Project Assignment</p>
+                  <div class="form-group" style="margin:0;">
+                    <label>Assign to Project</label>
+                    <select id="import-project">
+                      <option value="auto">Auto-detect</option>
+                      <option value="">— No project —</option>
+                    </select>
+                    <div style="font-size:11px;color:var(--text-4);margin-top:6px;">Auto-detect matches the drawing number prefix against project codes.</div>
+                  </div>
+                </div>
+				
+                <!-- BLOCK 2: COLUMN MAPPING -->
+                <div id="column-mapping" style="padding:20px 24px;">
+                  <p style="font-size:10px;font-weight:700;letter-spacing:1px;color:var(--accent);text-transform:uppercase;margin:0 0 4px;">Column Mapping</p>
+                  <p style="font-size:12px;color:var(--text-3);margin:0 0 16px;">Match your Excel column headers to the system fields below.</p>
+                  
+                  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                    <div class="form-group" style="margin:0;">
+                      <label>Drawing Number <span style="color:var(--red);">*</span></label>
+                      <input type="text" id="map-drawing-number" placeholder="e.g. Drawing Number, DWG #" value="drawing_number" />
+                    </div>
+                    <div class="form-group" style="margin:0;">
+                      <label>Title <span style="color:var(--red);">*</span></label>
+                      <input type="text" id="map-title" placeholder="e.g. Title, Description" value="title" />
+                    </div>
+                    <div class="form-group" style="margin:0;">
+                      <label>Area / System <span style="color:var(--text-4);font-weight:400;">(optional)</span></label>
+                      <input type="text" id="map-area" placeholder="e.g. Area, System, Unit" value="area" />
+                    </div>
+                    <div class="form-group" style="margin:0;">
+                      <label>Revision <span style="color:var(--text-4);font-weight:400;">(optional)</span></label>
+                      <input type="text" id="map-revision" placeholder="e.g. Rev, Revision" value="revision" />
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button class="btn btn-ghost" onclick="closeModal('import-modal');resetImportFile();">Cancel</button>
+              <button class="btn btn-ghost" id="import-back-btn" onclick="resetImportFile()" style="display:none;margin-right:auto;order:-1;">← Back</button>
+              <button class="btn btn-primary" id="import-btn" onclick="importDrawings()" disabled>Import</button>
+            </div>
+          </div>
+        </div>
+
+		<!-- ── CONFLICT REVIEW MODAL ── -->
+        <div class="modal" id="conflict-modal">
+          <div class="modal-backdrop" onclick="closeModal('conflict-modal')"></div>
+          <div class="modal-box" style="max-width:600px;">
+            <div class="modal-header">
+              <h3 style="display:flex;align-items:center;gap:8px;">Duplicate Drawings Review</h3>
+              <button class="modal-close" onclick="closeModal('conflict-modal')">✕</button>
+            </div>
+            <div class="modal-body">
+              <p style="font-size:12px;color:var(--text-3);margin-bottom:6px;">These drawing numbers already exist in the register. Choose an action for each:</p>
+              <div style="font-size:12px;color:var(--text-3);margin-bottom:16px;padding:10px 12px;background:var(--bg-4);border:1px solid var(--border);border-radius:var(--radius);display:flex;flex-direction:column;gap:4px;">
+                <div><strong style="color:var(--text-2);">Skip</strong> — Ignore this row and keep the existing drawing unchanged.</div>
+                <div><strong style="color:var(--text-2);">Update</strong> — Apply changes while preserving existing record history.</div>
+                <div><strong style="color:var(--text-2);">Replace</strong> — Fully overwrite the existing record with imported data.</div>
+              </div>
+              <div style="display:flex;gap:6px;margin-bottom:12px;">
+                <button id="bulk-skip"    onclick="setAllConflict('skip')"    class="btn btn-ghost btn-sm" style="font-size:11px;">Skip All</button>
+                <button id="bulk-update"  onclick="setAllConflict('update')"  class="btn btn-ghost btn-sm" style="font-size:11px;">Update All</button>
+                <button id="bulk-replace" onclick="setAllConflict('replace')" class="btn btn-ghost btn-sm" style="font-size:11px;">Replace All</button>
+              </div>
+              <div id="import-conflict-list" style="display:flex;flex-direction:column;gap:6px;max-height:300px;overflow-y:auto;"></div>
+            </div>
+            <div class="modal-footer">
+              <button class="btn btn-primary" onclick="closeModal('conflict-modal')">Done — Back to Import</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── COLUMN MANAGER MODAL ── -->
+        <div class="modal" id="col-modal">
+          <div class="modal-backdrop" onclick="closeModal('col-modal')"></div>
+          <div class="modal-box">
+            <div class="modal-header">
+              <h3 style="display:flex;align-items:center;gap:8px;"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3h7a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-7m0-18H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h7m0-18v18"/></svg> Manage Columns</h3>
+              <button class="modal-close" onclick="closeModal('col-modal')">✕</button>
+            </div>
+            <div class="modal-body">
+              <p style="font-size:12px;color:var(--text-3);margin-bottom:14px;">Toggle columns or add custom ones for <strong id="col-disc-name" style="color:var(--accent-light);"></strong></p>
+              <div class="col-manager" id="col-list"></div>
+              <div class="col-add-row">
+                <input type="text" id="new-col-name" placeholder="New column name…" />
+                <button class="btn btn-primary btn-sm" onclick="addCustomColumn()">+ Add</button>
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button class="btn btn-ghost" onclick="closeModal('col-modal')">Cancel</button>
+              <button class="btn btn-primary" onclick="saveColumns()">Save Columns</button>
+            </div>
+          </div>
+        </div>
+
+      `);
+
+      // Wire up import file input now that it exists in the DOM
+      document.getElementById('import-file').addEventListener('change', handleImportFile);
+    }
+
+    // ── DISCIPLINE PICKER ─────────────────────────────────
+    async function loadDisciplinesAndPicker() {
+      const { data, error } = await db.from('disciplines').select('*').order('name');
+      if (error) {
+        document.getElementById('disc-picker-grid').innerHTML =
+          `<div style="grid-column:1/-1;text-align:center;padding:30px;color:var(--red);">Error loading disciplines: ${error.message}</div>`;
+        return;
+      }
+      allDisciplines = data || [];
+
+      // Populate discipline select in Add Drawing modal
+      const fSel = document.getElementById('f-discipline');
+      allDisciplines.forEach(d => { fSel.innerHTML += `<option value="${d.id}">${d.name}</option>`; });
+
+	  // Populate project select in Add Drawing modal
+      const pSel = document.getElementById('f-project');
+      if (pSel) {
+        const { data: projs } = await db.from('projects').select('id, name, code').eq('status', 'Active').order('name');
+        pSel.innerHTML = `<option value="">— None —</option>` +
+          (projs || []).map(p => `<option value="${p.id}">${p.code} — ${p.name}</option>`).join('');
+      }
+	  
+      // Render picker cards
+      const grid = document.getElementById('disc-picker-grid');
+      if (!allDisciplines.length) {
+        grid.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:30px;color:var(--text-4);">No disciplines found. Add them in Admin → Disciplines first.</div>`;
+        return;
+      }
+      grid.innerHTML = allDisciplines.map(d => `
+        <div class="disc-card" onclick="selectDiscipline('${d.id}', '${d.name}')">
+          <div class="disc-card-icon">${DISC_ICONS[d.name] || DISC_ICON_DEFAULT}</div>
+          <div class="disc-card-name">${d.name}</div>
+        </div>
+      `).join('');
+    }
+
+    async function selectDiscipline(id, name) {
+      activeDiscipline = { id, name, icon: DISC_ICONS[name] || DISC_ICON_DEFAULT };
+      closeModal('disc-picker-modal');
+      await loadColumnConfig();
+      // Auto-save migrated config back to database
+      await saveColumnConfig();
+      renderRegisterPage();
+      await loadProjects();
+      await loadDrawings();
+    }
+
+    // ── COLUMN CONFIG ─────────────────────────────────────
+    async function loadColumnConfig() {
+      const projId = document.getElementById('filter-project')?.value || 'all';
+      const key = `erect_cols_${activeDiscipline.id}_${projId}`;
+      try {
+        const { data } = await db.from('app_settings').select('value').eq('key', key).single();
+        if (data?.value) { 
+          activeCols = JSON.parse(data.value);
+          // Migrate old configurations to new format
+          activeCols = migrateColumnConfig(activeCols);
+          return;
+        }
+      } catch(e) {}
+      activeCols = JSON.parse(JSON.stringify(BASE_COLS)).map(col => ({
+        ...col,
+        visible: col.custom ? false : col.visible
+      }));
+    }
+
+    function migrateColumnConfig(cols) {
+      // Remove 'assigned' column if it exists
+      cols = cols.filter(c => c.key !== 'assigned');
+      
+      // Add 'created_by' if it doesn't exist
+      if (!cols.find(c => c.key === 'created_by')) {
+        const statusIndex = cols.findIndex(c => c.key === 'status');
+        if (statusIndex !== -1) {
+          cols.splice(statusIndex + 1, 0, { key: 'created_by', label: 'CREATED BY', locked: true, visible: true, isDefaultView: true, lockedInDefaultView: true });
+        }
+      }
+      
+      // Add 'checked_by' if it doesn't exist
+      if (!cols.find(c => c.key === 'checked_by')) {
+        const createdByIndex = cols.findIndex(c => c.key === 'created_by');
+        if (createdByIndex !== -1) {
+          cols.splice(createdByIndex + 1, 0, { key: 'checked_by', label: 'CHECKED BY', locked: true, visible: true, isDefaultView: true, lockedInDefaultView: true });
+        }
+      }
+      
+      // Ensure Rev column comes after Drawing No. and before Title
+      cols = cols.filter(c => c.key !== 'revision');
+      const drawingNoIndex = cols.findIndex(c => c.key === 'drawing_number');
+      if (drawingNoIndex !== -1) {
+        cols.splice(drawingNoIndex + 1, 0, { key: 'revision', label: 'REV.', locked: true, visible: true, isDefaultView: true, lockedInDefaultView: true });
+      }
+      
+      // Ensure all core columns have locked=true and lockedInDefaultView=true
+      const coreLocked = ['drawing_number','revision','title','area','status','created_by','checked_by'];
+      cols = cols.map(c => {
+        if (coreLocked.includes(c.key)) {
+          return { ...c, locked: true, isDefaultView: true, lockedInDefaultView: true, visible: true };
+        }
+        return c;
+      });
+      
+      return cols;
+    }
+
+    async function saveColumnConfig() {
+      const projId = document.getElementById('filter-project')?.value || 'all';
+      const key = `erect_cols_${activeDiscipline.id}_${projId}`;
+      await db.from('app_settings').upsert({ key, value: JSON.stringify(activeCols) }, { onConflict: 'key' });
+    }
+
+    // ── RENDER REGISTER PAGE ──────────────────────────────
+    function renderRegisterPage() {
+      const content = document.getElementById('page-content');
+      content.innerHTML = `
+        <div class="page-header" style="margin-bottom:14px;">
+          <h1 style="display:flex;align-items:center;gap:10px;"><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/><line x1="8" y1="9" x2="10" y2="9"/></svg> Erection Drawings</h1>
+          <p>Central repository of all drawings and documents</p>
+        </div>
+
+        <div class="disc-header" style="flex-wrap:nowrap;">
+          <div class="disc-header-badge" onclick="openModal('disc-picker-modal')" title="Switch discipline">
+            ${activeDiscipline.icon} ${activeDiscipline.name} <span style="opacity:0.6;display:flex;align-items:center;gap:2px;font-size:11px;margin-left:4px;">${IC.chevron} switch</span>
+          </div>
+          <div style="margin-left:auto;display:flex;gap:8px;flex-wrap:nowrap;flex-shrink:0;">
+            <button class="btn btn-ghost btn-sm" onclick="openColManager()" style="display:flex;align-items:center;gap:5px;">${IC.settings} Columns</button>
+            <button class="btn btn-ghost btn-sm" onclick="openModal('import-modal')" style="display:flex;align-items:center;gap:5px;">${IC.download} Import Excel</button>
+            <button class="btn btn-ghost btn-sm" onclick="exportDrawings()" style="display:flex;align-items:center;gap:5px;">${IC.upload} Export</button>
+            <button class="btn btn-primary btn-sm" onclick="openAddModal()" style="display:flex;align-items:center;gap:5px;">${IC.plus} Add Drawing</button>
+            <button class="btn btn-danger btn-sm" onclick="deleteAllDrawings()" style="display:flex;align-items:center;gap:5px;">${IC.trash} Delete All</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-body" style="padding-top:14px;padding-bottom:0;padding-left:0;padding-right:0;">
+            <div class="table-toolbar" style="margin-left:24px;">
+              <div class="search-box-sm">
+                <input type="text" id="search-input" placeholder="Search…" oninput="onSearch(this.value)" />
+              </div>
+              <select class="filter-select" id="filter-project" onchange="onFilter()" style="font-size:12px;padding:6px 10px;">
+                <option value="">All Projects</option>
+              </select>
+              <select class="filter-select" id="filter-status" onchange="onFilter()" style="font-size:12px;padding:6px 10px;">
+                <option value="">All Statuses</option>
+                <option>Not Started</option><option>Draft</option><option>Detailed</option><option>Checked</option>
+                <option>Issued</option><option>Issued for Approval</option><option>Issued for Construction</option><option>Completed</option>
+              </select>
+              <div class="toolbar-right" style="margin-right:24px;">
+                <button class="btn btn-ghost btn-sm expand-table-btn" id="expand-btn" onclick="toggleTableExpand()" title="Expand Table" style="display:flex;align-items:center;gap:5px;">${IC.columns} <span id="expand-label">Expand</span></button>
+              </div>
+            </div>
+
+            <div class="table-wrapper" id="table-wrapper">
+              <table id="drawing-table">
+                <thead id="drawing-thead"></thead>
+                <tbody id="drawing-tbody"></tbody>
+              </table>
+            </div>
+            <div id="drawing-pagination"></div>
+          </div>
+        </div>
+      `;
+
+      renderTableHeader();
+    }
+
+    // ── TABLE EXPAND/COLLAPSE ────────────────────────────
+    function toggleTableExpand() {
+      tableExpanded = !tableExpanded;
+      const wrapper = document.getElementById('table-wrapper');
+      const label = document.getElementById('expand-label');
+      
+      if (tableExpanded) {
+        wrapper.classList.add('expanded');
+        label.textContent = 'Collapse';
+      } else {
+        wrapper.classList.remove('expanded');
+        label.textContent = 'Expand';
+      }
+      
+      // Re-render table header and body to show/hide columns
+      renderTableHeader();
+      renderTable(drawings.length);
+    }
+
+    // ── TABLE HEADER ──────────────────────────────────────
+    function renderTableHeader() {
+      const thead = document.getElementById('drawing-thead');
+      if (!thead) return;
+      const projId = document.getElementById('filter-project')?.value || '';
+      const visCols = activeCols.filter(c => c.visible && (tableExpanded || c.isDefaultView) && (projId ? true : !c.custom));
+      thead.innerHTML = `<tr>
+        ${visCols.map(c => {
+          if (c.key === 'title') {
+            return `<th style="text-align:left;">${c.label}</th>`;
+          }
+          return `<th style="text-align:center;">${c.label}</th>`;
+        }).join('')}
+        <th style="text-align:center;">Actions</th>
+      </tr>`;
+    }
+
+	
+	async function loadProjects() {
+      const { data } = await db.from('projects').select('id, name, code').eq('status', 'Active').order('name');
+      const sel = document.getElementById('filter-project');
+      if (!sel) return;
+      const prev = sel.value;
+      sel.innerHTML = `<option value="">All Projects</option>` +
+        (data || []).map(p => `<option value="${p.id}" data-code="${p.code}">${p.code} — ${p.name}</option>`).join('');
+      // Restore previous selection or use remembered project
+      const remembered = localStorage.getItem('activeProjectId');
+      if (prev) sel.value = prev;
+      else if (remembered) sel.value = remembered;
+      activeProject = sel.value || null;
+      
+      // Populate modal project dropdown
+      const modalProjSel = document.getElementById('f-project');
+      if (modalProjSel) {
+        const modalCurrent = modalProjSel.value;
+        modalProjSel.innerHTML = `<option value="">— None —</option>` +
+          (data || []).map(p => `<option value="${p.id}" data-code="${p.code}">${p.code} — ${p.name}</option>`).join('');
+        if (modalCurrent) modalProjSel.value = modalCurrent;
+      }
+      
+      // Also populate import modal project dropdown
+      const importSel = document.getElementById('import-project');
+      if (importSel) {
+        const current = importSel.value;
+        importSel.innerHTML = `<option value="auto">Auto-detect Project</option><option value="">— No project —</option>` +
+          (data || []).map(p => `<option value="${p.id}" data-code="${p.code}">${p.code} — ${p.name}</option>`).join('');
+        if (current) importSel.value = current;
+      }
+    }
+	
+	async function loadStructureItems(projectId) {
+      structureItems = [];
+      if (!projectId) { renderAreaField([]); return; }
+      // structure_items uses project_code, so we need the code for the selected project
+      const sel = document.getElementById('f-project');
+      const selectedOpt = sel ? [...sel.options].find(o => o.value === projectId) : null;
+      const projectCode = selectedOpt ? selectedOpt.dataset.code : null;
+      if (!projectCode) { renderAreaField([]); return; }
+      const { data } = await db.from('structure_items')
+        .select('id, area_system_module, priority_shipment')
+        .eq('project_code', projectCode)
+        .order('priority_shipment')
+        .order('area_system_module');
+      structureItems = data || [];
+      renderAreaField(structureItems);
+    }
+    
+    function renderAreaField(items) {
+      const el = document.getElementById('f-area');
+      if (!el) return;
+      const currentVal = el.tagName === 'SELECT' ? el.value : el.value;
+      if (!items.length) {
+        // Fall back to free text if no structure items
+        el.outerHTML = `<input type="text" id="f-area" placeholder="e.g. Area 1 / Utilities" value="${currentVal}" />`;
+      } else {
+        el.outerHTML = `<select id="f-area">
+          <option value="">— Select Area / System —</option>
+          ${items.map(i => `<option value="${i.area_system_module}" ${currentVal === i.area_system_module ? 'selected' : ''}>${i.area_system_module}</option>`).join('')}
+        </select>`;
+      }
+    }
+	
+    // ── LOAD DRAWINGS ─────────────────────────────────────
+    async function loadDrawings() {
+      const tbody = document.getElementById('drawing-tbody');
+      if (tbody) tbody.innerHTML = `<tr><td colspan="20" style="text-align:center;padding:30px;color:var(--text-4);"><div style="display:flex;align-items:center;justify-content:center;gap:8px;"><div class="spinner"></div> Loading…</div></td></tr>`;
+
+      let q = db.from('erection_drawings')
+		.select('*, disciplines(name), erection_drawing_activities(manhours), metadata, creator:created_by(full_name), checker:checked_by(full_name)', { count: 'exact' })
+        .eq('discipline_id', activeDiscipline.id)
+        .order('created_at', { ascending: false });
+
+      if (activeProject) q = q.eq('project_id', activeProject);
+      if (filterStatus)  q = q.eq('status', filterStatus);
+      if (searchQ)       q = q.or(`drawing_number.ilike.%${searchQ}%,title.ilike.%${searchQ}%`);
+
+      const from = (currentPage - 1) * perPage;
+      q = q.range(from, from + perPage - 1);
+
+      const { data, count, error } = await q;
+      if (error) { console.error('loadDrawings error:', error); }
+      drawings = data || [];
+      renderTable(count || 0);
+    }
+
+    // ── RENDER TABLE ROWS ─────────────────────────────────
+    function renderTable(total) {
+      const tbody = document.getElementById('drawing-tbody');
+      if (!tbody) return;
+
+      if (!drawings.length) {
+        const colCount = activeCols.filter(c => c.visible && (tableExpanded || c.isDefaultView)).length + 1;
+        tbody.innerHTML = `<tr><td colspan="${colCount}" style="text-align:center;padding:50px;color:var(--text-4);">No drawings found for ${activeDiscipline.name}.<br><span style="font-size:12px;">Click "+ Add Drawing" to get started.</span></td></tr>`;
+        document.getElementById('drawing-pagination').innerHTML = '';
+        return;
+      }
+
+      // Show only default view columns when collapsed, all visible when expanded
+      const projId = document.getElementById('filter-project')?.value || '';
+      const visCols = activeCols.filter(c => c.visible && (tableExpanded || c.isDefaultView) && (projId ? true : !c.custom));
+
+      tbody.innerHTML = drawings.map(d => {
+        // FIX [H2]: Use erection_drawing_activities — drawing_activities always returned undefined here.
+        const mh = (d.erection_drawing_activities || []).reduce((s, a) => s + (a.manhours || 0), 0);
+        const meta = d.metadata || {};
+        const safeD = JSON.stringify({ ...d, erection_drawing_activities: undefined, disciplines: undefined }).replace(/"/g, '&quot;');
+
+        const cells = visCols.map(col => {
+          let cellStyle = 'style="text-align:center;white-space:nowrap;"';
+		  if (col.key === 'title') cellStyle = 'style="text-align:left;white-space:nowrap;"';
+          
+          switch(col.key) {
+            case 'drawing_number': return `<td ${cellStyle}><span style="font-weight:600;color:var(--accent-light);">${d.drawing_number}</span></td>`;
+            case 'title': 		   return `<td ${cellStyle}>${d.title||'—'}</td>`;
+            case 'area':           return `<td ${cellStyle} style="font-size:12px;color:var(--text-3);">${d.area||'—'}</td>`;
+            case 'revision':       return `<td ${cellStyle} style="color:var(--text-3);">${d.revision||'—'}</td>`;
+            case 'status':         return `<td ${cellStyle}>${statusBadge(d.status)}</td>`;
+            case 'created_by':     return `<td ${cellStyle} style="font-size:12px;color:var(--text-2);">${d.creator?.full_name||'—'}</td>`;
+            case 'checked_by':     return `<td ${cellStyle} style="font-size:12px;color:var(--text-2);">${d.checker?.full_name||'—'}</td>`;
+            case 'manhours':       return `<td ${cellStyle} style="font-weight:700;color:var(--accent);">${formatHours(mh)}</td>`;
+            case 'created_at':     return `<td ${cellStyle} style="font-size:12px;color:var(--text-3);white-space:nowrap;">${formatDate(d.created_at)}</td>`;
+            default:               return `<td ${cellStyle} style="font-size:12px;color:var(--text-2);">${meta[col.key]||'—'}</td>`;
+          }
+
+        }).join('');
+
+        return `<tr>
+          ${cells}
+          <td style="text-align:center;"><div class="table-actions">
+            <button class="btn btn-icon edit" onclick='openEditModal(${safeD})' title="Edit">${IC.edit}</button>
+            <button class="btn btn-icon delete" onclick="deleteDrawing('${d.id}')" title="Delete">${IC.trash}</button>
+          </div></td>
+        </tr>`;
+      }).join('');
+
+      renderPagination('drawing-pagination', total, currentPage, perPage, 'changePage');
+    }
+
+    function statusBadge(s) {
+      const m = { 'Completed':'badge-green','Issued for Construction':'badge-green','Issued for Approval':'badge-orange','Issued':'badge-orange','Checked':'badge-amber','Detailed':'badge-amber','Draft':'badge-gray','Not Started':'badge-gray' };
+      return `<span class="badge ${m[s]||'badge-gray'}">${s||'Not Started'}</span>`;
+    }
+
+    // ── ADD / EDIT MODAL ──────────────────────────────────
+    function openAddModal() {
+      document.getElementById('edit-id').value = '';
+      document.getElementById('modal-title').textContent = 'Add Drawing';
+      document.getElementById('f-number').value = '';
+      document.getElementById('f-title').value = '';
+      document.getElementById('f-area').value = '';
+      document.getElementById('f-revision').value = '';
+      document.getElementById('f-status').value = 'Not Started';
+      document.getElementById('f-status').disabled = true;
+      document.getElementById('f-discipline').value = activeDiscipline.id;
+	  if (activeProject) document.getElementById('f-project').value = activeProject;
+	  renderExtraFields({});
+	  loadStructureItems(document.getElementById('f-project').value || '');
+      openModal('drawing-modal');
+      setTimeout(() => document.getElementById('f-number').focus(), 100);
+    }
+
+    async function openEditModal(d) {
+      document.getElementById('edit-id').value = d.id;
+      document.getElementById('modal-title').textContent = 'Edit Drawing';
+      document.getElementById('f-number').value = d.drawing_number || '';
+      document.getElementById('f-title').value = d.title || '';
+      document.getElementById('f-area').value = d.area || '';
+      document.getElementById('f-revision').value = d.revision || '';
+      document.getElementById('f-status').value = d.status || 'Not Started';
+      document.getElementById('f-status').disabled = true;
+      document.getElementById('f-discipline').value = d.discipline_id || activeDiscipline.id;
+	  document.getElementById('f-project').value = d.project_id || '';
+	  renderExtraFields(d.metadata || {});
+	  await loadStructureItems(d.project_id || '');
+	  
+	  // restore selected area after dropdown renders
+	  const areaEl = document.getElementById('f-area');
+	  if (areaEl && areaEl.tagName === 'SELECT') areaEl.value = d.area || '';
+	  else if (areaEl) areaEl.value = d.area || '';
+      openModal('drawing-modal');
+    }
+
+    function renderExtraFields(meta) {
+      const customCols = activeCols.filter(c => !BASE_COLS.find(b => b.key === c.key));
+      const el = document.getElementById('extra-fields');
+      if (!customCols.length) { el.innerHTML = ''; return; }
+      el.innerHTML = `<hr class="divider" /><p style="font-size:11px;color:var(--text-4);margin-bottom:10px;">CUSTOM FIELDS</p>` +
+        customCols.map(c => `
+          <div class="form-group">
+            <label>${c.label}</label>
+            <input type="text" id="extra-${c.key}" value="${meta[c.key]||''}" placeholder="${c.label}…" />
+          </div>
+        `).join('');
+    }
+
+    async function saveDrawing() {
+      const id             = document.getElementById('edit-id').value;
+      const drawing_number = document.getElementById('f-number').value.trim();
+      const title          = document.getElementById('f-title').value.trim();
+
+      if (!drawing_number) { toast('Drawing number is required.', 'error'); document.getElementById('f-number').focus(); return; }
+      if (!title)          { toast('Document title is required.', 'error'); document.getElementById('f-title').focus(); return; }
+
+      const customCols = activeCols.filter(c => !BASE_COLS.find(b => b.key === c.key));
+      const metadata = {};
+      customCols.forEach(c => {
+        const el = document.getElementById(`extra-${c.key}`);
+        if (el) metadata[c.key] = el.value.trim();
+      });
+
+      // FIX [C4]: status excluded from shared payload.
+      // On insert we default to 'Not Started'; on edit we leave status untouched
+      // so Engineering Input entries continue to own the status field.
+      const payload = {
+        drawing_number,
+        title,
+        discipline_id: document.getElementById('f-discipline').value || activeDiscipline.id,
+        project_id:    document.getElementById('f-project').value    || null,
+        area:          document.getElementById('f-area').value.trim() || null,
+        revision:      document.getElementById('f-revision').value.trim() || null,
+        metadata:      Object.keys(metadata).length ? metadata : null,
+      };
+      // Only set status on new drawings — never overwrite on edit
+      if (!id) payload.status = 'Not Started';
+
+      const btn = document.querySelector('#drawing-modal .btn-primary');
+      btn.textContent = 'Saving…'; btn.disabled = true;
+
+      // FIX [L3]: Removed dead post-save verification select (debug code).
+      const { error } = id
+        ? await db.from('erection_drawings').update(payload).eq('id', id)
+        : await db.from('erection_drawings').insert(payload);
+
+      btn.textContent = 'Save Drawing'; btn.disabled = false;
+
+      if (error) { toast('Error: ' + error.message, 'error'); return; }
+      // FIX [L2]: Removed console.log debug statements.
+      toast(id ? 'Drawing updated.' : 'Drawing added.', 'success');
+      closeModal('drawing-modal');
+      currentPage = 1;
+      await loadDrawings();
+    }
+
+    // ── DELETE ────────────────────────────────────────────
+    async function deleteDrawing(id) {
+      confirmDialog('Delete this drawing and all its manhour entries?', async () => {
+        const { error } = await db.from('erection_drawings').delete().eq('id', id);
+        if (error) { toast(error.message, 'error'); return; }
+        toast('Drawing deleted.', 'success');
+        await loadDrawings();
+      });
+    }
+
+    async function deleteAllDrawings() {
+      // Build project options for the confirm dialog
+      const projSel = document.getElementById('filter-project');
+      // Only include actual project options (skip the "All Projects" blank option)
+      const projOptions = [...projSel.options]
+        .filter(o => o.value !== '')
+        .map(o => `<option value="${o.value}">${o.text}</option>`)
+        .join('');
+
+      // Show custom confirm with project selector
+      const overlay = document.createElement('div');
+      overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:center;justify-content:center;';
+      overlay.innerHTML = `
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:28px;max-width:420px;width:90%;">
+          <h3 style="margin:0 0 8px;color:var(--text);font-size:16px;">Delete Drawings</h3>
+          <p style="font-size:13px;color:var(--text-3);margin:0 0 16px;">Select which project's drawings to delete from <strong>${activeDiscipline.name}</strong>. This also removes all manhour entries and cannot be undone.</p>
+          <div class="form-group" style="margin-bottom:20px;">
+            <label style="font-size:12px;">Scope</label>
+            <select id="delete-proj-scope" style="width:100%;">
+              <option value="">— Select Scope —</option>
+              ${projOptions}
+              <option value="UNTAGGED">Untagged (no project assigned)</option>
+              <option value="ALL">⚠️ All — entire ${activeDiscipline.name} discipline</option>
+            </select>
+          </div>
+          <div id="del-type-wrap" style="display:none;margin-bottom:16px;">
+            <label style="font-size:12px;color:var(--red);font-weight:600;display:block;margin-bottom:6px;">Type <strong>delete all</strong> to confirm:</label>
+            <input type="text" id="del-confirm-input" placeholder="delete all" style="width:100%;box-sizing:border-box;" />
+          </div>
+          <div style="display:flex;gap:8px;justify-content:flex-end;">
+            <button class="btn btn-ghost" id="del-cancel-btn">Cancel</button>
+            <button class="btn btn-danger" id="del-confirm-btn" disabled>Delete</button>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(overlay);
+      document.getElementById('del-cancel-btn').onclick = () => overlay.remove();
+
+      // Show type-to-confirm box only when a valid scope is selected
+      document.getElementById('delete-proj-scope').addEventListener('change', () => {
+        const scope = document.getElementById('delete-proj-scope').value;
+        const wrap  = document.getElementById('del-type-wrap');
+        const input = document.getElementById('del-confirm-input');
+        const btn   = document.getElementById('del-confirm-btn');
+        if (scope) {
+          wrap.style.display = 'block';
+          input.value = '';
+          btn.disabled = true;
+        } else {
+          wrap.style.display = 'none';
+          btn.disabled = true;
+        }
+      });
+
+      // Enable delete button only when user types "delete all" exactly
+      document.getElementById('del-confirm-input').addEventListener('input', (e) => {
+        document.getElementById('del-confirm-btn').disabled = e.target.value.trim().toLowerCase() !== 'delete all';
+      });
+
+      document.getElementById('del-confirm-btn').onclick = async () => {
+        const scope = document.getElementById('delete-proj-scope').value;
+        overlay.remove();
+       let q = db.from('erection_drawings').delete().eq('discipline_id', activeDiscipline.id);
+        if (scope === 'UNTAGGED')       q = q.is('project_id', null);
+        else if (scope !== 'ALL')       q = q.eq('project_id', scope);
+        // scope === 'ALL' = no extra filter, deletes entire discipline
+        const { error } = await q;
+        if (error) { toast(error.message, 'error'); return; }
+        toast('Drawings deleted.', 'success');
+        currentPage = 1;
+        await loadDrawings();
+      };
+    }
+
+    // ── COLUMN MANAGER ────────────────────────────────────
+    function openColManager() {
+      pendingCols = JSON.parse(JSON.stringify(activeCols));
+      document.getElementById('col-disc-name').textContent = activeDiscipline.name;
+      renderColList();
+      openModal('col-modal');
+    }
+
+    function renderColList() {
+      const el = document.getElementById('col-list');
+      const defaultCols = pendingCols.filter(c => c.isDefaultView);
+      const additionalCols = pendingCols.filter(c => !c.isDefaultView);
+      
+      let html = `
+        <div style="margin-bottom: 20px;">
+          <h4 style="font-size:12px;font-weight:600;color:var(--text-2);margin-bottom:10px;text-transform:uppercase;letter-spacing:0.5px;">Default View (Always Shown)</h4>
+          <div class="col-manager">
+      `;
+      
+    defaultCols.forEach((c, i) => {
+      const actualIndex = pendingCols.findIndex(col => col.key === c.key);
+      const isCoreLocked = c.lockedInDefaultView;
+      const displayLabel = toColLabel(c.label);
+      html += `
+        <div class="col-item" draggable="${!isCoreLocked}" data-index="${actualIndex}"
+          ondragstart="colDragStart(event,${actualIndex})"
+          ondragover="colDragOver(event)"
+          ondrop="colDrop(event,${actualIndex})"
+          ondragleave="colDragLeave(event)"
+          style="background:var(--accent-dim);border-color:${isCoreLocked ? 'var(--border-2)' : 'var(--accent)'};${isCoreLocked ? 'opacity:0.65;' : ''}cursor:${isCoreLocked ? 'default' : 'grab'};">
+          <input type="checkbox" ${c.visible ? 'checked' : ''} ${isCoreLocked ? 'disabled' : ''}
+            style="${isCoreLocked ? 'opacity:0.35;cursor:not-allowed;accent-color:var(--accent);' : 'accent-color:var(--accent);'}"
+            onchange="pendingCols[${actualIndex}].visible=this.checked" />
+          <span style="flex:1;font-size:13px;${isCoreLocked ? 'color:var(--text-3);' : 'color:var(--text-2);'}">${displayLabel}</span>
+          ${isCoreLocked
+            ? `<span style="font-size:10px;font-weight:700;letter-spacing:0.5px;color:var(--accent-dark);padding:2px 8px;display:flex;align-items:center;gap:4px;">${IC.lock}</span>`
+            : `<button onclick="toggleDefaultView(${actualIndex})" style="background:none;border:none;color:var(--accent-dark);cursor:pointer;padding:4px 8px;font-size:11px;font-weight:600;" title="Remove from Default View">REM</button>`}
+        </div>
+      `;
+    });
+      
+      html += `
+          </div>
+        </div>
+        <div>
+          <h4 style="font-size:12px;font-weight:600;color:var(--text-2);margin-bottom:10px;text-transform:uppercase;letter-spacing:0.5px;">Additional Columns (Hidden by Default)</h4>
+          <div class="col-manager">
+      `;
+      
+      additionalCols.forEach((c, i) => {
+        const actualIndex = pendingCols.findIndex(col => col.key === c.key);
+        const displayLabel = toColLabel(c.label);
+        html += `
+          <div class="col-item ${c.locked ? 'locked' : ''}">
+            <input type="checkbox" ${c.visible ? 'checked' : ''} style="accent-color:var(--accent);" onchange="pendingCols[${actualIndex}].visible=this.checked" />
+            <span style="flex:1; display:flex; align-items:center; gap:8px; font-size:13px; color:var(--text-2);">
+              ${displayLabel}
+              ${c.custom ? '<span style="font-size:10px;background:var(--bg-3);color:var(--text-3);padding:2px 8px;border-radius:3px;font-weight:600;">CUSTOM</span>' : ''}
+            </span>
+            <button onclick="toggleDefaultView(${actualIndex})" style="background:none;border:none;color:var(--accent-dark);cursor:pointer;padding:6px 8px;font-size:11px;font-weight:600;" title="Add to Default View">ADD</button>
+            ${!c.locked ? `<button onclick="removeCol(${actualIndex})" style="background:none;border:none;color:var(--accent-dark);cursor:pointer;font-size:14px;" title="Remove">✕</button>` : ''}
+          </div>
+        `;
+      });
+      
+      html += `
+          </div>
+        </div>
+      `;
+      
+      el.innerHTML = html;
+    }
+    
+    function toggleDefaultView(i) {
+      pendingCols[i].isDefaultView = !pendingCols[i].isDefaultView;
+      if (pendingCols[i].isDefaultView) {
+        const col = pendingCols.splice(i, 1)[0];
+        pendingCols.push(col);
+      }
+      renderColList();
+    }
+
+	let dragSrcIndex = null;
+
+    function colDragStart(e, i) {
+      dragSrcIndex = i;
+      e.dataTransfer.effectAllowed = 'move';
+      e.currentTarget.style.opacity = '0.4';
+    }
+    
+    function colDragOver(e) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      e.currentTarget.style.borderColor = 'var(--accent)';
+      e.currentTarget.style.borderStyle = 'dashed';
+    }
+    
+    function colDragLeave(e) {
+      e.currentTarget.style.borderColor = '';
+      e.currentTarget.style.borderStyle = '';
+    }
+    
+    function colDrop(e, targetIndex) {
+      e.preventDefault();
+      e.currentTarget.style.borderColor = '';
+      e.currentTarget.style.borderStyle = '';
+      if (dragSrcIndex === null || dragSrcIndex === targetIndex) return;
+      const moved = pendingCols.splice(dragSrcIndex, 1)[0];
+      pendingCols.splice(targetIndex, 0, moved);
+      dragSrcIndex = null;
+      renderColList();
+    }
+	
+    function removeCol(i) {
+      pendingCols.splice(i, 1);
+      renderColList();
+    }
+
+    function addCustomColumn() {
+      const input = document.getElementById('new-col-name');
+      const name = input.value.trim();
+      if (!name) { toast('Enter a column name.', 'error'); return; }
+      const key = name.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+      if (pendingCols.find(c => c.key === key)) { toast('Column already exists.', 'warning'); return; }
+      pendingCols.push({ key, label: name, locked: false, visible: false, custom: true });
+      input.value = '';
+      renderColList();
+    }
+
+    async function saveColumns() {
+      activeCols = pendingCols;
+      await saveColumnConfig();
+      closeModal('col-modal');
+      renderTableHeader();
+      renderTable(drawings.length);
+      toast('Columns saved.', 'success');
+    }
+
+    // ── IMPORT EXCEL ──────────────────────────────────────
+    let importConflicts = {}; // drawing_number -> 'skip' | 'replace'
+
+    function resetImportFile() {
+      importData = [];
+      importConflicts = {};
+      document.getElementById('import-upload-zone').style.display = 'block';
+      document.getElementById('import-details-section').style.display = 'none';
+      document.getElementById('import-btn').disabled = true;
+      document.getElementById('import-back-btn').style.display = 'none';
+      document.getElementById('import-file').value = '';
+    }
+
+    function handleImportFileDrop(file) {
+      if (!file) return;
+      processImportFile(file);
+    }
+
+    async function handleImportFile(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      processImportFile(file);
+    }
+
+    async function processImportFile(file) {
+      try {
+        const ab = await file.arrayBuffer();
+        const wb = XLSX.read(ab, { type: 'array' });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        importData = XLSX.utils.sheet_to_json(ws, { defval: '' });
+        const detectedCols = Object.keys(importData[0] || {});
+
+        // Try to auto-detect column mappings
+        const find = (matchers) => detectedCols.find(c => matchers.some(m => c.toLowerCase().includes(m))) || '';
+        document.getElementById('map-drawing-number').value = find(['drawing', 'dwg', 'doc no', 'document no']) || 'drawing_number';
+        document.getElementById('map-title').value        = find(['title', 'description', 'name']) || 'title';
+        document.getElementById('map-area').value         = find(['area', 'system', 'unit', 'location']) || 'area';
+        document.getElementById('map-revision').value     = find(['rev', 'revision']) || 'revision';
+
+        // Check for duplicates against existing drawings
+        const drawingNumberCol = document.getElementById('map-drawing-number').value;
+        const { data: existingRows } = await db.from('erection_drawings')
+          .select('drawing_number')
+          .eq('discipline_id', activeDiscipline.id);
+        const existingNumbers = new Set((existingRows || []).map(d => d.drawing_number));
+        const incoming = importData.map(r => (r[drawingNumberCol] || '').toString().trim()).filter(Boolean);
+        const duplicates = incoming.filter(n => existingNumbers.has(n));
+
+        // Populate IMPORT DETAILS block
+        document.getElementById('import-filename').textContent = file.name;
+        document.getElementById('import-rowcount').textContent = `${importData.length} rows`;
+
+        if (duplicates.length) {
+          importConflicts = {};
+          duplicates.forEach(n => importConflicts[n] = 'skip');
+          const remarksEl = document.getElementById('import-remarks');
+          remarksEl.innerHTML = `<span style="color:var(--yellow);">⚠ ${duplicates.length} duplicate drawing${duplicates.length > 1 ? 's' : ''} found.</span> <a href="#" style="color:var(--accent);text-decoration:underline;font-size:12px;" onclick="event.preventDefault();openConflictModal()">Click here to review</a>`;
+          document.getElementById('import-remarks-row').style.display = 'flex';
+        } else {
+          const remarksEl = document.getElementById('import-remarks');
+          remarksEl.innerHTML = `<span style="color:var(--green);">✓ No issues found. Ready to import.</span>`;
+          document.getElementById('import-remarks-row').style.display = 'flex';
+          importConflicts = {};
+        }
+
+        // Switch view
+        document.getElementById('import-upload-zone').style.display = 'none';
+        document.getElementById('import-details-section').style.display = 'block';
+        document.getElementById('import-btn').disabled = false;
+        document.getElementById('import-back-btn').style.display = 'inline-flex';
+
+      } catch(err) {
+        toast('Error reading file: ' + err.message, 'error');
+      }
+    }
+
+    function renderConflictList(duplicates) {
+      const list = document.getElementById('import-conflict-list');
+      list.innerHTML = duplicates.map(n => {
+        const act = importConflicts[n] || 'skip';
+        const hi  = (a) => act === a ? 'border-color:var(--accent);color:var(--accent);' : '';
+        return `
+          <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--bg-4);border:1px solid var(--border);border-radius:var(--radius);">
+            <span style="flex:1;font-size:12px;font-family:monospace;color:var(--text-2);">${n}</span>
+            <button onclick="setConflict('${n}','skip')"    class="btn btn-ghost btn-sm" style="font-size:10px;padding:2px 8px;${hi('skip')}">Skip</button>
+            <button onclick="setConflict('${n}','update')"  class="btn btn-ghost btn-sm" style="font-size:10px;padding:2px 8px;${hi('update')}">Update</button>
+            <button onclick="setConflict('${n}','replace')" class="btn btn-ghost btn-sm" style="font-size:10px;padding:2px 8px;${hi('replace')}">Replace</button>
+          </div>`;
+      }).join('');
+    }
+
+	function openConflictModal() {
+      renderConflictList(Object.keys(importConflicts));
+      ['skip','update','replace'].forEach(a => {
+        const btn = document.getElementById(`bulk-${a}`);
+        if (btn) btn.style.cssText = 'font-size:11px;';
+      });
+      openModal('conflict-modal');
+    }
+	
+    function setConflict(drawingNo, action) {
+      importConflicts[drawingNo] = action;
+      const duplicates = Object.keys(importConflicts);
+      renderConflictList(duplicates);
+    }
+
+    function setAllConflict(action) {
+      Object.keys(importConflicts).forEach(k => importConflicts[k] = action);
+      renderConflictList(Object.keys(importConflicts));
+      // Highlight active bulk action button
+      ['skip','update','replace'].forEach(a => {
+        const btn = document.getElementById(`bulk-${a}`);
+        if (btn) btn.style.cssText = a === action
+          ? 'font-size:11px;border-color:var(--accent);color:var(--accent);background:var(--accent-dim);'
+          : 'font-size:11px;';
+      });
+    }
+
+    async function importDrawings() {
+      if (!importData.length) return;
+      const btn = document.getElementById('import-btn');
+      btn.textContent = 'Importing…'; btn.disabled = true;
+
+      // Get column mappings from form
+      const drawingNumberCol = document.getElementById('map-drawing-number').value.trim();
+      const titleCol         = document.getElementById('map-title').value.trim();
+      const areaCol          = document.getElementById('map-area').value.trim();
+      const revisionCol      = document.getElementById('map-revision').value.trim();
+
+      if (!drawingNumberCol) { toast('Please specify Drawing Number column header.', 'error'); btn.textContent='Import'; btn.disabled=false; return; }
+      if (!titleCol) { toast('Please specify Title column header.', 'error'); btn.textContent='Import'; btn.disabled=false; return; }
+
+      const standardKeys = [drawingNumberCol, titleCol, areaCol, revisionCol, 'revision','Revision','status','Status'];
+
+      // Separate into: new inserts, updates (merge), and full replacements
+      const toInsert  = [];
+      const toUpdate  = [];
+      const toReplace = [];
+
+      // Load disciplines for auto-detect (once, before loop)
+      if (!window._importDisciplines) {
+        const { data: discs } = await db.from('disciplines').select('id, code');
+        window._importDisciplines = discs || [];
+      }
+
+      importData.forEach(r => {
+        const drawing_number = (r[drawingNumberCol] || '').toString().trim();
+        const title          = (r[titleCol] || '').toString().trim();
+        if (!drawing_number) return;
+
+        const conflictAction = importConflicts[drawing_number];
+        if (conflictAction === 'skip') return;
+
+        const metadata = {};
+        Object.keys(r).forEach(k => {
+          if (!standardKeys.includes(k) && r[k] !== '') metadata[k] = r[k];
+        });
+
+        // FIX [C3]: Resolve project_id and discipline_id BEFORE constructing base.
+        // Previously base.discipline_id was assigned before base existed → ReferenceError.
+        const importProjSel = document.getElementById('import-project');
+        let project_id = null;
+        let auto_discipline_id = null;
+        if (importProjSel.value === 'auto') {
+          // Convention: AGP-{PROJECT_CODE}-{DOC_CODE}-{DISC_CODE}-...
+          const parts = drawing_number.toUpperCase().split('-');
+          const projCode = parts[1] || '';
+          const discCode = parts[3] || '';
+          const allOpts = [...importProjSel.options].filter(o => o.dataset.code);
+          const projMatch = allOpts.find(o => o.dataset.code.toUpperCase() === projCode);
+          project_id = projMatch ? projMatch.value : null;
+          if (discCode) {
+            const discMatch = (window._importDisciplines || []).find(d => (d.code || '').toUpperCase() === discCode);
+            if (discMatch) auto_discipline_id = discMatch.id;
+          }
+        } else {
+          project_id = importProjSel.value || null;
+        }
+
+        const base = {
+          drawing_number,
+          title:         title || drawing_number,
+          discipline_id: auto_discipline_id || activeDiscipline.id,
+          project_id,
+          area:          (r[areaCol] || '').toString().trim() || null,
+          metadata:      Object.keys(metadata).length ? metadata : null,
+        };
+
+        if (!conflictAction) {
+          // New drawing
+          toInsert.push({ ...base, revision: (r[revisionCol] || r.revision || r['Revision'] || '').toString().trim() || null, status: 'Not Started' });
+        } else if (conflictAction === 'update') {
+          // Update only safe fields — no revision, status, created_by, checked_by
+          toUpdate.push(base);
+        } else if (conflictAction === 'replace') {
+          // Full overwrite
+          toReplace.push({ ...base, revision: (r[revisionCol] || r.revision || r['Revision'] || '').toString().trim() || null, status: 'Not Started' });
+        }
+      });
+
+      let hasError = false;
+
+      // FIX [C2]: All three operations now target erection_drawings, not the
+      // generic drawings table. Previously all imports silently wrote to the
+      // wrong table, causing data to be invisible in this register.
+      if (toInsert.length) {
+        const { error } = await db.from('erection_drawings').insert(toInsert);
+        if (error) { toast('Insert error: ' + error.message, 'error'); hasError = true; }
+      }
+
+      if (toUpdate.length) {
+        for (const row of toUpdate) {
+          const { drawing_number, ...fields } = row;
+          const { error } = await db.from('erection_drawings').update(fields).eq('drawing_number', drawing_number).eq('discipline_id', activeDiscipline.id);
+          if (error) { toast(`Update error (${drawing_number}): ` + error.message, 'error'); hasError = true; }
+        }
+      }
+
+      if (toReplace.length) {
+        const { error } = await db.from('erection_drawings').upsert(toReplace, { onConflict: 'drawing_number' });
+        if (error) { toast('Replace error: ' + error.message, 'error'); hasError = true; }
+      }
+
+      btn.textContent = 'Import'; btn.disabled = false;
+      if (!hasError) {
+        const total = toInsert.length + toUpdate.length + toReplace.length;
+        toast(`Imported ${total} drawing${total !== 1 ? 's' : ''} successfully.`, 'success');
+        closeModal('import-modal');
+        resetImportFile();
+        importData = [];
+        currentPage = 1;
+        await loadDrawings();
+      }
+	}
+ 
+    // ── EXPORT ────────────────────────────────────────────
+    async function exportDrawings() {
+      // FIX [C2]: Query erection_drawings (not drawings) and use the correct
+      // activity relation erection_drawing_activities (not drawing_activities).
+      let q = db.from('erection_drawings')
+        .select('drawing_number, title, disciplines(name), area, revision, status, creator:created_by(full_name), checker:checked_by(full_name), created_at, erection_drawing_activities(manhours), metadata')
+        .eq('discipline_id', activeDiscipline.id)
+        .order('drawing_number');
+
+      // Apply same filters as the current table view
+      if (activeProject) q = q.eq('project_id', activeProject);
+      if (filterStatus)  q = q.eq('status', filterStatus);
+      if (searchQ)       q = q.or(`drawing_number.ilike.%${searchQ}%,title.ilike.%${searchQ}%`);
+
+      const { data } = await q;
+
+      if (!data?.length) { toast('No drawings to export.', 'info'); return; }
+
+      const rows = data.map(d => {
+        const mh = (d.erection_drawing_activities||[]).reduce((s,a)=>s+(a.manhours||0),0);
+        const base = {
+          'Drawing Number': d.drawing_number,
+          'Title':          d.title,
+          'Discipline':     d.disciplines?.name || '',
+          'Area':           d.area || '',
+          'Revision':       d.revision || '',
+          'Status':         d.status || '',
+          'Created by':     d.creator?.full_name || '',
+          'Checked by':     d.checker?.full_name || '',
+          'Total Manhours': parseFloat(mh.toFixed(2)),
+          'Date Created':   formatDate(d.created_at),
+        };
+        if (d.metadata) Object.assign(base, d.metadata);
+        return base;
+      });
+
+      const projCode = activeProject
+        ? ([...document.getElementById('filter-project').options].find(o => o.value === activeProject)?.text?.split(' — ')[0] || '')
+        : 'all';
+      const statusSuffix = filterStatus ? `_${filterStatus.toLowerCase().replace(/ /g,'_')}` : '';
+      exportToExcel(rows, `drawing_register_${activeDiscipline.name.toLowerCase()}_${projCode}${statusSuffix}`);
+    }
+
+    // ── SEARCH / FILTER / PAGE ────────────────────────────
+    const onSearch = debounce(async v => { searchQ = v; currentPage = 1; await loadDrawings(); }, 300);
+    
+	async function onFilter() {
+      filterStatus  = document.getElementById('filter-status').value;
+      activeProject = document.getElementById('filter-project').value || null;
+      if (activeProject) localStorage.setItem('activeProjectId', activeProject);
+      else               localStorage.removeItem('activeProjectId');
+      currentPage   = 1;
+      await loadColumnConfig();
+      renderTableHeader();
+      await loadDrawings();
+    }
+	
+    async function changePage(p) { currentPage = p; await loadDrawings(); window.scrollTo(0,0); }
+
+    // ── BOOT ─────────────────────────────────────────────
+    initLayout('Erection Drawings');
+  </script>
+</body>
+</html>
