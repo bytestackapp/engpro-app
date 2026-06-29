@@ -743,15 +743,20 @@ async function _clearLogs() {
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.addEventListener('message', e => {
     if (e.data?.type === 'SHOW_ANNOUNCEMENT') {
-      _showAnnouncementModal(e.data.title, e.data.body);
+      _showAnnouncementModal(e.data.title, e.data.body, e.data.sender);
     }
   });
 }
 
-function _showAnnouncementModal(title, body) {
+function _showAnnouncementModal(title, body, sender) {
   // Remove existing if any
   const existing = document.getElementById('msg-announce-modal');
   if (existing) existing.remove();
+
+  const now = new Date().toLocaleString('en-PH', {
+    month:'short', day:'numeric', year:'numeric',
+    hour:'2-digit', minute:'2-digit'
+  });
 
   const div = document.createElement('div');
   div.id = 'msg-announce-modal';
@@ -777,12 +782,8 @@ function _showAnnouncementModal(title, body) {
            padding:14px 18px;border-bottom:1px solid var(--border-2);
            background:rgba(240,121,0,0.08);">
         <div style="display:flex;align-items:center;gap:10px;">
-          <span style="color:#f07900;line-height:0;">
-            ${_MI.send}
-          </span>
-          <span style="font-size:13px;font-weight:700;color:#f07900;">
-            New Announcement
-          </span>
+          <span style="color:#f07900;line-height:0;">${_MI.send}</span>
+          <span style="font-size:13px;font-weight:700;color:#f07900;">New Announcement</span>
         </div>
         <button onclick="document.getElementById('msg-announce-modal').remove()"
           style="background:none;border:none;cursor:pointer;
@@ -792,18 +793,26 @@ function _showAnnouncementModal(title, body) {
       </div>
 
       <!-- Content -->
-      <div style="padding:20px;">
-        <div style="font-size:15px;font-weight:700;color:var(--text);margin-bottom:10px;">
+      <div style="padding:20px 22px;">
+        <div style="font-size:16px;font-weight:700;color:var(--text);margin-bottom:12px;
+             line-height:1.3;">
           ${title || 'Announcement'}
         </div>
-        <div style="font-size:13px;color:var(--text-3);line-height:1.6;
-             white-space:pre-wrap;word-break:break-word;">
+        <div style="font-size:13px;color:var(--text-3);line-height:1.7;
+             white-space:pre-wrap;word-break:break-word;margin-bottom:16px;">
           ${body || ''}
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;
+             padding-top:12px;border-top:1px solid var(--border-2);">
+          <div style="font-size:11px;color:var(--text-4);">
+            <span style="color:var(--text-3);font-weight:500;">By: ${sender || '—'}</span>
+          </div>
+          <div style="font-size:11px;color:var(--text-4);">${now}</div>
         </div>
       </div>
 
       <!-- Footer -->
-      <div style="padding:14px 18px;border-top:1px solid var(--border-2);
+      <div style="padding:12px 18px;border-top:1px solid var(--border-2);
            display:flex;justify-content:flex-end;">
         <button onclick="document.getElementById('msg-announce-modal').remove()"
           style="padding:8px 24px;border-radius:8px;background:#f07900;color:#fff;
