@@ -29,17 +29,17 @@ self.addEventListener('fetch', e => {
 
 // ── PUSH NOTIFICATIONS ──────────────────────────────────────
 self.addEventListener('push', e => {
-  let payload = { title: 'EngPro', body: '', type: 'general', url: '/pages/dashboard.html' };
+  let payload = { title: 'EngPro', body: '', sender: '', type: 'general', url: '/pages/dashboard.html' };
   try { if (e.data) payload = { ...payload, ...e.data.json() }; } catch {}
 
   const options = {
     body:    payload.body,
     icon:    '/icons/icon-192.png',
     badge:   '/icons/icon-192.png',
-    tag:     payload.type,          // groups same-type notifications (replaces old one)
+    tag:     payload.type,
     renotify: true,
     vibrate: [200, 100, 200],
-    data:    { url: payload.url },
+    data:    { url: payload.url, sender: payload.sender, body: payload.body, title: payload.title },
     actions: payload.type === 'reminder'
       ? [{ action: 'open', title: 'Log Now' }]
       : [{ action: 'open', title: 'View' }]
@@ -77,10 +77,10 @@ self.addEventListener('notificationclick', e => {
       // Post message to page to show announcement modal
       if (target) {
         target.postMessage({
-          type:    'SHOW_ANNOUNCEMENT',
-          title:   e.notification.title,
-          body:    e.notification.body,
-          tag:     payload.tag || '',
+          type:   'SHOW_ANNOUNCEMENT',
+          title:  e.notification.title,
+          body:   e.notification.data?.body   || e.notification.body,
+          sender: e.notification.data?.sender || '',
         });
       }
     })
