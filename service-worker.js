@@ -51,19 +51,38 @@ self.addEventListener('push', e => {
 // ── NOTIFICATION CLICK ──────────────────────────────────────
 self.addEventListener('notificationclick', e => {
   e.notification.close();
-  const url = self.location.origin + '/pages/dashboard.html';
+  const payload = e.notification.data || {};
+
   e.waitUntil(
-    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(clients => {
-      // Focus existing open tab if found
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(async clients => {
+      let target = null;
+
+      // Find an existing open EngPro window
       for (const client of clients) {
         if (client.url.startsWith(self.location.origin)) {
-          client.focus();
-          client.navigate(url);
-          return;
+          target = client;
+          break;
         }
       }
-      // Otherwise open a new window
-      return self.clients.openWindow(url);
+
+      // If no window open, open one
+      if (!target) {
+        target = await self.clients.openWindow(self.location.origin + '/pages/dashboard.html');
+        // Wait for it to load before posting
+        await new Promise(r => setTimeout(r, 2000));
+      } else {
+        target.focus();
+      }
+
+      // Post message to page to show announcement modal
+      if (target) {
+        target.postMessage({
+          type:    'SHOW_ANNOUNCEMENT',
+          title:   e.notification.title,
+          body:    e.notification.body,
+          tag:     payload.tag || '',
+        });
+      }
     })
   );
 });
