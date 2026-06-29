@@ -735,3 +735,83 @@ async function _clearLogs() {
   toast('Logs cleared.', 'success');
   _renderLogs(document.getElementById('msg-modal-body'));
 }
+
+// ── ANNOUNCEMENT RECEIVER MODAL ──────────────────────────────
+// Listens for push notification clicks forwarded by the service worker
+// and shows a clean modal with the announcement content
+
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.addEventListener('message', e => {
+    if (e.data?.type === 'SHOW_ANNOUNCEMENT') {
+      _showAnnouncementModal(e.data.title, e.data.body);
+    }
+  });
+}
+
+function _showAnnouncementModal(title, body) {
+  // Remove existing if any
+  const existing = document.getElementById('msg-announce-modal');
+  if (existing) existing.remove();
+
+  const div = document.createElement('div');
+  div.id = 'msg-announce-modal';
+  div.style.cssText = `
+    position:fixed;inset:0;z-index:99999;
+    background:rgba(0,0,0,0.65);backdrop-filter:blur(4px);
+    display:flex;align-items:center;justify-content:center;
+  `;
+  div.innerHTML = `
+    <div style="background:var(--surface);border:1px solid var(--border-2);
+         border-radius:14px;width:min(480px,92vw);
+         box-shadow:0 32px 80px rgba(0,0,0,0.6);overflow:hidden;
+         animation:slideUp .25s ease;">
+      <style>
+        @keyframes slideUp {
+          from { opacity:0; transform:translateY(20px); }
+          to   { opacity:1; transform:translateY(0); }
+        }
+      </style>
+
+      <!-- Header -->
+      <div style="display:flex;align-items:center;justify-content:space-between;
+           padding:14px 18px;border-bottom:1px solid var(--border-2);
+           background:rgba(240,121,0,0.08);">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span style="color:#f07900;line-height:0;">
+            ${_MI.send}
+          </span>
+          <span style="font-size:13px;font-weight:700;color:#f07900;">
+            New Announcement
+          </span>
+        </div>
+        <button onclick="document.getElementById('msg-announce-modal').remove()"
+          style="background:none;border:none;cursor:pointer;
+                 color:var(--text-3);padding:4px;border-radius:6px;line-height:0;">
+          ${_MI.close}
+        </button>
+      </div>
+
+      <!-- Content -->
+      <div style="padding:20px;">
+        <div style="font-size:15px;font-weight:700;color:var(--text);margin-bottom:10px;">
+          ${title || 'Announcement'}
+        </div>
+        <div style="font-size:13px;color:var(--text-3);line-height:1.6;
+             white-space:pre-wrap;word-break:break-word;">
+          ${body || ''}
+        </div>
+      </div>
+
+      <!-- Footer -->
+      <div style="padding:14px 18px;border-top:1px solid var(--border-2);
+           display:flex;justify-content:flex-end;">
+        <button onclick="document.getElementById('msg-announce-modal').remove()"
+          style="padding:8px 24px;border-radius:8px;background:#f07900;color:#fff;
+                 border:none;font-size:13px;font-weight:700;cursor:pointer;">
+          Dismiss
+        </button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(div);
+}
