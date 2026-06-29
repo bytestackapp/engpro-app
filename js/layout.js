@@ -127,7 +127,7 @@ async function initLayout(pageTitle) {
   if (typeof initMessaging === 'function') await initMessaging(safeProfile);
   
   // PWA registration + push subscription saving
-  const VAPID_PUBLIC_KEY = 'BEFBJJJkApguLCDzo5w1hH5xvm5yBGPXGnjWLX37b70oUEipmudoqSbwlcaY6wILd1nDnEP5idIUjtJHusrw3vM';
+  const VAPID_PUBLIC_KEY = 'BCzQfJUwT7SR9SY3IgFOPSw06s1IpKI-SDgQH9cKnFVvbx3IZUOMoE47OswI7_10vOQKqvrdQKe1BD0zwF1Y4SY';
 
   function _urlBase64ToUint8Array(base64String) {
     const padding = '='.repeat((4 - base64String.length % 4) % 4);
