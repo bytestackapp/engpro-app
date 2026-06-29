@@ -51,12 +51,12 @@ self.addEventListener('push', e => {
 // ── NOTIFICATION CLICK ──────────────────────────────────────
 self.addEventListener('notificationclick', e => {
   e.notification.close();
-  const url = e.notification.data?.url || '/pages/dashboard.html';
+  const url = self.location.origin + '/pages/dashboard.html';
   e.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(clients => {
       // Focus existing open tab if found
       for (const client of clients) {
-        if (client.url.includes('engpro') || client.url.includes(self.location.origin)) {
+        if (client.url.startsWith(self.location.origin)) {
           client.focus();
           client.navigate(url);
           return;
