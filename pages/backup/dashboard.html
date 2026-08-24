@@ -1,0 +1,2370 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dashboard — EngPro App</title>
+  <link rel="stylesheet" href="../css/main.css" />
+  <style>
+    /* ── S-Curve block ─────────────────────────────────── */
+    .scurve-card {
+      background:var(--surface);border:1px solid var(--border);
+      border-radius:var(--radius-lg);margin-bottom:20px;overflow:hidden;
+    }
+    .scurve-header {
+      display:flex;align-items:center;justify-content:space-between;
+      padding:14px 18px 10px;border-bottom:1px solid var(--border);flex-wrap:wrap;gap:10px;
+    }
+    .scurve-title {
+      font-size:14px;font-weight:700;color:var(--text);
+      display:flex;align-items:center;gap:8px;
+    }
+    .scurve-filters {
+      display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+    }
+    .scurve-filters select {
+      font-size:12px;padding:5px 9px;background:var(--bg-3);
+      border:1px solid var(--border);border-radius:var(--radius);
+      color:var(--text);outline:none;cursor:pointer;
+    }
+    .scurve-filters select:focus { border-color:var(--accent); }
+    .scurve-body { padding:16px 18px 10px; }
+    .scurve-chart-wrap { position:relative;height:340px; }
+
+    /* Legend */
+    .scurve-legend {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+    .legend-item { display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text-3); }
+    .legend-line { width:20px;height:2px;border-radius:1px; }
+    .legend-bar  { width:12px;height:12px;border-radius:2px; }
+
+	/* ── Filter bar ─────────────────────────────────────── */
+    .filter-bar-wrap {
+      padding: 10px 18px 14px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .filter-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .filter-row-label {
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--text-4);
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      min-width: 80px;
+      flex-shrink: 0;
+    }
+    .filter-scroll-wrap {
+      position: relative;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      flex: 1;
+      min-width: 0;
+    }
+    .filter-scroll {
+      display: flex;
+      gap: 6px;
+      overflow-x: auto;
+      scroll-behavior: smooth;
+      scrollbar-width: none;
+      padding: 2px 0;
+      flex: 1;
+    }
+    .filter-scroll::-webkit-scrollbar { display: none; }
+    .filter-btn {
+      flex-shrink: 0;
+      padding: 4px 12px;
+      font-size: 11px;
+      font-weight: 500;
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      background: var(--bg-3);
+      color: var(--text-3);
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all .15s;
+    }
+    .filter-btn:hover { border-color: var(--accent); color: var(--text); }
+    .filter-btn.active {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #000;
+    }
+	
+    .filter-scroll-arrow {
+      flex-shrink: 0;
+      width: 22px;
+      height: 22px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--bg-4);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      cursor: pointer;
+      color: var(--text-3);
+      font-size: 12px;
+      transition: all .15s;
+      user-select: none;
+    }
+    .filter-scroll-arrow:hover { color: var(--text); border-color: var(--accent); }
+
+    /* ── Lower charts grid ─────────────────────────────── */
+    .charts-grid { display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px; }
+    .chart-container { height:220px;position:relative; }
+
+    /* ── Snapshot button ────────────────────────────────── */
+    .snapshot-btn {
+      font-size:11px;font-weight:600;padding:5px 12px;border-radius:var(--radius);
+      border:1px solid var(--border);background:var(--bg-3);color:var(--text-3);
+      cursor:pointer;transition:all .15s;display:flex;align-items:center;gap:6px;
+    }
+    .snapshot-btn:hover { border-color:var(--accent); color:var(--text); }
+    .snapshot-btn:disabled { opacity:.5;cursor:default; }
+	.snapshot-btn.is-restricted { opacity:.5; cursor:not-allowed; }
+
+    @media (max-width:768px) {
+      .charts-grid { grid-template-columns:1fr; }
+      .scurve-chart-wrap { height:260px; }
+    }
+	
+	h1 svg {
+      position: relative;
+      top: 4px;
+    }
+  </style>
+</head>
+<body>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="../js/supabase.js"></script>
+  <script src="../js/utils.js"></script>
+  <script src="../js/layout.js"></script>
+  <script src="../js/messaging.js"></script>
+
+  <script>
+    const SVG_SM = (p) => `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
+    const IC = {
+	  dashboard:   `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>`,
+      save:        SVG_SM('<path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/>'),
+    };
+
+    // ─── state ────────────────────────────────────────────────────────────────
+    let projectsData    = [];
+    let disciplinesData = [];
+	let rolesData       = [];
+    let scurveChart     = null;
+    let mpChart         = null;
+	let statusChart     = null;
+    let granularity     = 'month';   // 'week' | 'month' | 'year'
+	let mhGranularity   = 'month';   // separate granularity for MH chart
+	
+	let kpiChart        = null;
+	let kpiGranularity  = 'month';
+	let isAdmin = false;
+	
+	// Tracks whether each required filter has been explicitly clicked by the user.
+    let scurveTouched = { view: false, project: false, discipline: false };
+    let mhTouched     = { view: false, project: false, discipline: false, role: false };
+    let kpiTouched    = { view: false, project: false, discipline: false, doctype: false, step: false };
+    function scurveReady() { return scurveTouched.view && scurveTouched.project && scurveTouched.discipline; }
+    function mhReady()     { return mhTouched.view && mhTouched.project && mhTouched.discipline && mhTouched.role; }
+    function kpiBaseReady(){ return kpiTouched.view && kpiTouched.project && kpiTouched.discipline; }
+    function kpiFullyReady(){ return kpiBaseReady() && kpiTouched.doctype && kpiTouched.step; }
+	
+	let docTouched = { project: false, doctype: false };
+    function docReady() { return docTouched.project && docTouched.doctype; }
+
+    function setDocProjectFilter(val, btn) {
+      document.getElementById('doc-f-project').value = val;
+      document.querySelectorAll('#doc-f-project-scroll .filter-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      docTouched.project = true;
+      reloadDocumentStatus();
+    }
+
+    function setDocTypeFilter(val, btn) {
+      document.getElementById('doc-f-doctype').value = val;
+      document.querySelectorAll('#doc-f-doctype-scroll .filter-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      docTouched.doctype = true;
+      reloadDocumentStatus();
+    }
+	
+	let discProgChart = null;
+    let dpTouched = { project: false };
+    function dpReady() { return dpTouched.project; }
+
+    function setDpFilter(val, btn) {
+      document.getElementById('dp-f-project').value = val;
+      document.querySelectorAll('#dp-f-project-scroll .filter-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      dpTouched.project = true;
+      reloadDiscProgress();
+    }
+
+    // ─── PAGE INIT ────────────────────────────────────────────────────────────
+    async function pageInit(profile) {
+	  isAdmin = profile?.role === 'admin';
+      const content = document.getElementById('page-content');
+      content.innerHTML = `
+        <div class="page-header">
+          <h1>${IC.dashboard} Dashboard</h1>
+          <p>Engineering activity summary and progress overview</p>
+        </div>
+
+        <!-- S-Curve Block -->
+        <div class="scurve-card">
+          <div class="scurve-header">
+            <div class="scurve-title">
+              <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+              Progress S-Curve &amp; Manpower
+            </div>
+            <div style="display:flex;align-items:center;gap:10px;">
+              <div class="scurve-legend">
+                <div class="legend-item"><div class="legend-line" style="background:#22c55e;"></div> Planned Progress %</div>
+                <div class="legend-item"><div class="legend-line" style="background:#38bdf8;"></div> Actual Progress %</div>
+                <div class="legend-item"><div class="legend-bar" style="background:rgba(96,165,250,0.6);"></div> Planned Manpower</div>
+                <div class="legend-item"><div class="legend-bar" style="background:rgba(240,121,0,0.75);"></div> Actual Manpower</div>
+              </div>
+              <button class="snapshot-btn" id="snapshot-btn" onclick="openSnapshotModal()" title="Save this period's actual progress &amp; manpower for history">
+                ${IC.save} Take Snapshot
+              </button>
+            </div>
+          </div>
+
+          <div class="scurve-body">
+            <div class="scurve-chart-wrap">
+              <canvas id="chart-scurve"></canvas>
+            </div>
+          </div>
+
+          <!-- Filter bar -->
+          <div class="filter-bar-wrap">
+            <div class="filter-row">
+              <div class="filter-row-label">View</div>
+              <div class="filter-scroll-wrap">
+                <div class="filter-scroll" id="f-granularity-scroll">
+                  <button class="filter-btn" data-val="week"  onclick="setGranularity('week',this)">Weekly</button>
+				  <button class="filter-btn" data-val="month" onclick="setGranularity('month',this)">Monthly</button>
+                  <button class="filter-btn" data-val="year"  onclick="setGranularity('year',this)">Yearly</button>
+                </div>
+              </div>
+            </div>
+            <div class="filter-row">
+              <div class="filter-row-label">Project</div>
+              <div class="filter-scroll-wrap">
+                <div class="filter-scroll-arrow" onclick="scrollFilter('f-project-scroll',-120)">&#8249;</div>
+                <div class="filter-scroll" id="f-project-scroll">
+                </div>
+                <div class="filter-scroll-arrow" onclick="scrollFilter('f-project-scroll',120)">&#8250;</div>
+              </div>
+            </div>
+            <div class="filter-row">
+              <div class="filter-row-label">Discipline</div>
+              <div class="filter-scroll-wrap">
+                <div class="filter-scroll-arrow" onclick="scrollFilter('f-discipline-scroll',-120)">&#8249;</div>
+                <div class="filter-scroll" id="f-discipline-scroll">
+                  <button class="filter-btn" data-val="" onclick="setFilter('f-discipline','',this,'f-discipline-scroll')">All</button>
+                </div>
+                <div class="filter-scroll-arrow" onclick="scrollFilter('f-discipline-scroll',120)">&#8250;</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- hidden inputs so reload functions can still read values -->
+          <input type="hidden" id="f-project" value="" />
+          <input type="hidden" id="f-discipline" value="" />
+        </div>
+
+        <!-- Allotted vs Actual Manhours -->
+        <div class="scurve-card">
+          <div class="scurve-header">
+            <div class="scurve-title">
+              <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+              Allotted vs Actual Manhours
+            </div>
+            <div class="scurve-legend">
+              <div class="legend-item"><div class="legend-bar" style="background:rgba(96,165,250,0.6);"></div> Allotted Manhours</div>
+              <div class="legend-item"><div class="legend-bar" style="background:rgba(240,121,0,0.75);"></div> Actual Manhours</div>
+            </div>
+          </div>
+          <div class="scurve-body">
+            <div class="scurve-chart-wrap" style="height:280px;">
+              <canvas id="chart-manhours"></canvas>
+            </div>
+          </div>
+
+          <!-- Filter bar -->
+          <div class="filter-bar-wrap" style="border-bottom:none;">
+            <div class="filter-row">
+              <div class="filter-row-label">View</div>
+              <div class="filter-scroll-wrap">
+                <div class="filter-scroll" id="mh-f-granularity-scroll">
+                  <button class="filter-btn" data-val="week"  onclick="setMhGranularity('week',this)">Weekly</button>
+                  <button class="filter-btn" data-val="month" onclick="setMhGranularity('month',this)">Monthly</button>
+                  <button class="filter-btn" data-val="year"  onclick="setMhGranularity('year',this)">Yearly</button>
+                </div>
+              </div>
+            </div>
+            <div class="filter-row">
+              <div class="filter-row-label">Project</div>
+              <div class="filter-scroll-wrap">
+                <div class="filter-scroll-arrow" onclick="scrollFilter('mh-f-project-scroll',-120)">&#8249;</div>
+                <div class="filter-scroll" id="mh-f-project-scroll">
+                </div>
+                <div class="filter-scroll-arrow" onclick="scrollFilter('mh-f-project-scroll',120)">&#8250;</div>
+              </div>
+            </div>
+            <div class="filter-row">
+              <div class="filter-row-label">Discipline</div>
+              <div class="filter-scroll-wrap">
+                <div class="filter-scroll-arrow" onclick="scrollFilter('mh-f-discipline-scroll',-120)">&#8249;</div>
+                <div class="filter-scroll" id="mh-f-discipline-scroll">
+                  <button class="filter-btn" data-val="" onclick="setMhFilter('mh-f-discipline','',this,'mh-f-discipline-scroll')">All</button>
+                </div>
+                <div class="filter-scroll-arrow" onclick="scrollFilter('mh-f-discipline-scroll',120)">&#8250;</div>
+              </div>
+            </div>
+            <div class="filter-row">
+              <div class="filter-row-label">Role</div>
+              <div class="filter-scroll-wrap">
+                <div class="filter-scroll-arrow" onclick="scrollFilter('mh-f-role-scroll',-120)">&#8249;</div>
+                <div class="filter-scroll" id="mh-f-role-scroll">
+                  <button class="filter-btn" data-val="" onclick="setMhFilter('mh-f-role','',this,'mh-f-role-scroll')">All</button>
+                </div>
+                <div class="filter-scroll-arrow" onclick="scrollFilter('mh-f-role-scroll',120)">&#8250;</div>
+              </div>
+            </div>
+          </div>
+          <input type="hidden" id="mh-f-project" value="" />
+          <input type="hidden" id="mh-f-discipline" value="" />
+          <input type="hidden" id="mh-f-role" value="" />
+        </div>
+		
+		<!-- KPI Monitoring -->
+        <div class="scurve-card">
+          <div class="scurve-header">
+            <div class="scurve-title">
+              <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+              KPI Monitoring
+            </div>
+            <div class="scurve-legend">
+              <div class="legend-item"><div class="legend-bar" style="background:rgba(96,165,250,0.6);"></div> KPI Target</div>
+              <div class="legend-item"><div class="legend-bar" style="background:rgba(240,121,0,0.75);"></div> KPI Actual</div>
+              <div class="legend-item"><div class="legend-line" style="background:#38bdf8;"></div> KPI Efficiency %</div>
+            </div>
+          </div>
+          <div class="scurve-body">
+            <div class="scurve-chart-wrap" style="height:280px;">
+              <canvas id="chart-kpi"></canvas>
+            </div>
+          </div>
+          <div class="filter-bar-wrap" style="border-bottom:none;">
+            <div class="filter-row">
+              <div class="filter-row-label">View</div>
+              <div class="filter-scroll-wrap">
+                <div class="filter-scroll" id="kpi-f-granularity-scroll">
+                  <button class="filter-btn" data-val="week"  onclick="setKpiGranularity('week',this)">Weekly</button>
+                  <button class="filter-btn" data-val="month" onclick="setKpiGranularity('month',this)">Monthly</button>
+                  <button class="filter-btn" data-val="year"  onclick="setKpiGranularity('year',this)">Yearly</button>
+                </div>
+              </div>
+            </div>
+            <div class="filter-row">
+              <div class="filter-row-label">Project</div>
+              <div class="filter-scroll-wrap">
+                <div class="filter-scroll-arrow" onclick="scrollFilter('kpi-f-project-scroll',-120)">&#8249;</div>
+                <div class="filter-scroll" id="kpi-f-project-scroll">
+                </div>
+                <div class="filter-scroll-arrow" onclick="scrollFilter('kpi-f-project-scroll',120)">&#8250;</div>
+              </div>
+            </div>
+            <div class="filter-row">
+              <div class="filter-row-label">Discipline</div>
+              <div class="filter-scroll-wrap">
+                <div class="filter-scroll-arrow" onclick="scrollFilter('kpi-f-discipline-scroll',-120)">&#8249;</div>
+                <div class="filter-scroll" id="kpi-f-discipline-scroll">
+                </div>
+                <div class="filter-scroll-arrow" onclick="scrollFilter('kpi-f-discipline-scroll',120)">&#8250;</div>
+              </div>
+            </div>
+            <div class="filter-row" id="kpi-f-doctype-row">
+              <div class="filter-row-label">Doc Type</div>
+              <div class="filter-scroll-wrap">
+                <div class="filter-scroll-arrow" onclick="scrollFilter('kpi-f-doctype-scroll',-120)">&#8249;</div>
+                <div class="filter-scroll" id="kpi-f-doctype-scroll">
+                </div>
+                <div class="filter-scroll-arrow" onclick="scrollFilter('kpi-f-doctype-scroll',120)">&#8250;</div>
+              </div>
+            </div>
+            <div class="filter-row" id="kpi-f-step-row">
+              <div class="filter-row-label">Step</div>
+              <div class="filter-scroll-wrap">
+                <div class="filter-scroll-arrow" onclick="scrollFilter('kpi-f-step-scroll',-120)">&#8249;</div>
+                <div class="filter-scroll" id="kpi-f-step-scroll">
+                </div>
+                <div class="filter-scroll-arrow" onclick="scrollFilter('kpi-f-step-scroll',120)">&#8250;</div>
+              </div>
+            </div>
+          </div>
+          <input type="hidden" id="kpi-f-project" value="" />
+          <input type="hidden" id="kpi-f-discipline" value="" />
+          <input type="hidden" id="kpi-f-doctype" value="" />
+          <input type="hidden" id="kpi-f-step" value="" />
+        </div>
+
+        <!-- Lower charts -->
+        <div style="display:flex;gap:16px;margin-bottom:20px;align-items:stretch;">
+          <div style="flex:1;display:flex;flex-direction:column;gap:16px;min-width:0;">
+            <div class="card" style="min-height:490px;">
+              <div class="card-header"><span class="card-title">Document Status</span></div>
+              <div class="card-body chart-container" style="height:320px;"><canvas id="chart-status"></canvas></div>
+              <div class="filter-bar-wrap" style="border-bottom:none;margin-top:32px;">
+                <div class="filter-row">
+                  <div class="filter-row-label">Project</div>
+                  <div class="filter-scroll-wrap">
+                    <div class="filter-scroll-arrow" onclick="scrollFilter('doc-f-project-scroll',-120)">&#8249;</div>
+                    <div class="filter-scroll" id="doc-f-project-scroll">
+                    </div>
+                    <div class="filter-scroll-arrow" onclick="scrollFilter('doc-f-project-scroll',120)">&#8250;</div>
+                  </div>
+                </div>
+                <div class="filter-row">
+                  <div class="filter-row-label">Doc Type</div>
+                  <div class="filter-scroll-wrap">
+                    <div class="filter-scroll" id="doc-f-doctype-scroll">
+                      <button class="filter-btn" data-val="model" onclick="setDocTypeFilter('model',this)">3D Model</button>
+                      <button class="filter-btn" data-val="drawing" onclick="setDocTypeFilter('drawing',this)">Drawing</button>
+                      <button class="filter-btn" data-val="test_package" onclick="setDocTypeFilter('test_package',this)">Test Package</button>
+                      <button class="filter-btn" data-val="calculations" onclick="setDocTypeFilter('calculations',this)">Eng Calc</button>
+                      <button class="filter-btn" data-val="materials" onclick="setDocTypeFilter('materials',this)">Material</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <input type="hidden" id="doc-f-project" value="" />
+              <input type="hidden" id="doc-f-doctype" value="" />
+            </div>
+            <div class="card" style="min-height:490px;display:flex;flex-direction:column;">
+              <div class="card-header"><span class="card-title">Discipline Progress Comparison</span></div>
+              <div class="card-body chart-container" style="flex:1;min-height:320px;"><canvas id="chart-disc-progress"></canvas></div>
+              <div class="filter-bar-wrap" style="border-bottom:none;">
+                <div class="filter-row">
+                  <div class="filter-row-label">Project</div>
+                  <div class="filter-scroll-wrap">
+                    <div class="filter-scroll-arrow" onclick="scrollFilter('dp-f-project-scroll',-120)">&#8249;</div>
+                    <div class="filter-scroll" id="dp-f-project-scroll">
+                    </div>
+                    <div class="filter-scroll-arrow" onclick="scrollFilter('dp-f-project-scroll',120)">&#8250;</div>
+                  </div>
+                </div>
+              </div>
+              <input type="hidden" id="dp-f-project" value="" />
+            </div>
+          </div>
+          <div class="card" style="flex:1;display:flex;flex-direction:column;min-width:0;">
+            <div class="card-header"><span class="card-title">Recent Activity</span></div>
+            <div class="card-body" id="recent-activity" style="flex:1;overflow-y:auto;min-height:0;">
+              <div class="loading-state"><div class="spinner"></div><span>Loading…</span></div>
+            </div>
+          </div>
+        </div>
+	  
+	    <!-- Snapshot Modal -->
+        <div class="modal" id="snapshot-modal">
+          <div class="modal-backdrop" onclick="closeModal('snapshot-modal')"></div>
+          <div class="modal-box modal-sm">
+            <div class="modal-header">
+              <h3>Take Progress Snapshot</h3>
+              <button class="modal-close" onclick="closeModal('snapshot-modal')">✕</button>
+            </div>
+            <div class="modal-body">
+              <p style="font-size:13px;color:var(--text-3);margin-bottom:16px;">
+                Captures actual progress, manpower, and manhours for all active disciplines in the selected project, as of the date below.
+              </p>
+              <div class="form-group">
+                <label>Project <span style="color:var(--red)">*</span></label>
+                <select id="snapshot-project-sel" onchange="onSnapshotProjectChange(this.value)" style="width:100%;">
+                  <option value="">— Select Project —</option>
+                </select>
+              </div>
+              <div class="form-group" style="margin-top:12px;">
+                <label>Snapshot Date <span style="color:var(--red)">*</span></label>
+                <input type="date" id="snapshot-date-input" style="width:100%;">
+              </div>
+              <div id="snapshot-disc-preview" style="margin-top:12px;font-size:12px;color:var(--text-4);min-height:20px;"></div>
+            </div>
+            <div class="modal-footer">
+              <button class="btn btn-ghost" onclick="closeModal('snapshot-modal')">Cancel</button>
+              <button class="btn btn-primary" id="snapshot-confirm-btn" onclick="confirmSnapshot()">
+                Take Snapshot
+              </button>
+            </div>
+          </div>
+        </div>
+      `;	  
+	  
+	  applySnapshotAccess();
+
+      await loadFilters();
+      await Promise.all([reloadDocumentStatus(), reloadDiscProgress(), loadRecentActivity()]);
+      await reloadAll();
+    }
+
+    // ─── FILTERS ──────────────────────────────────────────────────────────────
+    async function loadFilters() {
+      const [
+        { data: projects, error: projectsErr },
+        { data: disciplines, error: disciplinesErr },
+        { data: roles, error: rolesErr },
+      ] = await Promise.all([
+        db.from('projects').select('id,name,code,week_start_day,working_days_per_week').order('name'),
+        db.from('disciplines').select('id,name').order('name'),
+        db.from('roles').select('key,name').order('name'),
+      ]);
+      if (projectsErr) console.warn('[dashboard:loadFilters:projects]', projectsErr.message);
+      if (disciplinesErr) console.warn('[dashboard:loadFilters:disciplines]', disciplinesErr.message);
+      if (rolesErr) console.warn('[dashboard:loadFilters:roles]', rolesErr.message);
+      projectsData    = projects || [];
+      disciplinesData = disciplines || [];
+      rolesData       = roles || [];
+
+      const ps = document.getElementById('f-project-scroll');
+      projectsData.forEach(p => {
+        const btn = document.createElement('button');
+        btn.className = 'filter-btn';
+        btn.dataset.val = p.id;
+        btn.textContent = p.code || p.name;
+        btn.title = p.name;
+        btn.onclick = () => setFilter('f-project', p.id, btn, 'f-project-scroll');
+        ps.appendChild(btn);
+      });
+
+      const ds = document.getElementById('f-discipline-scroll');
+      disciplinesData.forEach(d => {
+        const btn = document.createElement('button');
+        btn.className = 'filter-btn';
+        btn.dataset.val = d.id;
+        btn.textContent = d.name;
+        btn.onclick = () => setFilter('f-discipline', d.id, btn, 'f-discipline-scroll');
+        ds.appendChild(btn);
+      });
+
+      // MH chart filters (separate from S-curve filters)
+      const mhPs = document.getElementById('mh-f-project-scroll');
+      projectsData.forEach(p => {
+        const btn = document.createElement('button');
+        btn.className = 'filter-btn';
+        btn.dataset.val = p.id;
+        btn.textContent = p.code || p.name;
+        btn.title = p.name;
+        btn.onclick = () => setMhFilter('mh-f-project', p.id, btn, 'mh-f-project-scroll');
+        mhPs.appendChild(btn);
+      });
+
+      const mhDs = document.getElementById('mh-f-discipline-scroll');
+      disciplinesData.forEach(d => {
+        const btn = document.createElement('button');
+        btn.className = 'filter-btn';
+        btn.dataset.val = d.id;
+        btn.textContent = d.name;
+        btn.onclick = () => setMhFilter('mh-f-discipline', d.id, btn, 'mh-f-discipline-scroll');
+        mhDs.appendChild(btn);
+      });
+	  
+	  await refreshMhRoleFilter();
+	  
+	  // KPI chart filters
+      const kpiPs = document.getElementById('kpi-f-project-scroll');
+      projectsData.forEach(p => {
+        const btn = document.createElement('button');
+        btn.className = 'filter-btn';
+        btn.dataset.val = p.id;
+        btn.textContent = p.code || p.name;
+        btn.title = p.name;
+        btn.onclick = () => setKpiFilter('kpi-f-project', p.id, btn, 'kpi-f-project-scroll');
+        kpiPs.appendChild(btn);
+      });
+
+      const kpiDs = document.getElementById('kpi-f-discipline-scroll');
+      disciplinesData.forEach(d => {
+        const btn = document.createElement('button');
+        btn.className = 'filter-btn';
+        btn.dataset.val = d.id;
+        btn.textContent = d.name;
+        btn.onclick = () => setKpiFilter('kpi-f-discipline', d.id, btn, 'kpi-f-discipline-scroll');
+        kpiDs.appendChild(btn);
+      });	
+
+	  // Document Status filter
+      const docPs = document.getElementById('doc-f-project-scroll');
+      projectsData.forEach(p => {
+        const btn = document.createElement('button');
+        btn.className = 'filter-btn';
+        btn.dataset.val = p.id;
+        btn.textContent = p.code || p.name;
+        btn.title = p.name;
+        btn.onclick = () => setDocProjectFilter(p.id, btn);
+        docPs.appendChild(btn);
+      });
+	  
+	  // Discipline Progress Comparison filter
+      const dpPs = document.getElementById('dp-f-project-scroll');
+      projectsData.forEach(p => {
+        const btn = document.createElement('button');
+        btn.className = 'filter-btn';
+        btn.dataset.val = p.id;
+        btn.textContent = p.code || p.name;
+        btn.title = p.name;
+        btn.onclick = () => setDpFilter(p.id, btn);
+        dpPs.appendChild(btn);
+      });
+    }
+
+    function setFilter(inputId, val, btn, scrollId) {
+      document.getElementById(inputId).value = val;
+      document.querySelectorAll(`#${scrollId} .filter-btn`)
+        .forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      if (inputId === 'f-project') scurveTouched.project = true;
+      if (inputId === 'f-discipline') scurveTouched.discipline = true;
+      reloadScurve();
+    }
+	
+	function setKpiFilter(inputId, val, btn, scrollId) {
+      document.getElementById(inputId).value = val;
+      document.querySelectorAll(`#${scrollId} .filter-btn`)
+        .forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      if (inputId === 'kpi-f-project') kpiTouched.project = true;
+      if (inputId === 'kpi-f-discipline') kpiTouched.discipline = true;
+      // Project/Discipline changed — Doc Type and Step choices no longer apply, clear them.
+      document.getElementById('kpi-f-doctype').value = '';
+      document.getElementById('kpi-f-step').value = '';
+      kpiTouched.doctype = false;
+      kpiTouched.step = false;
+      reloadKpiChart();
+    }
+    
+    function setKpiGranularity(val, btn) {
+      kpiGranularity = val;
+      document.querySelectorAll('#kpi-f-granularity-scroll .filter-btn')
+        .forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      kpiTouched.view = true;
+      reloadKpiChart();
+    }
+
+    async function setMhFilter(inputId, val, btn, scrollId) {
+      document.getElementById(inputId).value = val;
+      document.querySelectorAll(`#${scrollId} .filter-btn`)
+        .forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      if (inputId === 'mh-f-project') mhTouched.project = true;
+      if (inputId === 'mh-f-discipline') mhTouched.discipline = true;
+      if (inputId === 'mh-f-role') mhTouched.role = true;
+      if (inputId === 'mh-f-project' || inputId === 'mh-f-discipline') {
+        await refreshMhRoleFilter();
+      }
+      reloadMhChart();
+    }
+
+    function setGranularity(val, btn) {
+      granularity = val;
+      document.querySelectorAll('#f-granularity-scroll .filter-btn')
+        .forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      scurveTouched.view = true;
+      reloadScurve();
+    }
+	
+	function setMhGranularity(val, btn) {
+      mhGranularity = val;
+      document.querySelectorAll('#mh-f-granularity-scroll .filter-btn')
+        .forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      mhTouched.view = true;
+      reloadMhChart();
+    }
+
+    function scrollFilter(scrollId, px) {
+      const el = document.getElementById(scrollId);
+      if (el) el.scrollLeft += px;
+    }
+
+    async function reloadAll() {
+      await Promise.all([reloadScurve(), reloadMhChart(), reloadKpiChart()]);
+    }
+	
+	async function reloadDiscProgress() {
+      if (!dpReady()) {
+        if (discProgChart) { discProgChart.destroy(); discProgChart = null; }
+        showChartEmptyOverlay('chart-disc-progress', 'Select a Project to view this chart.');
+        return;
+      }
+      const projId = document.getElementById('dp-f-project').value;
+
+      const { data: rocRows, error: rocErr } = await db.from('project_discipline_roc')
+        .select('discipline_id, roc, disciplines(code, name)')
+        .eq('project_id', projId);
+      if (rocErr) console.warn('[dashboard:reloadDiscProgress:project_discipline_roc]', rocErr.message);
+
+      const rocByDisc = {};
+      const discsToShow = [];
+      (rocRows || []).forEach(r => {
+        if (!r.discipline_id) return;
+        rocByDisc[r.discipline_id] = parseFloat(r.roc) || 0;
+        discsToShow.push({ id: r.discipline_id, name: r.disciplines?.name || r.disciplines?.code || '—' });
+      });
+
+      if (!discsToShow.length) {
+        if (discProgChart) { discProgChart.destroy(); discProgChart = null; }
+        showChartEmptyOverlay('chart-disc-progress', 'No disciplines assigned to this project yet.');
+        return;
+      }
+
+      // ── Planned Progress as of today, per discipline (latest planned_pct
+      // on or before today, same logic reloadScurve uses for its S-Curve) ──
+      const { data: progRowsRaw, error: progErr } = await db.from('planned_progress')
+        .select('week_start, discipline_id, planned_pct')
+        .eq('project_id', projId);
+      if (progErr) console.warn('[dashboard:reloadDiscProgress:planned_progress]', progErr.message);
+      const today = new Date();
+      const plannedByDisc = {};
+      (progRowsRaw || []).forEach(r => {
+        if (!r.discipline_id || new Date(r.week_start) > today) return;
+        const cur = plannedByDisc[r.discipline_id];
+        if (!cur || new Date(r.week_start) > new Date(cur.week_start)) plannedByDisc[r.discipline_id] = r;
+      });
+
+      const results = await Promise.all(
+        discsToShow.map(d => computeActualProgress(projId, d.id, rocByDisc))
+      );
+      const rows = discsToShow
+        .map((d, i) => ({
+          name: d.name,
+          pct: results[i] || 0,
+          plannedPct: plannedByDisc[d.id] ? Math.min(100, parseFloat(plannedByDisc[d.id].planned_pct) || 0) : null
+        }))
+        .sort((a, b) => b.pct - a.pct); // highest actual progress first
+
+      const labels      = rows.map(r => r.name);
+      const actualData  = rows.map(r => r.pct);
+      const plannedData = rows.map(r => r.plannedPct);
+      const colors      = rows.map(r => r.pct >= 80 ? '#22c55e' : r.pct >= 50 ? '#F8A145' : '#ef4444');
+
+      const canvas = document.getElementById('chart-disc-progress');
+      if (!canvas) return;
+      clearChartEmptyOverlay('chart-disc-progress');
+      if (discProgChart) discProgChart.destroy();
+      discProgChart = new Chart(canvas, {
+        type: 'bar',
+        data: {
+          labels,
+          datasets: [
+            { label: 'Actual', data: actualData, backgroundColor: colors, borderRadius: 4, maxBarThickness: 20 },
+            { label: 'Planned', data: plannedData, backgroundColor: '#5b7ba8', borderRadius: 4, maxBarThickness: 20 }
+          ]
+        },
+        options: {
+          indexAxis: 'y',
+          interaction: { mode: 'index', intersect: false, axis: 'y' },
+          plugins: {
+            legend: { display: true, position: 'top', align: 'end', labels: { color: '#888', font: { family: 'Inter', size: 12 }, boxWidth: 12, boxHeight: 12 } },
+            tooltip: { callbacks: { label: c => `${c.dataset.label}: ${c.raw == null ? '—' : c.raw.toFixed(1) + '%'}` } }
+          },
+          scales: {
+            x: { min: 0, max: 100, ticks: { color: '#888', callback: v => v + '%' }, grid: { color: '#2a2a2a' } },
+            y: { ticks: { color: '#ccc', font: { size: 12 } }, grid: { display: false } }
+          },
+          responsive: true, maintainAspectRatio: false
+        }
+      });
+    }
+
+    // ─── PERIOD HELPERS ───────────────────────────────────────────────────────
+    function buildPeriods(startDate, endDate, gran, weekStartDay) {
+      const periods = [];
+      const start = new Date(startDate);
+      const end   = new Date(endDate);
+
+      if (gran === 'year') {
+        let y = start.getFullYear();
+        const endY = end.getFullYear();
+        for (; y <= endY; y++) {
+          periods.push({
+            key: String(y),
+            label: String(y),
+            start: new Date(y, 0, 1),
+            end: new Date(y, 11, 31)
+          });
+        }
+      } else if (gran === 'month') {
+        let cur = new Date(start.getFullYear(), start.getMonth(), 1);
+        const last = new Date(end.getFullYear(), end.getMonth(), 1);
+        while (cur <= last) {
+          const y = cur.getFullYear(), m = cur.getMonth();
+          periods.push({
+            key: `${y}-${String(m+1).padStart(2,'0')}`,
+            label: cur.toLocaleDateString('en-US', { month: 'short', year: '2-digit' }),
+            start: new Date(y, m, 1),
+            end: new Date(y, m + 1, 0)
+          });
+          cur = new Date(y, m + 1, 1);
+        }
+      } else { // week
+        const wsd = weekStartDay ?? 1;
+        let cur = new Date(start);
+        const diff = (cur.getDay() - wsd + 7) % 7;
+        cur.setDate(cur.getDate() - diff);
+        cur.setHours(0,0,0,0);
+        const last = new Date(end);
+        while (cur <= last) {
+          const wEnd = new Date(cur);
+          wEnd.setDate(wEnd.getDate() + 6);
+          periods.push({
+            key: cur.toISOString().slice(0,10),
+            label: cur.toLocaleDateString('en-US', { month:'short', day:'numeric' }),
+            start: new Date(cur),
+            end: wEnd
+          });
+          cur = new Date(cur);
+          cur.setDate(cur.getDate() + 7);
+        }
+      }
+      return periods;
+    }
+
+    // ─── S-CURVE LOAD ─────────────────────────────────────────────────────────
+    async function reloadScurve() {
+	  if (!scurveReady()) {
+        if (scurveChart) { scurveChart.destroy(); scurveChart = null; }
+        showChartEmptyOverlay('chart-scurve', 'Select View, Project, and Discipline to view this chart.');
+        return;
+      }
+      const projId = document.getElementById('f-project')?.value || '';
+      const discId = document.getElementById('f-discipline')?.value || '';
+
+      const project = projectsData.find(p => p.id === projId);
+      const weekStartDay = project?.week_start_day ?? 1;
+
+      let targetQ = db.from('targets').select('id, project_id, discipline_id');
+      if (projId) targetQ = targetQ.eq('project_id', projId);
+      if (discId) targetQ = targetQ.eq('discipline_id', discId);
+      let { data: targetRows, error: targetErr } = await targetQ;
+      if (targetErr) console.warn('[dashboard:reloadScurve:targets]', targetErr.message);
+      targetRows = targetRows || [];
+      const targetIds = targetRows.map(t => t.id);
+
+      let schedRows = [];
+      if (targetIds.length) {
+        const { data, error: schedErr } = await db.from('target_schedule').select('target_id, period, manhours, headcount').in('target_id', targetIds);
+        if (schedErr) console.warn('[dashboard:reloadScurve:target_schedule]', schedErr.message);
+        schedRows = data || [];
+      }
+
+      let progQ = db.from('planned_progress').select('week_start, project_id, discipline_id, planned_pct');
+      if (projId) progQ = progQ.eq('project_id', projId);
+      if (discId) progQ = progQ.eq('discipline_id', discId);
+      let { data: progRows, error: progErr } = await progQ;
+      if (progErr) console.warn('[dashboard:reloadScurve:planned_progress]', progErr.message);
+      progRows = progRows || [];
+
+      const allDates = [
+        ...schedRows.map(r => new Date(r.period)),
+        ...progRows.map(r => new Date(r.week_start)),
+      ];
+      if (!allDates.length) {
+        renderScurveEmpty();
+        return;
+      }
+      let minD = new Date(Math.min(...allDates.map(d => d.getTime())));
+      let maxD = new Date(Math.max(...allDates.map(d => d.getTime())));
+      const today = new Date();
+      if (today > maxD) maxD = today;
+
+      const periods = buildPeriods(minD, maxD, granularity, weekStartDay);
+
+      // ── Discipline ROC (for weighting when no discipline filter is set) ──
+      let rocQ = db.from('project_discipline_roc').select('discipline_id, roc');
+      if (projId) rocQ = rocQ.eq('project_id', projId);
+      let { data: discRocRows, error: discRocErr } = await rocQ;
+      if (discRocErr) console.warn('[dashboard:reloadScurve:project_discipline_roc]', discRocErr.message);
+      discRocRows = discRocRows || [];
+      const rocByDisc = {};
+      discRocRows.forEach(r => { rocByDisc[r.discipline_id] = parseFloat(r.roc) || 0; });
+
+      // ── Planned Progress (cumulative %, weighted by discipline ROC) ──
+      const plannedProgress = periods.map(p => {
+        const relevant = progRows.filter(r => new Date(r.week_start) <= p.end);
+        if (!relevant.length) return null;
+
+        if (discId) {
+          const latest = relevant.filter(r => r.discipline_id === discId)
+            .sort((a,b) => new Date(b.week_start) - new Date(a.week_start))[0];
+          return latest ? Math.min(100, parseFloat(latest.planned_pct) || 0) : null;
+        }
+
+        // No discipline filter — replicate Targets > Progress "Overall %":
+        // sum of (discipline planned_pct * discipline ROC / 100)
+        const latestByDisc = {};
+        relevant.forEach(r => {
+          const key = r.discipline_id;
+          if (!key) return;
+          if (!latestByDisc[key] || new Date(r.week_start) > new Date(latestByDisc[key].week_start)) {
+            latestByDisc[key] = r;
+          }
+        });
+        if (!Object.keys(latestByDisc).length) return null;
+
+        const total = Object.entries(latestByDisc).reduce((s, [dId, r]) => {
+          const roc = rocByDisc[dId] || 0;
+          const pct = parseFloat(r.planned_pct) || 0;
+          return s + (pct * roc / 100);
+        }, 0);
+        return total > 0 ? Math.min(100, total) : null;
+      });
+
+      // ── Actual Progress (single current snapshot via ROC + KPI tree) ──
+      const actualProgressNow = await computeActualProgress(projId, discId, rocByDisc);
+
+      let snapQ = db.from('progress_snapshots')
+        .select('snapshot_date, discipline_id, actual_progress, actual_mp, planned_mp, actual_mh, planned_mh');
+      if (projId) snapQ = snapQ.eq('project_id', projId);
+      if (discId) snapQ = snapQ.eq('discipline_id', discId);
+      let { data: snapRows, error: snapErr } = await snapQ.order('snapshot_date');
+      if (snapErr) console.warn('[dashboard:reloadScurve:progress_snapshots]', snapErr.message);
+      snapRows = snapRows || [];
+
+      const actualProgress = periods.map(p => {
+        const isCurrentPeriod = today >= p.start && today <= p.end;
+        if (isCurrentPeriod) return actualProgressNow;
+
+        const snapsInPeriod = snapRows.filter(s => {
+          const sd = new Date(s.snapshot_date);
+          return sd >= p.start && sd <= p.end;
+        });
+        if (!snapsInPeriod.length) return null;
+
+        if (discId) {
+          const last = snapsInPeriod.sort((a,b)=> new Date(b.snapshot_date)-new Date(a.snapshot_date))[0];
+          return parseFloat(last.actual_progress) || 0;
+        }
+
+        const byDisc = {};
+        snapsInPeriod.forEach(s => {
+          if (!byDisc[s.discipline_id] || new Date(s.snapshot_date) > new Date(byDisc[s.discipline_id].snapshot_date)) {
+            byDisc[s.discipline_id] = s;
+          }
+        });
+        let total = 0;
+        Object.entries(byDisc).forEach(([dId, s]) => {
+          const weight = (rocByDisc[dId] || 0) / 100;
+          total += (parseFloat(s.actual_progress) || 0) * weight;
+        });
+        return total;
+      });
+
+      // ── Planned Manpower (from target_schedule.headcount, by month) ──
+      const plannedByMonthKey = {};
+      schedRows.forEach(r => {
+        const d = new Date(r.period);
+        const mKey = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+        plannedByMonthKey[mKey] = (plannedByMonthKey[mKey] || 0) + (parseFloat(r.headcount) || 0);
+      });
+      const plannedMP = periods.map(p => {
+        if (granularity === 'year') {
+          const months = Object.keys(plannedByMonthKey).filter(k => k.startsWith(p.key + '-'));
+          if (!months.length) return null;
+          const sum = months.reduce((s,k) => s + plannedByMonthKey[k], 0);
+          return sum / months.length;
+        }
+        const mKey = `${p.start.getFullYear()}-${String(p.start.getMonth()+1).padStart(2,'0')}`;
+        return plannedByMonthKey[mKey] ?? null;
+      });
+
+      // ── Actual Manpower (from users table — current snapshot; history from progress_snapshots) ──
+      const actualMPNow = await getActualManpower(projId, discId);
+      const actualMP = periods.map(p => {
+        const isCurrentPeriod = today >= p.start && today <= p.end;
+        if (isCurrentPeriod) return actualMPNow;
+
+        const snapsInPeriod = snapRows.filter(s => {
+          const sd = new Date(s.snapshot_date);
+          return sd >= p.start && sd <= p.end;
+        });
+        if (!snapsInPeriod.length) return null;
+
+        if (discId) {
+          const last = snapsInPeriod.sort((a,b)=> new Date(b.snapshot_date)-new Date(a.snapshot_date))[0];
+          return parseFloat(last.actual_mp) || 0;
+        }
+        const byDisc = {};
+        snapsInPeriod.forEach(s => {
+          if (!byDisc[s.discipline_id] || new Date(s.snapshot_date) > new Date(byDisc[s.discipline_id].snapshot_date)) {
+            byDisc[s.discipline_id] = s;
+          }
+        });
+        return Object.values(byDisc).reduce((sum,s) => sum + (parseFloat(s.actual_mp) || 0), 0);
+      });
+
+      drawScurve(periods.map(p => p.label), plannedProgress, actualProgress, plannedMP, actualMP);
+    }
+	
+	function showChartEmptyOverlay(canvasId, msg) {
+      const canvas = document.getElementById(canvasId);
+      if (!canvas) return;
+      // clear any stale drawing
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      // use a positioned overlay div so text is always truly centered
+      const wrap = canvas.closest('.chart-container, .scurve-chart-wrap');
+      if (!wrap) return;
+      wrap.style.position = 'relative';
+      // remove any existing overlay
+      wrap.querySelectorAll('.chart-empty-overlay').forEach(el => el.remove());
+      const div = document.createElement('div');
+      div.className = 'chart-empty-overlay';
+      div.style.cssText = 'position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;';
+      div.innerHTML = `<span style="font-size:13px;color:#555;text-align:center;padding:0 24px;">${msg}</span>`;
+      wrap.appendChild(div);
+    }
+    
+    function clearChartEmptyOverlay(canvasId) {
+      const canvas = document.getElementById(canvasId);
+      if (!canvas) return;
+      const wrap = canvas.closest('.chart-container, .scurve-chart-wrap');
+      if (wrap) wrap.querySelectorAll('.chart-empty-overlay').forEach(el => el.remove());
+    }
+
+    function renderScurveEmpty() {
+      if (scurveChart) { scurveChart.destroy(); scurveChart = null; }
+      showChartEmptyOverlay('chart-scurve', 'No schedule or progress data found for this selection.');
+    }
+
+    function drawScurve(labels, plannedProgress, actualProgress, plannedMP, actualMP) {
+	  clearChartEmptyOverlay('chart-scurve');
+      const canvas = document.getElementById('chart-scurve');
+      if (!canvas) return;
+      if (scurveChart) scurveChart.destroy();
+
+      scurveChart = new Chart(canvas, {
+        data: {
+          labels,
+          datasets: [
+            {
+              type: 'bar',
+              label: 'Planned Manpower',
+              data: plannedMP,
+              backgroundColor: 'rgba(96,165,250,0.6)',
+              borderRadius: 4,
+              yAxisID: 'y1',
+              order: 2
+            },
+            {
+              type: 'bar',
+              label: 'Actual Manpower',
+              data: actualMP,
+              backgroundColor: 'rgba(240,121,0,0.75)',
+              borderRadius: 4,
+              yAxisID: 'y1',
+              order: 2
+            },
+            {
+              type: 'line',
+              label: 'Planned Progress %',
+              data: plannedProgress,
+              borderColor: '#22c55e',
+              backgroundColor: 'rgba(34,197,94,0.08)',
+              borderWidth: 2, tension: 0.3, fill: false,
+              pointRadius: 2, spanGaps: true, yAxisID: 'y', order: 1
+            },
+            {
+              type: 'line',
+              label: 'Actual Progress %',
+              data: actualProgress,
+              borderColor: '#38bdf8',
+              backgroundColor: 'rgba(56,189,248,0.08)',
+              borderWidth: 2, tension: 0.3, fill: false,
+              pointRadius: 2, spanGaps: true, yAxisID: 'y', order: 1
+            },
+          ]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          interaction: { mode: 'index', intersect: false },
+          plugins: { legend: { display: false } },
+          scales: {
+            y: {
+              type: 'linear',
+              position: 'left',
+              min: 0, max: 100,
+              grid: { color: '#222' },
+              ticks: { color: '#666', callback: v => v + '%' },
+              title: { display: true, text: 'Progress %', color: '#888' }
+            },
+            y1: {
+              type: 'linear',
+              position: 'right',
+              beginAtZero: true,
+              grid: { display: false },
+              ticks: { color: '#666' },
+              title: { display: true, text: 'Headcount', color: '#888' }
+            },
+            x: { grid: { display: false }, ticks: { color: '#666' } }
+          }
+        }
+      });
+    }
+
+    // ─── ACTUAL PROGRESS (ROC + KPI based) ───────────────────────────────────
+    async function computeActualProgress(projId, discId, rocByDisc) {
+      if (!projId) return null;
+
+      let kpiQ = db.from('target_kpi')
+        .select('id, estimated_output, project_id, discipline_id, doc_code_id, step_id, document_codes(id, code, type, activity_type), workflow_steps(id, name, sort_order, activity_type)')
+        .eq('project_id', projId);
+      if (discId) kpiQ = kpiQ.eq('discipline_id', discId);
+      const { data: kpiRows, error: kpiErr } = await kpiQ;
+      if (kpiErr) console.warn('[dashboard:computeActualProgress:target_kpi]', kpiErr.message);
+      if (!kpiRows || !kpiRows.length) return null;
+
+      let rocQ = db.from('roc_items')
+        .select('discipline_id, doc_code_id, weight, roc_step_items(step_name, weight)')
+        .eq('project_id', projId);
+      if (discId) rocQ = rocQ.eq('discipline_id', discId);
+      const { data: rocRows, error: rocErr } = await rocQ;
+      if (rocErr) console.warn('[dashboard:computeActualProgress:roc_items]', rocErr.message);
+      const rocMap = {};
+      (rocRows || []).forEach(r => {
+        const key = r.discipline_id + '|' + r.doc_code_id;
+        rocMap[key] = { weight: parseFloat(r.weight) || 0, steps: {} };
+        (r.roc_step_items || []).forEach(s => {
+          rocMap[key].steps[s.step_name] = parseFloat(s.weight) || 0;
+        });
+      });
+	  
+	  // Resolve project code once — used by both calc and materials queries
+      const { data: projRow, error: projRowErr } = await db.from('projects').select('code').eq('id', projId).single();
+      if (projRowErr) console.warn('[dashboard:computeActualProgress:projects]', projRowErr.message);
+      const projCode = projRow?.code || null;
+
+      // ── Step sort-order lookup, per activity_type ───────────────────────
+      // Rules of Credit steps are weighted INCREMENTALLY (each doc code's steps
+      // sum to 100% — see Targets > Rules of Credit). That means a drawing/doc
+      // currently sitting at e.g. "Checked" has already earned the credit for
+      // every earlier step too (e.g. "Draft"), not just the one it's on right
+      // now. We need each step's sort_order to credit "reached this step or
+      // later", instead of only an exact status match.
+      const { data: allSteps, error: allStepsErr } = await db.from('workflow_steps').select('name, sort_order, activity_type');
+      if (allStepsErr) console.warn('[dashboard:computeActualProgress:workflow_steps]', allStepsErr.message);
+      const stepOrderByType = {};
+      (allSteps || []).forEach(s => {
+        const t = s.activity_type || 'drawing';
+        stepOrderByType[t] = stepOrderByType[t] || {};
+        stepOrderByType[t][s.name] = parseFloat(s.sort_order) || 0;
+      });
+      // Returns true if `currentStatus` has reached or passed `stepName`, using sort_order.
+      // Falls back to an exact match if we don't have order info for either status.
+      function reachedStep(currentStatus, stepName, activityType) {
+        const orderMap = stepOrderByType[activityType];
+        if (!orderMap || orderMap[currentStatus] == null || orderMap[stepName] == null) {
+          return currentStatus === stepName;
+        }
+        return orderMap[currentStatus] >= orderMap[stepName];
+      }
+
+      const { data: models, error: modelsErr } = await db.from('models_3d')
+        .select('id, discipline_id, project_id, status, step_progress')
+        .eq('project_id', projId);
+      if (modelsErr) console.warn('[dashboard:computeActualProgress:models_3d]', modelsErr.message);
+
+      // Real per-type deliverable tables (must match Admin > Deliverables "Source Table"
+      // options and the per-type tables used on the monitoring pages / manhours input).
+      const DRAWING_TABLES = ['erection_drawings', 'fabrication_drawings', 'support_drawings', 'weld_map_drawings'];
+
+      const hasDrawingKpi = kpiRows.some(k => k.document_codes?.activity_type === 'drawing');
+      const drawingRowsByTable = {};
+      if (hasDrawingKpi) {
+        for (const table of DRAWING_TABLES) {
+          const { data, error } = await db.from(table).select('status, discipline_id, drawing_number, project_id').eq('project_id', projId);
+          if (error) console.warn(`[dashboard:computeActualProgress:${table}]`, error.message);
+          if (!error) drawingRowsByTable[table] = data || [];
+        }
+      }
+
+      // ── Test Packages ───────────────────────────────────────────────────
+      const hasTestPkgKpi = kpiRows.some(k => k.document_codes?.activity_type === 'test_package');
+      let testPkgRows = [];
+      if (hasTestPkgKpi) {
+        const { data, error } = await db.from('test_package_drawings')
+          .select('status, discipline_id, project_id').eq('project_id', projId);
+        if (error) console.warn('[dashboard:computeActualProgress:test_package_drawings]', error.message);
+        if (!error) testPkgRows = data || [];
+      }
+
+      // ── Engineering Calculations ────────────────────────────────────────
+      // NOTE: eng_calculations links to a project via `project_code` (text), not
+      // project_id, in the rest of the app. Confirm `discipline_id` exists on this
+      // table in your schema — if it doesn't, calc contributions will read as 0
+      // (same as today) rather than throwing, but the discipline split won't be right.
+      const hasCalcKpi = kpiRows.some(k => k.document_codes?.activity_type === 'calculations');
+      let calcRows = [];
+      if (hasCalcKpi && projCode) {
+        const { data, error } = await db.from('eng_calculations')
+          .select('status, discipline_id, project_code').eq('project_code', projCode);
+        if (error) console.warn('[dashboard:computeActualProgress:eng_calculations]', error.message);
+        if (!error) calcRows = data || [];
+      }
+
+      // ── Materials ────────────────────────────────────────────────────────
+      // NOTE: material_status stores `discipline_code` (text, e.g. "PIP"), not a
+      // discipline_id FK, so we resolve it via disciplines.code below.
+      const hasMaterialsKpi = kpiRows.some(k => k.document_codes?.activity_type === 'materials');
+      let materialRows = [];
+      let disciplineCodeById = {};
+      if (hasMaterialsKpi) {
+        const { data: discRows, error: discRowsErr } = await db.from('disciplines').select('id, code');
+        if (discRowsErr) console.warn('[dashboard:computeActualProgress:disciplines]', discRowsErr.message);
+        (discRows || []).forEach(d => { disciplineCodeById[d.id] = d.code; });
+        const { data, error } = await db.from('material_status')
+          .select('status, discipline_code, project_code')
+          .eq('project_code', projCode || '__no_match__');  // filter by project
+        if (error) console.warn('[dashboard:computeActualProgress:material_status]', error.message);
+        if (!error) materialRows = data || [];
+      }
+
+      let totalContribution = 0;
+
+      for (const kpi of kpiRows) {
+        const docCode = kpi.document_codes;
+        const step    = kpi.workflow_steps;
+        if (!docCode || !step) continue;
+
+        const rocKey = kpi.discipline_id + '|' + kpi.doc_code_id;
+        const roc     = rocMap[rocKey];
+        if (!roc) continue;
+
+        const discWeight = discId ? 1 : ((rocByDisc[kpi.discipline_id] || 0) / 100);
+        const docWeight  = (roc.weight || 0) / 100;
+        const stepWeight = (roc.steps[step.name] || 0) / 100;
+
+        if (!discWeight || !docWeight || !stepWeight) continue;
+
+        const estOutput = parseFloat(kpi.estimated_output) || 0;
+        if (!estOutput) continue;
+
+        let actualCount = 0;
+
+        if (docCode.activity_type === 'model') {
+          (models || []).forEach(m => {
+            if (m.discipline_id !== kpi.discipline_id) return;
+            const sp = m.step_progress || {};
+            actualCount += parseFloat(sp[step.name] || 0); // raw tons now
+          });
+        } else if (docCode.activity_type === 'drawing') {
+          const codePrefix = (docCode.code || '').toUpperCase();
+          Object.values(drawingRowsByTable).forEach(rows => {
+            rows.forEach(r => {
+              if (r.discipline_id !== kpi.discipline_id) return;
+              const code = (r.drawing_number || '').toUpperCase();
+              if (codePrefix && !code.startsWith(codePrefix)) return;
+              if (reachedStep(r.status, step.name, 'drawing')) actualCount += 1;
+            });
+          });
+        } else if (docCode.activity_type === 'test_package') {
+          testPkgRows.forEach(r => {
+            if (r.discipline_id !== kpi.discipline_id) return;
+            if (reachedStep(r.status, step.name, 'test_package')) actualCount += 1;
+          });
+        } else if (docCode.activity_type === 'calculations') {
+          calcRows.forEach(r => {
+            if (r.discipline_id !== kpi.discipline_id) return;
+            if (reachedStep(r.status, step.name, 'calculations')) actualCount += 1;
+          });
+        } else if (docCode.activity_type === 'materials') {
+          const discCode = disciplineCodeById[kpi.discipline_id];
+          materialRows.forEach(r => {
+            if (discCode && r.discipline_code !== discCode) return;
+            if (reachedStep(r.status, step.name, 'materials')) actualCount += 1;
+          });
+        }
+
+        const stepActualPct = Math.min(1, actualCount / estOutput);
+        totalContribution += discWeight * docWeight * stepWeight * stepActualPct * 100;
+      }
+
+      return parseFloat(Math.min(100, totalContribution).toFixed(2));
+    }
+
+    // ─── ACTUAL MANPOWER (from users table) ──────────────────────────────────
+    async function getActualManpower(projId, discId) {
+      if (!projId) return 0;
+      let q = db.from('users').select('id').eq('project_id', projId).eq('is_active', true);
+      if (discId) q = q.eq('discipline_id', discId);
+      const { data, error } = await q;
+      if (error) console.warn('[dashboard:getActualManpower:users]', error.message);
+      return (data || []).length;
+    }
+
+    // ─── ALLOTTED VS ACTUAL MANHOURS CHART ───────────────────────────────────
+    async function reloadMhChart() {
+	  if (!mhReady()) {
+        if (mpChart) { mpChart.destroy(); mpChart = null; }
+        showChartEmptyOverlay('chart-manhours', 'Select View, Project, Discipline, and Role to view this chart.');
+        return;
+      }
+      const projId = document.getElementById('mh-f-project')?.value || '';
+      const discId = document.getElementById('mh-f-discipline')?.value || '';
+      const roleKey = document.getElementById('mh-f-role')?.value || '';
+
+      const project = projectsData.find(p => p.id === projId);
+      const weekStartDay = project?.week_start_day ?? 1;
+      const workingDaysPerWeek = project?.working_days_per_week ?? 6;
+
+      let targetQ = db.from('targets').select('id, project_id, discipline_id');
+      if (projId) targetQ = targetQ.eq('project_id', projId);
+      if (discId) targetQ = targetQ.eq('discipline_id', discId);
+      if (roleKey) targetQ = targetQ.eq('role_key', roleKey);
+      let { data: targetRows, error: targetErr } = await targetQ;
+      if (targetErr) console.warn('[dashboard:reloadMhChart:targets]', targetErr.message);
+      targetRows = targetRows || [];
+      const targetIds = targetRows.map(t => t.id);
+
+      let schedRows = [];
+      if (targetIds.length) {
+        const { data, error: schedErr } = await db.from('target_schedule').select('target_id, period, manhours, headcount').in('target_id', targetIds);
+        if (schedErr) console.warn('[dashboard:reloadMhChart:target_schedule]', schedErr.message);
+        schedRows = data || [];
+      }
+
+      if (!schedRows.length) {
+        renderMhEmpty();
+        return;
+      }
+
+      const allDates = schedRows.map(r => new Date(r.period));
+      let minD = new Date(Math.min(...allDates.map(d => d.getTime())));
+      let maxD = new Date(Math.max(...allDates.map(d => d.getTime())));
+      const today = new Date();
+      if (today > maxD) maxD = today;
+
+      const periods = buildPeriods(minD, maxD, mhGranularity, weekStartDay);
+
+      // ── Weekly working-day helper ─────────────────────────────────────────
+      // Count working days that fall within [rangeStart, rangeEnd] AND within the given month,
+      // per the project's Working Days per Week setting (6-day: Sun off; 5-day: Sat+Sun off).
+      // Used only for the weekly view to prorate weeks that span two months.
+      function countWorkingDaysOverlap(year, month, rangeStart, rangeEnd, workingDaysPerWeek) {
+        const monthStart = new Date(year, month, 1);
+        const monthEnd   = new Date(year, month + 1, 0);
+        const start = rangeStart > monthStart ? rangeStart : monthStart;
+        const end   = rangeEnd   < monthEnd   ? rangeEnd   : monthEnd;
+        if (start > end) return 0;
+        const offDays = workingDaysPerWeek === 5 ? [0, 6] : [0]; // 5-day: Sat+Sun off; 6-day: Sun only
+        let count = 0;
+        const cur = new Date(start);
+        while (cur <= end) {
+          if (!offDays.includes(cur.getDay())) count++;
+          cur.setDate(cur.getDate() + 1);
+        }
+        return count;
+      }
+
+      // Allotted MH per month using the established procedure: headcount x manhours x 26
+      const allottedByMonthKey = {};
+      schedRows.forEach(r => {
+        const d = new Date(r.period);
+        const mKey = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+        const monthlyMH = (parseFloat(r.headcount) || 0) * (parseFloat(r.manhours) || 0) * 26;
+        allottedByMonthKey[mKey] = (allottedByMonthKey[mKey] || 0) + monthlyMH;
+      });
+
+      const allottedMH = periods.map(p => {
+        if (mhGranularity === 'year') {
+          const months = Object.keys(allottedByMonthKey).filter(k => k.startsWith(p.key + '-'));
+          if (!months.length) return null;
+          return months.reduce((s, k) => s + allottedByMonthKey[k], 0);
+        }
+        if (mhGranularity === 'week') {
+          // Derive daily rate from the x26 monthly total, then multiply by actual Mon-Sat
+          // days this week overlaps with each month (handles weeks spanning two months).
+          let total = 0;
+          const weekEnd = new Date(p.end.getFullYear(), p.end.getMonth(), p.end.getDate(), 23, 59, 59);
+          const monthsInWeek = new Set();
+          const cur = new Date(p.start);
+          while (cur <= p.end) {
+            monthsInWeek.add(`${cur.getFullYear()}-${String(cur.getMonth()+1).padStart(2,'0')}`);
+            cur.setDate(cur.getDate() + 1);
+          }
+          for (const mKey of monthsInWeek) {
+            const monthlyMH = allottedByMonthKey[mKey];
+            if (!monthlyMH) continue;
+            const [y, m] = mKey.split('-').map(Number);
+            const dailyRate = monthlyMH / 26; // reverse of x26 to get per-day rate
+            const wd = countWorkingDaysOverlap(y, m - 1, p.start, weekEnd, workingDaysPerWeek);
+            total += dailyRate * wd;
+          }
+          return total > 0 ? parseFloat(total.toFixed(2)) : null;
+        }
+        // Monthly view unchanged - established x26 formula
+        const mKey = `${p.start.getFullYear()}-${String(p.start.getMonth()+1).padStart(2,'0')}`;
+        return allottedByMonthKey[mKey] ?? null;
+      });
+
+      // Actual MH — sum of all activity logs (drawing, model, other) per period,
+      // filtered by target_id -> targets.project_id / discipline_id
+      let actMHQ = db.from('targets').select('id, project_id, discipline_id');
+      if (projId) actMHQ = actMHQ.eq('project_id', projId);
+      if (discId) actMHQ = actMHQ.eq('discipline_id', discId);
+      if (roleKey) actMHQ = actMHQ.eq('role_key', roleKey);
+      const { data: allTargets, error: allTargetsErr } = await actMHQ;
+      if (allTargetsErr) console.warn('[dashboard:reloadMhChart:targets2]', allTargetsErr.message);
+      const relevantTargetIds = new Set((allTargets || []).map(t => t.id));
+
+      const DISC_ACT_TABLES = [
+        'erection_drawing_activities', 'fabrication_drawing_activities',
+        'support_drawing_activities',  'weld_map_drawing_activities',
+        'test_package_drawing_activities',
+      ];
+      const discActFetches = DISC_ACT_TABLES.map(t =>
+        db.from(t).select('manhours, created_at, target_id').then(r => {
+          if (r.error) console.warn(`[dashboard:reloadMhChart:${t}]`, r.error.message);
+          return r.data || [];
+        })
+      );
+      const [discActArrays, { data: modelActs, error: modelActsErr }, { data: otherActs, error: otherActsErr }] = await Promise.all([
+        Promise.all(discActFetches),
+        db.from('model_activities').select('manhours, created_at, target_id'),
+        db.from('other_activity_logs').select('manhours, created_at, target_id'),
+      ]);
+      if (modelActsErr) console.warn('[dashboard:reloadMhChart:model_activities]', modelActsErr.message);
+      if (otherActsErr) console.warn('[dashboard:reloadMhChart:other_activity_logs]', otherActsErr.message);
+      const drawActs = discActArrays.flat();
+
+      // Entries with no target_id should only count toward the fully-unfiltered
+      // "All" view — they must never bypass a specific Project/Discipline/Role
+      // filter, or they'd get double-counted into every discipline's chart.
+      const noFiltersActive = !projId && !discId && !roleKey;
+      const allActs = [
+        ...(drawActs || []), ...(modelActs || []), ...(otherActs || [])
+      ].filter(a => (noFiltersActive && !a.target_id) || relevantTargetIds.has(a.target_id));
+
+      const actualMH = periods.map(p => {
+        const sum = allActs.filter(a => {
+          const t = new Date(a.created_at);
+          return t >= p.start && t <= new Date(p.end.getFullYear(), p.end.getMonth(), p.end.getDate(), 23, 59, 59);
+        }).reduce((s, a) => s + (parseFloat(a.manhours) || 0), 0);
+        return parseFloat(sum.toFixed(2));
+      });
+
+      drawMhChart(periods.map(p => p.label), allottedMH, actualMH);
+    }
+	
+	async function refreshMhRoleFilter() {
+      const projId = document.getElementById('mh-f-project')?.value || '';
+      const discId = document.getElementById('mh-f-discipline')?.value || '';
+
+      let q = db.from('targets').select('role_key');
+      if (projId) q = q.eq('project_id', projId);
+      if (discId) q = q.eq('discipline_id', discId);
+      const { data: rows, error } = await q;
+      if (error) console.warn('[dashboard:refreshMhRoleFilter:targets]', error.message);
+
+      const usedKeys = new Set((rows || []).map(r => r.role_key).filter(Boolean));
+      const visibleRoles = rolesData.filter(r => usedKeys.has(r.key));
+
+      const currentVal = document.getElementById('mh-f-role')?.value || '';
+      const stillValid = !currentVal || usedKeys.has(currentVal);
+      if (!stillValid) document.getElementById('mh-f-role').value = '';
+
+      const mhRs = document.getElementById('mh-f-role-scroll');
+      mhRs.innerHTML = `<button class="filter-btn" data-val="" onclick="setMhFilter('mh-f-role','',this,'mh-f-role-scroll')">All</button>`;
+      visibleRoles.forEach(r => {
+        const btn = document.createElement('button');
+        btn.className = 'filter-btn';
+        btn.dataset.val = r.key;
+        btn.textContent = r.name;
+        btn.onclick = () => setMhFilter('mh-f-role', r.key, btn, 'mh-f-role-scroll');
+        mhRs.appendChild(btn);
+      });
+
+      const activeVal = stillValid ? currentVal : '';
+      mhRs.querySelectorAll('.filter-btn').forEach(b => {
+        b.classList.toggle('active', b.dataset.val === activeVal);
+      });
+    }
+
+    function renderMhEmpty() {
+      if (mpChart) { mpChart.destroy(); mpChart = null; }
+      showChartEmptyOverlay('chart-manhours', 'No manhour schedule found for this selection.');
+    }
+
+    function drawMhChart(labels, allottedMH, actualMH) {
+	  clearChartEmptyOverlay('chart-manhours');
+      const canvas = document.getElementById('chart-manhours');
+      if (!canvas) return;
+      if (mpChart) mpChart.destroy();
+
+      mpChart = new Chart(canvas, {
+        type: 'bar',
+        data: {
+          labels,
+          datasets: [
+            {
+              label: 'Allotted Manhours',
+              data: allottedMH,
+              backgroundColor: 'rgba(96,165,250,0.6)',
+              borderRadius: 4,
+            },
+            {
+              label: 'Actual Manhours',
+              data: actualMH,
+              backgroundColor: 'rgba(240,121,0,0.75)',
+              borderRadius: 4,
+            },
+          ]
+        },
+        options: {
+		  responsive: true, maintainAspectRatio: false,
+		  interaction: { mode: 'index', intersect: false },
+		  plugins: { legend: { display: false } },
+		  scales: {
+            y: {
+              beginAtZero: true,
+              grid: { color: '#222' },
+              ticks: { color: '#666' },
+              title: { display: true, text: 'Manhours', color: '#888' }
+            },
+            x: { grid: { display: false }, ticks: { color: '#666' } }
+          }
+        }
+      });
+    }
+
+  function populateKpiDocTypes(kpiRows) {
+    const scroll = document.getElementById('kpi-f-doctype-scroll');
+    if (!scroll) return;
+    const currentVal = document.getElementById('kpi-f-doctype').value;
+    const seen = new Map();
+    kpiRows.forEach(k => {
+      const dc = k.document_codes;
+      if (dc && !seen.has(dc.id)) seen.set(dc.id, dc.code || dc.id);
+    });
+    // Build new key to detect if options changed
+    const newKey = [...seen.keys()].sort().join(',');
+    const oldKey = [...scroll.querySelectorAll('.filter-btn[data-val]')]
+      .map(b => b.dataset.val).sort().join(',');
+    if (newKey === oldKey) {
+      // Options unchanged — just ensure correct active state without rebuilding
+      scroll.querySelectorAll('.filter-btn').forEach(b => {
+        b.classList.toggle('active', b.dataset.val === currentVal);
+      });
+      return;
+    }
+    // Rebuild buttons — no "All" option, every doc type must be picked explicitly
+    scroll.innerHTML = '';
+    seen.forEach((label, id) => {
+      const btn = document.createElement('button');
+      btn.className = 'filter-btn' + (id === currentVal ? ' active' : '');
+      btn.dataset.val = id;
+      btn.textContent = label;
+      btn.onclick = () => setKpiDocType(id, btn);
+      scroll.appendChild(btn);
+    });
+    // Keep hidden input in sync (only reset if previous selection no longer exists)
+    if (currentVal && !seen.has(currentVal)) {
+      document.getElementById('kpi-f-doctype').value = '';
+      kpiTouched.doctype = false;
+    }
+  }
+
+  // Populate step filter based on doc type selection
+  function populateKpiSteps(kpiRows, docCodeId) {
+    const scroll = document.getElementById('kpi-f-step-scroll');
+    if (!scroll) return;
+    const currentVal = document.getElementById('kpi-f-step').value;
+    const seen = new Map();
+    kpiRows.forEach(k => {
+      if (docCodeId && k.doc_code_id !== docCodeId) return;
+      const ws = k.workflow_steps;
+      if (ws && !seen.has(ws.id)) seen.set(ws.id, { label: ws.name || ws.id, order: parseFloat(ws.sort_order) || 0 });
+    });
+    const newKey = [...seen.keys()].sort().join(',');
+    const oldKey = [...scroll.querySelectorAll('.filter-btn[data-val]')]
+      .map(b => b.dataset.val).sort().join(',');
+    if (newKey === oldKey) {
+      scroll.querySelectorAll('.filter-btn').forEach(b => {
+        b.classList.toggle('active', b.dataset.val === currentVal);
+      });
+      return;
+    }
+    // Rebuild buttons, ordered by the step's workflow sort_order — no "All"
+    // option, every step must be picked explicitly
+    scroll.innerHTML = '';
+    const sortedSteps = [...seen.entries()].sort((a, b) => a[1].order - b[1].order);
+    sortedSteps.forEach(([id, { label }]) => {
+      const btn = document.createElement('button');
+      btn.className = 'filter-btn' + (id === currentVal ? ' active' : '');
+      btn.dataset.val = id;
+      btn.textContent = label;
+      btn.onclick = () => setKpiStep(id, btn);
+      scroll.appendChild(btn);
+    });
+    if (currentVal && !seen.has(currentVal)) {
+      document.getElementById('kpi-f-step').value = '';
+      kpiTouched.step = false;
+    }
+  }
+
+  function setKpiDocType(val, btn) {
+    document.getElementById('kpi-f-doctype').value = val;
+    document.querySelectorAll('#kpi-f-doctype-scroll .filter-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    kpiTouched.doctype = true;
+    if (window._kpiRowsCache) {
+      populateKpiSteps(window._kpiRowsCache, val);
+    }
+    reloadKpiChart();
+  }
+
+  function setKpiStep(val, btn) {
+    document.getElementById('kpi-f-step').value = val;
+    document.querySelectorAll('#kpi-f-step-scroll .filter-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    kpiTouched.step = true;
+    reloadKpiChart();
+  }
+  
+  const KPI_UNITS = {
+    model:        'MH / TON',
+    drawing:      'MH / SHT',
+    test_package: 'MH / PKG',
+    materials:    'MH / MTO',
+    calculations: 'MH / CAL',
+  };
+
+ async function reloadKpiChart() {
+   if (!kpiBaseReady()) {
+    if (kpiChart) { kpiChart.destroy(); kpiChart = null; }
+    showChartEmptyOverlay('chart-kpi', 'Select View, Project, and Discipline to view this chart.');
+    return;
+  }
+   const projId  = document.getElementById('kpi-f-project')?.value  || '';
+   const discId  = document.getElementById('kpi-f-discipline')?.value || '';
+   const docTypeId = document.getElementById('kpi-f-doctype')?.value || '';
+   const stepId  = document.getElementById('kpi-f-step')?.value     || '';
+   const project = projectsData.find(p => p.id === projId);
+   const weekStartDay = project?.week_start_day ?? 1;
+ 
+   // 1. Load target_kpi rows for this project/discipline
+   let kpiQ = db.from('target_kpi')
+     .select('id, target_value, discipline_id, doc_code_id, step_id, document_codes(id, code, activity_type), workflow_steps(id, name, sort_order)')
+     .eq('project_id', projId || undefined);
+   if (!projId) {
+     kpiQ = db.from('target_kpi')
+       .select('id, target_value, discipline_id, doc_code_id, step_id, document_codes(id, code, activity_type), workflow_steps(id, name, sort_order)');
+   }
+   if (discId) kpiQ = kpiQ.eq('discipline_id', discId);
+   let { data: kpiRows, error: kpiRowsErr } = await kpiQ;
+   if (kpiRowsErr) console.warn('[dashboard:reloadKpiChart:target_kpi]', kpiRowsErr.message);
+ 
+   if (!kpiRows || !kpiRows.length) {
+     renderKpiEmpty('No KPI targets defined for this selection.');
+     return;
+   }
+ 
+   // Cache for cascading filter repopulation
+   window._kpiRowsCache = kpiRows;
+ 
+   // Populate doc type filter (only on first load or when disc/project changes — safe to always call)
+   populateKpiDocTypes(kpiRows);
+   
+   // Populate step filter scoped to current doc type selection
+   populateKpiSteps(kpiRows, docTypeId);
+   
+   if (!kpiFullyReady()) {
+    renderKpiEmpty('Select Doc Type and Step to view this chart.');
+    return;
+  }
+  
+  if (!kpiRows.length) {
+    renderKpiEmpty('No KPI targets defined for this selection.');
+    return;
+  }
+  
+  // Rows with target_value === null were explicitly marked "N" (not tracked).
+  const trackedKpiRows = kpiRows.filter(k => k.target_value != null);
+  if (!trackedKpiRows.length) {
+    renderKpiEmpty('No KPI tracking is defined for this item.');
+    return;
+  }
+  kpiRows = trackedKpiRows;
+ 
+   // Apply doc type + step filter on kpi rows
+   if (docTypeId) kpiRows = kpiRows.filter(k => k.doc_code_id === docTypeId);
+   if (stepId)    kpiRows = kpiRows.filter(k => k.step_id    === stepId);
+ 
+   if (!kpiRows.length) {
+     renderKpiEmpty('No KPI targets defined for this selection.');
+     return;
+   }
+ 
+   // 2. Load actual activities for this KPI's activity type.
+   // Doc Type selection is required before the chart can render (no "All" option),
+   // so every row in kpiRows at this point shares the same document_codes.activity_type.
+   const actType = kpiRows[0]?.document_codes?.activity_type || 'drawing';
+
+   let allActs = [];
+
+   if (actType !== 'model') {
+     // Drawing, test_package, materials, and calculations activity logs all
+     // carry project_id, discipline_id, and step_done directly.
+     const DIRECT_ACTIVITY_TABLES = {
+       drawing: [
+         { act: 'erection_drawing_activities',     fk: 'erection_drawing_id' },
+         { act: 'fabrication_drawing_activities',  fk: 'fabrication_drawing_id' },
+         { act: 'support_drawing_activities',      fk: 'support_drawing_id' },
+         { act: 'weld_map_drawing_activities',     fk: 'weld_map_drawing_id' },
+       ],
+       test_package: [
+         { act: 'test_package_drawing_activities', fk: 'test_package_drawing_id' },
+       ],
+       materials: [
+         { act: 'material_activities',             fk: 'material_status_id' },
+       ],
+       calculations: [
+         { act: 'eng_calculation_activities',       fk: 'eng_calculation_id' },
+       ],
+     };
+     const tables = DIRECT_ACTIVITY_TABLES[actType] || [];
+     const actFetches = tables.map(src =>
+       db.from(src.act)
+         .select(`manhours, step_done, created_at, discipline_id, project_id, ${src.fk}`)
+         .then(r => {
+           if (r.error) console.warn(`[dashboard:reloadKpiChart:${src.act}]`, r.error.message);
+           return r.data || [];
+         })
+     );
+     allActs = (await Promise.all(actFetches)).flat();
+   } else {
+     // model_activities carries project_id and step_done directly, but not
+     // discipline_id — resolve that via target_id -> targets (same pattern
+     // used in reloadMhChart()). It also carries progress_tons (real tons
+     // completed per log entry, per the tons-based KPI redesign) instead of
+     // a simple per-drawing "1 unit done" count.
+     let targetsForKpiQ = db.from('targets').select('id, project_id, discipline_id');
+     if (projId) targetsForKpiQ = targetsForKpiQ.eq('project_id', projId);
+     if (discId) targetsForKpiQ = targetsForKpiQ.eq('discipline_id', discId);
+     const { data: kpiTargetsLookup, error: kpiTargetsLookupErr } = await targetsForKpiQ;
+     if (kpiTargetsLookupErr) console.warn('[dashboard:reloadKpiChart:targets-lookup]', kpiTargetsLookupErr.message);
+     const targetLookupMap = Object.fromEntries((kpiTargetsLookup || []).map(t => [t.id, t]));
+
+     const { data: rawModelActs, error: modelActsErr } = await db.from('model_activities')
+       .select('manhours, created_at, target_id, step_done, progress_tons');
+     if (modelActsErr) console.warn('[dashboard:reloadKpiChart:model_activities]', modelActsErr.message);
+
+     allActs = (rawModelActs || [])
+       .filter(a => targetLookupMap[a.target_id])
+       .map(a => ({
+         manhours: a.manhours,
+         created_at: a.created_at,
+         project_id: targetLookupMap[a.target_id].project_id,
+         discipline_id: targetLookupMap[a.target_id].discipline_id,
+         step_done: a.step_done,
+         tons: parseFloat(a.progress_tons) || 0,
+       }));
+   }
+
+   // Filter by project/discipline
+   if (projId) allActs = allActs.filter(a => a.project_id === projId);
+   if (discId) allActs = allActs.filter(a => a.discipline_id === discId);
+ 
+   // 3. Build periods from project schedule range (same as S-curve / MH chart)
+   let targetQ2 = db.from('targets').select('id');
+   if (projId) targetQ2 = targetQ2.eq('project_id', projId);
+   if (discId) targetQ2 = targetQ2.eq('discipline_id', discId);
+   const { data: schedTargets, error: schedTargetsErr } = await targetQ2;
+   if (schedTargetsErr) console.warn('[dashboard:reloadKpiChart:targets]', schedTargetsErr.message);
+   const schedTargetIds = (schedTargets || []).map(t => t.id);
+ 
+   let schedDates = [];
+   if (schedTargetIds.length) {
+     const { data: schedRows, error: schedRowsErr } = await db.from('target_schedule')
+       .select('period').in('target_id', schedTargetIds);
+     if (schedRowsErr) console.warn('[dashboard:reloadKpiChart:target_schedule]', schedRowsErr.message);
+     schedDates = (schedRows || []).map(r => new Date(r.period));
+   }
+ 
+   // Fall back to activity dates if no schedule exists
+   const actDates = allActs.map(a => new Date(a.created_at));
+   const allDatesCombined = [...schedDates, ...actDates];
+   if (!allDatesCombined.length) { renderKpiEmpty('No KPI schedule or activity data found for this selection.'); return; }
+ 
+   let minD = new Date(Math.min(...allDatesCombined.map(d => d.getTime())));
+   let maxD = new Date(Math.max(...allDatesCombined.map(d => d.getTime())));
+   const today = new Date();
+   if (today > maxD) maxD = today;
+ 
+   const periods = buildPeriods(minD, maxD, kpiGranularity, weekStartDay);
+ 
+   // 4. Filter actual activities further by step_done matching filtered kpi step(s).
+   // All activity types (drawing, test_package, materials, calculations, model)
+   // carry step_done, so this applies uniformly.
+   const validStepNames = new Set(kpiRows.map(k => k.workflow_steps?.name).filter(Boolean));
+   if (validStepNames.size) {
+     allActs = allActs.filter(a => validStepNames.has(a.step_done));
+   }
+
+   // 5. Compute KPI as percentage: (actual MH/unit) vs (target MH/unit) averaged across all KPI rows
+   const targetAvg = kpiRows.reduce((s, k) => s + (parseFloat(k.target_value) || 0), 0) / kpiRows.length;
+   const kpiUnitLabel = KPI_UNITS[actType] || 'MH / UNIT';
+
+   // Target line is always 100% (the benchmark); raw value is constant across periods.
+   const kpiTargetData = periods.map(() => 100);
+   const kpiTargetRawData = periods.map(() => parseFloat(targetAvg.toFixed(2)));
+
+   const kpiActualRawData = [];
+   const kpiActualData = periods.map(p => {
+     const periodActs = allActs.filter(a => {
+       const t = new Date(a.created_at);
+       return t >= p.start && t <= new Date(p.end.getFullYear(), p.end.getMonth(), p.end.getDate(), 23, 59, 59);
+     });
+     if (!periodActs.length) { kpiActualRawData.push(null); return null; }
+     const totalMH = periodActs.reduce((s, a) => s + (parseFloat(a.manhours) || 0), 0);
+     const totalUnits = actType === 'model'
+       ? periodActs.reduce((s, a) => s + (parseFloat(a.tons) || 0), 0)
+       : periodActs.length;
+     if (!totalUnits || !targetAvg) { kpiActualRawData.push(null); return null; }
+     const actualRate = totalMH / totalUnits;
+     kpiActualRawData.push(parseFloat(actualRate.toFixed(2)));
+     // Express as % of target — inverted because this is a "cost" metric (MH/unit):
+     // using FEWER manhours per unit than planned is good, so that reads as
+     // >100% (ahead of target) on the chart, not <100% (looks behind).
+     return parseFloat(((targetAvg / actualRate) * 100).toFixed(1));
+   });
+   drawKpiChart(periods.map(p => p.label), kpiTargetData, kpiActualData, kpiTargetRawData, kpiActualRawData, kpiUnitLabel);
+ }
+ 
+ function renderKpiEmpty(msg) {
+   if (kpiChart) { kpiChart.destroy(); kpiChart = null; }
+   showChartEmptyOverlay('chart-kpi', msg);
+ }
+ 
+ function drawKpiChart(labels, targetData, actualData, targetRawData, actualRawData, unitLabel) {
+   clearChartEmptyOverlay('chart-kpi');
+   const canvas = document.getElementById('chart-kpi');
+   if (!canvas) return;
+   if (kpiChart) kpiChart.destroy();
+ 
+   kpiChart = new Chart(canvas, {
+     data: {
+       labels,
+       datasets: [
+          {
+            type: 'bar',
+            label: 'KPI Target',
+            data: targetData,
+            rawValues: targetRawData,
+            backgroundColor: 'rgba(96,165,250,0.5)',
+            borderColor: 'rgba(96,165,250,0.8)',
+            borderWidth: 1,
+            borderRadius: 4,
+            order: 2,
+          },
+          {
+            type: 'bar',
+            label: 'KPI Actual',
+            data: actualData,
+            rawValues: actualRawData,
+            backgroundColor: 'rgba(240,121,0,0.75)',
+            borderRadius: 4,
+            order: 2,
+          },
+          {
+            type: 'line',
+            label: 'KPI Efficiency %',
+            data: actualData,
+            borderColor: '#38bdf8',
+            backgroundColor: 'rgba(56,189,248,0.08)',
+            borderWidth: 2, tension: 0.3, fill: false,
+            pointRadius: 2, spanGaps: true, order: 1,
+          },
+        ]
+     },
+     options: {
+       responsive: true, maintainAspectRatio: false,
+       interaction: { mode: 'index', intersect: false },
+       plugins: {
+         legend: { display: false },
+         tooltip: {
+          callbacks: {
+            label: ctx => {
+              if (ctx.dataset.type === 'line') {
+                return ctx.parsed.y == null ? `${ctx.dataset.label}: —` : `KPI Efficiency: ${Math.round(ctx.parsed.y)}%`;
+              }
+              const raw = ctx.dataset.rawValues?.[ctx.dataIndex];
+              if (raw == null) return `${ctx.dataset.label}: —`;
+              return `${ctx.dataset.label}: ${raw.toFixed(2)} ${unitLabel}`;
+            }
+          }
+        }
+       },
+       scales: {
+         y: {
+           beginAtZero: true,
+           grid: { color: '#222' },
+           ticks: { color: '#666', callback: v => v + '%' },
+           title: { display: true, text: 'KPI Efficiency (%)', color: '#888' }
+         },
+         x: { grid: { display: false }, ticks: { color: '#666' } }
+       }
+     }
+   });
+ }
+ 
+ 
+     // ─── SNAPSHOT MODAL ──────────────────────────────────────────────────────────
+ 
+ function applySnapshotAccess() {
+   const btn = document.getElementById('snapshot-btn');
+   if (!btn) return;
+   if (!isAdmin) {
+     btn.classList.add('is-restricted');
+     btn.title = 'Admin access required to take a snapshot';
+   } else {
+     btn.classList.remove('is-restricted');
+     btn.title = "Save this period's actual progress & manpower for history";
+   }
+ }
+ 
+ function openSnapshotModal() {
+   if (!isAdmin) {
+     toast('Invalid action — you do not have permission to take a snapshot.', 'error');
+     return;
+   }
+   // Populate project dropdown from already-loaded projectsData
+   const sel = document.getElementById('snapshot-project-sel');
+   sel.innerHTML = '<option value="">— Select Project —</option>';
+   projectsData.forEach(p => {
+     const opt = document.createElement('option');
+     opt.value       = p.id;
+     opt.textContent = p.name;
+     sel.appendChild(opt);
+   });
+   document.getElementById('snapshot-disc-preview').textContent = '';
+   const todayPH = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Manila' }));
+   const todayStr = `${todayPH.getFullYear()}-${String(todayPH.getMonth()+1).padStart(2,'0')}-${String(todayPH.getDate()).padStart(2,'0')}`;
+   document.getElementById('snapshot-date-input').value = todayStr;
+   openModal('snapshot-modal');
+ }
+ 
+ async function onSnapshotProjectChange(projId) {
+   const preview = document.getElementById('snapshot-disc-preview');
+   if (!projId) { preview.textContent = ''; return; }
+   preview.textContent = 'Loading active disciplines…';
+ 
+   // Active disciplines = disciplines with at least one target/position entry
+   const { data, error } = await db.from('targets')
+     .select('discipline_id, disciplines(name)')
+     .eq('project_id', projId);
+ 
+   if (error || !data?.length) {
+     preview.textContent = 'No active disciplines found for this project.';
+     return;
+   }
+ 
+   // Deduplicate
+   const seen = new Set();
+   const discs = [];
+   (data || []).forEach(r => {
+     if (r.discipline_id && !seen.has(r.discipline_id)) {
+       seen.add(r.discipline_id);
+       discs.push(r.disciplines?.name || r.discipline_id);
+     }
+   });
+ 
+   preview.textContent = `Will snapshot ${discs.length} discipline${discs.length !== 1 ? 's' : ''}: ${discs.join(', ')}`;
+ }
+ 
+ async function confirmSnapshot() {
+   if (!isAdmin) {
+     toast('Invalid action — you do not have permission to take a snapshot.', 'error');
+     return;
+   }
+   
+   const projId = document.getElementById('snapshot-project-sel')?.value || '';
+   if (!projId) { toast('Please select a project.', 'error'); return; }
+ 
+   const btn = document.getElementById('snapshot-confirm-btn');
+   if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+ 
+   try {
+     // Get active disciplines from targets table
+     const { data: targRows, error: targErr } = await db.from('targets')
+       .select('discipline_id, disciplines(name, code)')
+       .eq('project_id', projId);
+ 
+     if (targErr) throw new Error(targErr.message);
+ 
+     // Deduplicate disciplines
+     const seen = new Set();
+     const discsToSnap = [];
+     (targRows || []).forEach(r => {
+       if (r.discipline_id && !seen.has(r.discipline_id)) {
+         seen.add(r.discipline_id);
+         discsToSnap.push({ id: r.discipline_id, code: r.disciplines?.code, name: r.disciplines?.name });
+       }
+     });
+ 
+     if (!discsToSnap.length) {
+       toast('No active disciplines found for this project.', 'error');
+       return;
+     }
+ 
+     // Get ROC weights for this project
+     const { data: rocRows, error: rocErr } = await db.from('project_discipline_roc')
+       .select('discipline_id, roc').eq('project_id', projId);
+     if (rocErr) console.warn('[dashboard:confirmSnapshot:project_discipline_roc]', rocErr.message);
+     const rocByDisc = {};
+     (rocRows || []).forEach(r => { rocByDisc[r.discipline_id] = parseFloat(r.roc) || 0; });
+ 
+     // Snapshot date as picked in the modal — defaults to today, but can be
+     // backdated/forward-dated (e.g. to backfill days pgcron didn't capture).
+     const snapDateStr = document.getElementById('snapshot-date-input')?.value;
+     if (!snapDateStr) { toast('Please select a snapshot date.', 'error'); if (btn) { btn.disabled = false; btn.textContent = 'Take Snapshot'; } return; }
+
+     const rows = [];
+     let doneCount = 0;
+
+     for (const disc of discsToSnap) {
+       if (btn) btn.textContent = `Saving ${++doneCount} of ${discsToSnap.length}…`;
+
+       // 1. Actual progress
+       const actualProgress = await computeActualProgress(projId, disc.id, rocByDisc);
+
+       // 2. Actual manpower
+       const actualMP = await getActualManpower(projId, disc.id);
+
+       rows.push({
+         project_id:       projId,
+         discipline_id:    disc.id,
+         snapshot_date:    snapDateStr,
+         actual_progress:  actualProgress || 0,
+         actual_mp:        actualMP,
+         planned_progress: null, 
+         planned_mh:       null,
+ 		planned_mp: 	  null,
+       });
+     }
+ 
+     const { error } = await db.from('progress_snapshots')
+       .upsert(rows, { onConflict: 'project_id,discipline_id,snapshot_date' });
+ 
+     if (error) throw new Error(error.message);
+ 
+     closeModal('snapshot-modal');
+     toast(`Snapshot saved — ${rows.length} discipline${rows.length !== 1 ? 's' : ''} captured.`, 'success');
+     await Promise.all([reloadMhChart(), reloadKpiChart()]);
+     await reloadScurve();
+ 
+   } catch (err) {
+     console.error('Snapshot error:', err);
+     toast('Snapshot failed: ' + err.message, 'error');
+   } finally {
+     if (btn) { btn.disabled = false; btn.textContent = 'Take Snapshot'; }
+   }
+ }
+
+    // ─── LOWER CHARTS ─────────────────────────────────────────────────────────
+    const DOC_STATUS_TABLES = {
+      drawing: ['erection_drawings', 'fabrication_drawings', 'support_drawings', 'weld_map_drawings'],
+      test_package: ['test_package_drawings'],
+    };
+
+    async function reloadDocumentStatus() {
+      if (!docReady()) {
+        if (statusChart) { statusChart.destroy(); statusChart = null; }
+        showChartEmptyOverlay('chart-status', 'Select Project and Doc Type to view this chart.');
+        return;
+      }
+      const projId   = document.getElementById('doc-f-project').value;
+      const docType  = document.getElementById('doc-f-doctype').value; // model|drawing|test_package|calculations|materials
+      const project  = projectsData.find(p => p.id === projId);
+      const projCode = project?.code || null;
+
+      // 1. Which steps actually have a KPI target for this project + doc type?
+      const { data: kpiRowsRaw, error: kpiRowsRawErr } = await db.from('target_kpi')
+        .select('workflow_steps(id, name, sort_order), document_codes(activity_type)')
+        .eq('project_id', projId);
+      if (kpiRowsRawErr) console.warn('[dashboard:reloadDocumentStatus:target_kpi]', kpiRowsRawErr.message);
+      const kpiRows = (kpiRowsRaw || []).filter(k => k.document_codes?.activity_type === docType);
+
+      const stepMap = new Map(); // step name -> sort_order
+      kpiRows.forEach(k => {
+        const ws = k.workflow_steps;
+        if (ws && !stepMap.has(ws.name)) stepMap.set(ws.name, ws.sort_order ?? 0);
+      });
+
+      if (!stepMap.size) {
+        if (statusChart) { statusChart.destroy(); statusChart = null; }
+        showChartEmptyOverlay('chart-status', 'No KPI targets defined for this Project and Doc Type.');
+        return;
+      }
+
+      // 2. Load the actual documents' statuses for this doc type
+      let rows = [];
+      let modelStepTons = null; // ton-based totals — only populated for docType === 'model'
+      if (docType === 'model') {
+        const { data, error } = await db.from('models_3d').select('step_progress').eq('project_id', projId);
+        if (error) console.warn('[dashboard:reloadDocumentStatus:models_3d]', error.message);
+        rows = data || [];
+
+        // Models track cumulative per-step tonnage in step_progress, not a single
+        // overwritten "status" field — a model that has completed Stick Modeling,
+        // Connection Modeling, AND Numbering must be counted toward all three
+        // (weighted by tons), not just whichever step was logged most recently.
+        modelStepTons = {};
+        rows.forEach(r => {
+          const sp = r.step_progress || {};
+          Object.entries(sp).forEach(([stepName, tons]) => {
+            if (!stepMap.has(stepName)) return;
+            const t = parseFloat(tons) || 0;
+            if (t <= 0) return;
+            modelStepTons[stepName] = (modelStepTons[stepName] || 0) + t;
+          });
+        });
+      } else if (docType === 'drawing') {
+        const fetches = DOC_STATUS_TABLES.drawing.map(t =>
+          db.from(t).select('status').eq('project_id', projId).then(r => {
+            if (r.error) console.warn(`[dashboard:reloadDocumentStatus:${t}]`, r.error.message);
+            return r.data || [];
+          })
+        );
+        rows = (await Promise.all(fetches)).flat();
+      } else if (docType === 'test_package') {
+        const { data, error } = await db.from('test_package_drawings').select('status').eq('project_id', projId);
+        if (error) console.warn('[dashboard:reloadDocumentStatus:test_package_drawings]', error.message);
+        rows = data || [];
+      } else if (docType === 'calculations') {
+        const { data, error } = await db.from('eng_calculations').select('status').eq('project_id', projId);
+        if (error) console.warn('[dashboard:reloadDocumentStatus:eng_calculations]', error.message);
+        rows = data || [];
+      } else if (docType === 'materials') {
+        if (projCode) {
+          const { data, error } = await db.from('material_status').select('status').eq('project_code', projCode);
+          if (error) console.warn('[dashboard:reloadDocumentStatus:material_status]', error.message);
+          rows = data || [];
+        }
+      }
+
+      // 3. Count only statuses that match a targeted step — untargeted statuses are excluded
+      let bySt;
+      if (modelStepTons) {
+        // Ton-based totals for 3D Model — round to 2dp for consistent display.
+        bySt = {};
+        Object.entries(modelStepTons).forEach(([k, v]) => { bySt[k] = parseFloat(v.toFixed(2)); });
+      } else {
+        bySt = {};
+        rows.forEach(r => {
+          if (r.status && stepMap.has(r.status)) bySt[r.status] = (bySt[r.status] || 0) + 1;
+        });
+      }
+
+      if (!Object.keys(bySt).length) {
+        if (statusChart) { statusChart.destroy(); statusChart = null; }
+        showChartEmptyOverlay('chart-status', 'No documents found at any targeted step for this selection.');
+        return;
+      }
+
+      // 4. Colors assigned dynamically by workflow sort_order — no more hardcoded status names
+      const palette = ['#333','#555','#F8A145','#F07900','#D35100','#ff6b35','#22c55e','#16a34a','#3b82f6','#8b5cf6','#ec4899','#eab308'];
+      const orderedNames = [...stepMap.entries()].sort((a, b) => a[1] - b[1]).map(([name]) => name);
+      const colorByName = {};
+      orderedNames.forEach((name, i) => { colorByName[name] = palette[i % palette.length]; });
+
+      const labels = orderedNames.filter(n => bySt[n]);
+      const chartData = labels.map(n => bySt[n]);
+      const colors = labels.map(n => colorByName[n]);
+
+      const canvas = document.getElementById('chart-status');
+      if (!canvas) return;
+      clearChartEmptyOverlay('chart-status');
+      if (statusChart) statusChart.destroy();
+      const unitSuffix = modelStepTons ? ' MT' : ''; // tons for 3D Model, plain count otherwise
+      statusChart = new Chart(canvas, {
+        type: 'pie',
+        data: { labels, datasets: [{ data: chartData, backgroundColor: colors, borderWidth: 1, borderColor: '#1c1c1c' }] },
+        options: {
+	  	  layout: { padding: 0 },
+          plugins: {
+            legend: {
+              position: 'right',
+              align: 'center',
+              labels: {
+                color: '#888',
+                font: { family: 'Inter', size: 13 },
+                boxWidth: 20,
+                boxHeight: 14,
+                padding: 14,
+                textAlign: 'left'
+              }
+            },
+            tooltip: {
+              callbacks: {
+                title: () => '',
+                label: (ctx) => `${ctx.label}: ${ctx.parsed}${unitSuffix}`
+              }
+            }
+          },
+          responsive: true, maintainAspectRatio: false
+        }
+      });
+    }
+
+    // ─── RECENT ACTIVITY ──────────────────────────────────────────────────────
+    async function loadRecentActivity() {
+      const el = document.getElementById('recent-activity');
+      if (!el) return;
+
+      const RECENT_DRAW_SOURCES = [
+        { acts: 'erection_drawing_activities',    fk: 'erection_drawing_id',     draw: 'erection_drawings'     },
+        { acts: 'fabrication_drawing_activities', fk: 'fabrication_drawing_id',  draw: 'fabrication_drawings'  },
+        { acts: 'support_drawing_activities',     fk: 'support_drawing_id',      draw: 'support_drawings'      },
+        { acts: 'weld_map_drawing_activities',    fk: 'weld_map_drawing_id',     draw: 'weld_map_drawings'     },
+      ];
+      const recentDrawFetches = RECENT_DRAW_SOURCES.map(async src => {
+        const { data: acts, error: actsErr } = await db.from(src.acts)
+          .select(`manhours, created_at, ${src.fk}, user_id`)
+          .order('created_at', { ascending: false })
+          .limit(10);
+        if (actsErr) console.warn(`[dashboard:loadRecentActivity:${src.acts}]`, actsErr.message);
+        if (!acts?.length) return [];
+        const drawingIds = [...new Set(acts.map(a => a[src.fk]).filter(Boolean))];
+        const userIds    = [...new Set(acts.map(a => a.user_id).filter(Boolean))];
+        const [{ data: drawings, error: drawingsErr }, { data: users, error: usersErr }] = await Promise.all([
+          db.from(src.draw).select('id, drawing_number, project_id').in('id', drawingIds),
+          db.from('users').select('id, full_name').in('id', userIds),
+        ]);
+        if (drawingsErr) console.warn(`[dashboard:loadRecentActivity:${src.draw}]`, drawingsErr.message);
+        if (usersErr) console.warn(`[dashboard:loadRecentActivity:users:${src.acts}]`, usersErr.message);
+        const drawMap = Object.fromEntries((drawings || []).map(d => [d.id, d]));
+        const userMap = Object.fromEntries((users    || []).map(u => [u.id, u]));
+        return acts.map(a => ({
+          ...a,
+          drawings: drawMap[a[src.fk]] || null,
+          users:    { full_name: userMap[a.user_id]?.full_name || 'Unknown' },
+        }));
+      });
+
+      const [
+        recentDrawArrays,
+        { data: modelActs, error: modelActsErr },
+        { data: tpActs, error: tpActsErr },
+        { data: calcActs, error: calcActsErr },
+        { data: matActs, error: matActsErr },
+        { data: prActs, error: prActsErr },
+        { data: tbeActs, error: tbeActsErr },
+        { data: inqActs, error: inqActsErr },
+      ] = await Promise.all([
+        Promise.all(recentDrawFetches),
+        db.from('model_activities')
+          .select('manhours, created_at, models_3d(area, model_name, project_id), users(full_name)')
+          .order('created_at', { ascending: false }).limit(10),
+        db.from('test_package_drawing_activities')
+          .select('manhours, created_at, user_id, test_package_drawings(drawing_number, project_id)')
+          .order('created_at', { ascending: false }).limit(10),
+        db.from('eng_calculation_activities')
+          .select('manhours, created_at, user_id, eng_calculations(doc_number, project_id)')
+          .order('created_at', { ascending: false }).limit(10),
+        db.from('material_activities')
+          .select('manhours, created_at, user_id, material_status(mto_number, project_code)')
+          .order('created_at', { ascending: false }).limit(10),
+        db.from('pr_activities')
+          .select('manhours, created_at, user_id, purchase_requisitions(pr_no)')
+          .order('created_at', { ascending: false }).limit(10),
+        db.from('tbe_activities')
+          .select('manhours, created_at, user_id, tbe_items(tbe_number)')
+          .order('created_at', { ascending: false }).limit(10),
+        db.from('inquiry_activities')
+          .select('manhours, created_at, user_id, project_inquiries(control_number)')
+          .order('created_at', { ascending: false }).limit(10),
+      ]);
+      if (modelActsErr) console.warn('[dashboard:loadRecentActivity:model_activities]', modelActsErr.message);
+      if (tpActsErr) console.warn('[dashboard:loadRecentActivity:test_package_drawing_activities]', tpActsErr.message);
+      if (calcActsErr) console.warn('[dashboard:loadRecentActivity:eng_calculation_activities]', calcActsErr.message);
+      if (matActsErr) console.warn('[dashboard:loadRecentActivity:material_activities]', matActsErr.message);
+      if (prActsErr) console.warn('[dashboard:loadRecentActivity:pr_activities]', prActsErr.message);
+      if (tbeActsErr) console.warn('[dashboard:loadRecentActivity:tbe_activities]', tbeActsErr.message);
+      if (inqActsErr) console.warn('[dashboard:loadRecentActivity:inquiry_activities]', inqActsErr.message);
+
+      const drawActs = recentDrawArrays.flat()
+        .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+        .slice(0, 10);
+		
+	  // Resolve users manually for the 6 sources without a recognized FK to `users`
+      const rawSets = [tpActs, calcActs, matActs, prActs, tbeActs, inqActs];
+      const extraUserIds = [...new Set(rawSets.flat().map(a => a?.user_id).filter(Boolean))];
+      const { data: extraUsers, error: extraUsersErr } = extraUserIds.length
+        ? await db.from('users').select('id, full_name').in('id', extraUserIds)
+        : { data: [] };
+      if (extraUsersErr) console.warn('[dashboard:loadRecentActivity:users]', extraUsersErr.message);
+      const extraUserMap = Object.fromEntries((extraUsers || []).map(u => [u.id, u.full_name]));
+
+      const all = [
+        ...(drawActs || []).map(a => ({ type: 'drawing',  label: a.drawings?.drawing_number || '—',                       sub: 'Drawing',                  mh: a.manhours, date: a.created_at, user: a.users?.full_name || 'Unknown', proj: a.drawings?.project_id })),
+        ...(modelActs || []).map(a => ({ type: 'model',   label: a.models_3d?.area || a.models_3d?.model_name || '—',     sub: '3D Model',                 mh: a.manhours, date: a.created_at, user: a.users?.full_name || 'Unknown', proj: a.models_3d?.project_id })),
+        ...(tpActs   || []).map(a => ({ type: 'tp',       label: a.test_package_drawings?.drawing_number || '—',          sub: 'Test Package',             mh: a.manhours, date: a.created_at, user: extraUserMap[a.user_id] || 'Unknown', proj: a.test_package_drawings?.project_id })),
+        ...(calcActs || []).map(a => ({ type: 'calc',     label: a.eng_calculations?.doc_number || '—',                   sub: 'Engineering Calculation',  mh: a.manhours, date: a.created_at, user: extraUserMap[a.user_id] || 'Unknown', proj: a.eng_calculations?.project_id })),
+        ...(matActs  || []).map(a => ({ type: 'material', label: a.material_status?.mto_number || '—',                    sub: 'Material Preparation',     mh: a.manhours, date: a.created_at, user: extraUserMap[a.user_id] || 'Unknown', projCode: a.material_status?.project_code })),
+        ...(prActs   || []).map(a => ({ type: 'material', label: a.purchase_requisitions?.pr_no || '—',                   sub: 'Material Preparation',     mh: a.manhours, date: a.created_at, user: extraUserMap[a.user_id] || 'Unknown' })),
+        ...(tbeActs  || []).map(a => ({ type: 'material', label: a.tbe_items?.tbe_number || '—',                          sub: 'Material Preparation',     mh: a.manhours, date: a.created_at, user: extraUserMap[a.user_id] || 'Unknown' })),
+        ...(inqActs  || []).map(a => ({ type: 'inquiry',  label: a.project_inquiries?.control_number || '—',              sub: 'Project Inquiry',          mh: a.manhours, date: a.created_at, user: extraUserMap[a.user_id] || 'Unknown' })),
+      ].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 17);
+
+      if (!all.length) { el.innerHTML = '<div class="empty-state"><p>No recent activity.</p></div>'; return; }
+
+      const typeColor = { drawing: 'var(--accent)', model: '#38bdf8', tp: '#f472b6', calc: '#facc15', material: '#4ade80', inquiry: '#a78bfa' };
+      const typeIcon = {
+        model:    `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M14 3l6 4v7" /><path d="M18 17l-6 4l-6 -4" /><path d="M4 14v-7l6 -4" /><path d="M4 7l8 5v9" /><path d="M20 7l-8 5" /></svg>`,
+        drawing:  `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/></svg>`,
+        tp:       `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M15 3v4a1 1 0 0 0 1 1h4" /><path d="M18 17h-7a2 2 0 0 1 -2 -2v-10a2 2 0 0 1 2 -2h4l5 5v7a2 2 0 0 1 -2 2" /><path d="M16 17v2a2 2 0 0 1 -2 2h-7a2 2 0 0 1 -2 -2v-10a2 2 0 0 1 2 -2h2" /></svg>`,
+        calc:     `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M4 7h6" /><path d="M7 4v6" /><path d="M20 16h-6" /><path d="M20 19h-6" /><path d="M5 19l14 -14" /></svg>`,
+        material: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M12 3l8 4.5l0 9l-8 4.5l-8 -4.5l0 -9l8 -4.5" /><path d="M12 12l8 -4.5" /><path d="M12 12l0 9" /><path d="M12 12l-8 -4.5" /></svg>`,
+        inquiry:  `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M4 8h16" /><path d="M12 20h-6a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v6" /><path d="M8 4v4" /><path d="M16 19h6" /><path d="M19 16v6" /></svg>`,
+      };
+
+      el.innerHTML = all.map(a => {
+        const projCode = a.projCode || projectsData.find(p => p.id === a.proj)?.code || '';
+        return `
+        <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);">
+          <div style="width:32px;height:32px;background:var(--accent-dim);border-radius:7px;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:${typeColor[a.type]};">
+            ${typeIcon[a.type]}
+          </div>
+          <div style="flex:1;min-width:0;">
+            <div style="font-size:13px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(a.label)} ${projCode ? `<span style="font-size:10px;font-weight:600;color:var(--text-4);border:1px solid var(--border);border-radius:4px;padding:1px 5px;margin-left:4px;">${esc(projCode)}</span>` : ''}</div>
+            <div style="font-size:11px;color:var(--text-3);">${esc(a.sub)} · ${formatHours(a.manhours)} hrs · ${esc(a.user)}</div>
+          </div>
+          <div style="font-size:11px;color:var(--text-4);white-space:nowrap;">${formatDateTime(a.date)}</div>
+        </div>
+      `;
+      }).join('');
+    }
+
+    initLayout('Dashboard');
+  </script>
+</body>
+</html>

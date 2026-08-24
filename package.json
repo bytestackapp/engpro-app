@@ -1,0 +1,22 @@
+{
+  "name": "weekly-progress-report",
+  "version": "1.0.0",
+  "description": "Weekly Progress Report with per-table PDF generation",
+  "main": "api/generate-pdf.js",
+  "scripts": {
+    "dev": "vercel dev",
+    "deploy": "vercel deploy --prod",
+    "build": "echo 'No build required for this serverless app'"
+  },
+  "dependencies": {
+    "puppeteer-core": "^22.0.0",
+    "@sparticuz/chromium": "^123.0.0",
+    "pdf-merger-js": "^4.3.1"
+  },
+  "devDependencies": {
+    "vercel": "latest"
+  },
+  "engines": {
+    "node": "18.x"
+  }
+}

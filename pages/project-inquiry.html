@@ -65,8 +65,8 @@
       el.classList.remove('open');
       document.body.style.overflow = '';
     }
-    window.openModal  = _defaultOpenModal;
-	window.closeModal = _defaultCloseModal;
+    if (typeof openModal === 'undefined')   window.openModal  = _defaultOpenModal;
+    if (typeof closeModal === 'undefined')  window.closeModal = _defaultCloseModal;
 	
     async function pageInit(profile) {
       injectModals();
@@ -78,7 +78,7 @@
       if (document.getElementById('inq-modal')) return;
       document.body.insertAdjacentHTML('beforeend', `
         <!-- ADD / EDIT MODAL -->
-        <div class="modal" id="inq-modal" style="display:none;">
+        <div class="modal" id="inq-modal">
           <div class="modal-backdrop"></div>
           <div class="modal-box" style="max-width:700px;">
             <div class="modal-header">
@@ -128,7 +128,7 @@
         </div>
 
         <!-- IMPORT MODAL -->
-        <div class="modal" id="import-modal" style="display:none;">
+        <div class="modal" id="import-modal">
           <div class="modal-backdrop" onclick="closeModal('import-modal');resetImportFile();"></div>
           <div class="modal-box modal-lg" style="max-width:640px;">
             <div class="modal-header">
@@ -176,23 +176,24 @@
         </div>
 
         <!-- DELETE ALL MODAL -->
-        <div class="modal" id="delete-all-modal" style="display:none;">
+        <div class="modal" id="delete-all-modal">
           <div class="modal-backdrop" onclick="closeModal('delete-all-modal')"></div>
           <div class="modal-box modal-sm">
             <div class="modal-header">
-              <h3 style="color:var(--red);">Delete All Inquiries</h3>
+              <h3 style="display:flex;align-items:center;gap:8px;color:var(--red);">
+			  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg> Delete All Inquiries</h3>
               <button class="modal-close" onclick="closeModal('delete-all-modal')">✕</button>
             </div>
             <div class="modal-body">
               <p style="font-size:13px;color:var(--text-2);">This will permanently delete <strong id="delete-all-count"></strong> inquiry records and all associated manhour entries. This action cannot be undone.</p>
               <div class="form-group" style="margin-top:14px;">
-                <label>Type <strong>DELETE</strong> to confirm</label>
-                <input type="text" id="delete-all-confirm-input" placeholder="DELETE" oninput="document.getElementById('delete-all-btn').disabled = this.value !== 'DELETE';" />
+                <label>Type <strong>Delete</strong> to confirm</label>
+                <input type="text" id="delete-all-confirm-input" placeholder="Delete" autocomplete="off" />
               </div>
             </div>
             <div class="modal-footer">
               <button class="btn btn-ghost" onclick="closeModal('delete-all-modal')">Cancel</button>
-              <button class="btn btn-danger" id="delete-all-btn" onclick="confirmDeleteAll()" disabled>Delete All</button>
+              <button class="btn btn-danger" id="delete-all-btn" onclick="confirmDeleteAll()">Delete All</button>
             </div>
           </div>
         </div>
@@ -208,7 +209,7 @@
       document.getElementById('page-content').innerHTML = `
         <div class="page-header" style="margin-bottom:14px;">
           <h1 style="display:flex;align-items:center;gap:10px;">
-            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="6.5" width="19" height="14" rx="2"/><path d="M9 6.5V4.5a1.5 1.5 0 0 1 1.5-1.5h3a1.5 1.5 0 0 1 1.5 1.5v2"/><line x1="2.5" y1="12.5" x2="21.5" y2="12.5"/></svg>
             Project Inquiry
           </h1>
           <p>Track and manage project inquiry requests and manhours</p>
@@ -216,13 +217,13 @@
 
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:18px;flex-wrap:wrap;">
           <div style="margin-left:auto;display:flex;gap:8px;flex-wrap:nowrap;flex-shrink:0;">
-            <button class="btn btn-ghost btn-sm" onclick="exportInquiries()" style="display:flex;align-items:center;gap:5px;">
-              <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-              Export
-            </button>
             <button class="btn btn-ghost btn-sm" onclick="openModal('import-modal')" style="display:flex;align-items:center;gap:5px;">
-              <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+			  <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
               Import Excel
+            </button>		  
+            <button class="btn btn-ghost btn-sm" onclick="exportInquiries()" style="display:flex;align-items:center;gap:5px;">
+              <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+              Export
             </button>
             <button class="btn btn-primary btn-sm" onclick="openAddModal()" style="display:flex;align-items:center;gap:5px;">
               <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
@@ -322,7 +323,6 @@
 
       tbody.innerHTML = inquiries.map(d => {
         const statusCls = {'Open':'status-open','In Progress':'status-inprogress','Completed':'status-completed','Cancelled':'status-cancelled'}[d.status] || 'status-open';
-        const safeD = JSON.stringify(d).replace(/'/g,"&#39;").replace(/"/g,'&quot;');
         return `<tr>
           <td style="text-align:left;font-weight:600;color:var(--text);">${d.control_number}</td>
           <td>${d.client||'—'}</td>
@@ -483,11 +483,15 @@
       const el = document.getElementById('delete-all-count');
       if (el) el.textContent = `${count || 0}`;
       document.getElementById('delete-all-confirm-input').value = '';
-      document.getElementById('delete-all-btn').disabled = true;
       openModal('delete-all-modal');
     }
 
     async function confirmDeleteAll() {
+      const input = document.getElementById('delete-all-confirm-input');
+      if (input.value.trim() !== 'DELETE') {
+        toast('Incorrect. Please type "Delete" exactly to confirm.', 'error');
+        return;
+      }
       const btn = document.getElementById('delete-all-btn');
       btn.disabled = true; btn.textContent = 'Deleting…';
       // Apply current filters if any so "delete all" respects visible scope
@@ -531,7 +535,7 @@
         'Remarks':         d.remarks||'',
         'Status':          d.status||'',
       }));
-      exportToExcel(rows, `project_inquiry_${new Date().toISOString().slice(0,10)}`);
+      exportToExcel(rows, `Project-Inquiry_${new Date().toISOString().slice(0,10)}`);
     }
 
     // ── IMPORT ───────────────────────────────────────────
@@ -595,7 +599,7 @@
         .map(r => ({
           control_number: String(r['Control Number']||'').trim(),
           client:         String(r['Client']       ||'').trim() || null,
-          project:     projMap[(String(r['Project']||'')).trim().toUpperCase()] || null,
+          project:        String(r['Project']||'').trim().toUpperCase() || null,
           activity:       String(r['Activity']     ||'').trim() || null,
           scope_of_work:  String(r['Scope of Work']||'').trim() || null,
           contact_person: String(r['Contact Person']||'').trim()|| null,

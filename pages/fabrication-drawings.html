@@ -125,6 +125,22 @@
     table th:first-child, table td:first-child {
       text-align: left;
     }
+	
+	#f-revision:disabled, #f-status:disabled {
+      cursor: not-allowed;
+      opacity: 0.6;
+    }
+	
+    .import-drop-zone {
+      border: 2px dashed var(--border-2);
+      background: var(--bg-4);
+      transition: border-color .2s, background .2s;
+    }
+    .import-drop-zone:hover,
+    .import-drop-zone.drag-over {
+      border-color: var(--accent);
+      background: var(--accent-dim);
+    }	
   </style>
 </head>
 <body>
@@ -140,7 +156,6 @@
     let activeDiscipline  = null;
     let activeProject     = null;
     let drawings          = [];
-    // FIX [L4]: engineers array removed — fetched but never used on this page.
     let allDisciplines    = [];
     let currentPage       = 1;
     let filterStatus      = '';
@@ -149,6 +164,9 @@
     const perPage         = 25;
     let importData        = [];
 	let structureItems    = [];
+	let drawingStatuses = [];
+	let currentUserRole = null;
+	const ENG_UP = ['admin','manager','lead','engineer'];
 
     const BASE_COLS = [
       { key: 'drawing_number', label: 'DRAWING NUMBER',  locked: true,  visible: true, isDefaultView: true, lockedInDefaultView: true },
@@ -161,26 +179,49 @@
       { key: 'manhours',       label: 'MANHOURS',         locked: false, visible: true, isDefaultView: true, lockedInDefaultView: false },
       { key: 'created_at',     label: 'DATE CREATED',     locked: false, visible: false, isDefaultView: false, lockedInDefaultView: false },
     ];
+	
+	const STATUS_COLORS = {
+      'Not Started':               'badge-gray',
+      'Draft':                     'badge-gray',
+      'Detailed':                  'badge-gray-amber',
+      'Checked':                   'badge-gray-amber',
+      'For Issuance':              'badge-amber',
+      'Issued for Approval':       'badge-orange',
+      'IFA Revision':              'badge-orange',
+      'IFA Revision Checked':      'badge-orange',
+      'IFA Revision Issued':       'badge-orange',
+      'Issued for Construction':   'badge-green',
+      'Revision':                  'badge-green',
+      'Revision Checked':          'badge-green',
+      'Revision Issued':           'badge-green',
+	  'As-Built':                  'badge-red',
+	  'As-Built Issued':           'badge-red',
+	  'As-Built Revision':         'badge-red',
+	  'As-Built Revision Checked': 'badge-red',
+	  'As-Built Revision Issued':  'badge-red',
+	  'Deleted':                   'badge-gray',
+    };
 
     // Normalise any column label to ALL CAPS for consistent display
     const toColLabel = (str) => (str || '').toUpperCase();
 
     let activeCols  = [];
     let pendingCols = [];
+	let columnCatalog = [];
     // FIX [L4]: importColMappings removed — column mapping uses DOM inputs directly.
 
     const SVG = (path) => `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">${path}</svg>`;
     const SVG_SM = (path) => `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${path}</svg>`;
 
     const DISC_ICONS = {
-      'Piping':          SVG('<path d="M6 7h6v5h6v5"/><circle cx="6" cy="7" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="18" cy="17" r="1.5"/>'),
-      'Mechanical':      SVG('<rect x="7" y="5" width="10" height="10" rx="2"/><path d="M7 10h10"/><path d="M9 15v4M15 15v4"/><path d="M8 19h8"/>'),
+      'Piping':          SVG('<path d="M6 6v8a4 4 0 0 0 4 4h8"/><circle cx="6" cy="6" r="2"/><circle cx="18" cy="18" r="2"/>'),
+      'Mechanical':      SVG('<path d="M5.8 8h12.4a3.2 3.2 0 0 1 0 8H5.8a3.2 3.2 0 0 1 0-8z"/><line x1="6.6" y1="16" x2="6.6" y2="20"/><line x1="5.3" y1="20" x2="7.9" y2="20"/><line x1="17.4" y1="16" x2="17.4" y2="20"/><line x1="16.1" y1="20" x2="18.7" y2="20"/>'),
       'Structural':      SVG('<path d="M5 6v14M19 6v14M5 10h14M5 16h14"/>'),
       'Civil':           SVG('<path d="M3 6h18M3 12h18M3 18h18"/><path d="M6 3v18M12 3v18M18 3v18"/>'),
       'Architectural':   SVG('<path d="M3 20h18V9L12 3 3 9v11"/><path d="M9 20v-6h6v6"/>'),
       'Electrical':      SVG('<path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/>'),
       'Instrumentation': SVG('<circle cx="12" cy="12" r="9"/><path d="M12 12l4-3"/><circle cx="12" cy="12" r="1.5"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2"/>'),
-	  'HVAC': 			 SVG('<circle cx="12" cy="12" r="2"/><path d="M12 4c3 0 4 3 2 5-1 1-3 1-4-1-1-2 0-4 2-4zM20 12c0 3-3 4-5 2-1-1-1-3 1-4 2-1 4 0 4 2zM12 20c-3 0-4-3-2-5 1-1 3-1 4 1 1 2 0 4-2 4zM4 12c0-3 3-4 5-2 1 1 1 3-1 4-2 1-4 0-4-2z"/>'),
+	  'HVAC': 			 SVG('<rect x="3" y="4" width="7" height="16" rx="1.2"/><path d="M13.5 8c1.5-1.5 3-1.5 4.5 0s3 1.5 4.5 0"/><path d="M13.5 12c1.5-1.5 3-1.5 4.5 0s3 1.5 4.5 0"/><path d="M13.5 16c1.5-1.5 3-1.5 4.5 0s3 1.5 4.5 0"/>'),
       'Telecom':         SVG('<path d="M12 17v4"/><path d="M8 21h8"/><path d="M5 12a7 7 0 0 1 14 0"/><path d="M8 12a4 4 0 0 1 8 0"/><circle cx="12" cy="12" r="1"/>'),
       'General':         SVG('<path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 12l10 5 10-5"/><path d="M2 17l10 5 10-5"/>'),
     };
@@ -203,7 +244,7 @@
 
     // ── PAGE INIT (called by layout.js after auth + DOM rebuild) ──
     async function pageInit(profile) {
-      // Inject all modals into the new DOM that initLayout built
+	  currentUserRole = profile?.role || null;
       injectModals();
       await loadDisciplinesAndPicker();
     }
@@ -238,10 +279,11 @@
             </div>
             <div class="modal-body">
               <input type="hidden" id="edit-id" />
+			  <p style="font-size:11px;font-weight:700;letter-spacing:0.5px;color:var(--accent);text-transform:uppercase;margin:0 0 10px;">Basic Information</p>
               <div class="form-row">
                 <div class="form-group">
                   <label class="required">Drawing Number</label>
-                  <input type="text" id="f-number" placeholder="e.g. P&amp;ID-001" />
+                  <input type="text" id="f-number" placeholder="Input drawing number..." />
                 </div>
                 <div class="form-group">
                   <label class="required">Document Title</label>
@@ -253,10 +295,6 @@
                   <label>Discipline</label>
                   <select id="f-discipline"><option value="">Select…</option></select>
                 </div>
-				<div class="form-group">
-				  <label>Project</label>
-				  <select id="f-project" onchange="loadStructureItems(this.value)"><option value="">— None —</option></select>
-				</div>
                 <div class="form-group">
                   <label>Area / System / Unit</label>
                   <input type="text" id="f-area" placeholder="e.g. Area 1 / Utilities" />
@@ -265,17 +303,13 @@
               <div class="form-row">
                 <div class="form-group">
                   <label>Revision</label>
-                  <input type="text" id="f-revision" placeholder="A, 0, 1…" />
+                  <input type="text" id="f-revision" placeholder="A, 0, 1…" disabled />
+				  <p style="font-size:11px;color:var(--text-4);margin-top:4px;">Automatically managed by the system.</p>
                 </div>
                 <div class="form-group">
                   <label>Status</label>
-                  <select id="f-status" disabled>
-                    <option>Not Started</option><option>Draft</option><option>Detailed</option>
-                    <option>Checked</option><option>Issued</option>
-                    <option>Issued for Approval</option><option>Issued for Construction</option>
-                    <option>Completed</option>
-                  </select>
-                  <p style="font-size:11px;color:var(--text-4);margin-top:4px;">Status auto-updates based on Engineering Input</p>
+                  <select id="f-status" disabled></select>
+                  <p style="font-size:11px;color:var(--text-4);margin-top:4px;">Automatically managed by the system.</p>
                 </div>
               </div>
               <div id="extra-fields"></div>
@@ -299,15 +333,15 @@
 
               <!-- ── UPLOAD ZONE (shown before file selected) ── -->
               <div id="import-upload-zone" style="padding:24px;">
-                <label for="import-file" id="import-dropzone" style="
+                <label for="import-file" id="import-dropzone" class="import-drop-zone" style="
                   display:flex;flex-direction:column;align-items:center;justify-content:center;
-                  border:2px dashed var(--border-2);border-radius:var(--radius-lg);
+                  border-radius:var(--radius-lg);
                   padding:48px 24px;cursor:pointer;transition:all var(--speed);
-                  background:var(--bg-4);gap:12px;
+                  gap:12px;
                 " 
-                ondragover="event.preventDefault();this.style.borderColor='var(--accent)';this.style.background='var(--accent-dim)';"
-                ondragleave="this.style.borderColor='var(--border-2)';this.style.background='var(--bg-4)';"
-                ondrop="event.preventDefault();this.style.borderColor='var(--border-2)';this.style.background='var(--bg-4)';handleImportFileDrop(event.dataTransfer.files[0]);">
+                ondragover="event.preventDefault();this.classList.add('drag-over');"
+                ondragleave="this.classList.remove('drag-over');"
+                ondrop="event.preventDefault();this.classList.remove('drag-over');handleImportFileDrop(event.dataTransfer.files[0]);">
                   <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
                   <div style="text-align:center;">
                     <p style="font-size:14px;font-weight:600;color:var(--text-2);margin:0;">Drop Excel file here or click to browse</p>
@@ -315,6 +349,7 @@
                   </div>
                 </label>
                 <input type="file" id="import-file" accept=".xlsx,.xls" style="display:none;" />
+                <div style="padding:12px;background:var(--bg-4);border:1px solid var(--border);border-radius:var(--radius);font-size:12px;color:var(--text-3);margin-top:16px;"> Required Column Headers: <strong>Drawing Number, Title, Discipline, Area/System</strong>.</div>
               </div>
 
               <!-- ── AFTER FILE SELECTED: two-block layout ── -->
@@ -344,44 +379,6 @@
                     </div>
                   </div>
                 </div>
-				
-				<!-- Project Filter -->
-				<div style="padding:20px 24px;border-bottom:1px solid var(--border);">
-                  <p style="font-size:10px;font-weight:700;letter-spacing:1px;color:var(--accent);text-transform:uppercase;margin:0 0 12px;">Project Assignment</p>
-                  <div class="form-group" style="margin:0;">
-                    <label>Assign to Project</label>
-                    <select id="import-project">
-                      <option value="auto">Auto-detect Project</option>
-                      <option value="">— No project —</option>
-                    </select>
-                    <div style="font-size:11px;color:var(--text-4);margin-top:6px;">Auto-detect matches the drawing number prefix against project codes.</div>
-                  </div>
-                </div>
-				
-                <!-- BLOCK 2: COLUMN MAPPING -->
-                <div id="column-mapping" style="padding:20px 24px;">
-                  <p style="font-size:10px;font-weight:700;letter-spacing:1px;color:var(--accent);text-transform:uppercase;margin:0 0 4px;">Column Mapping</p>
-                  <p style="font-size:12px;color:var(--text-3);margin:0 0 16px;">Match your Excel column headers to the system fields below.</p>
-                  
-                  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-                    <div class="form-group" style="margin:0;">
-                      <label>Drawing Number <span style="color:var(--red);">*</span></label>
-                      <input type="text" id="map-drawing-number" placeholder="e.g. Drawing Number, DWG #" value="drawing_number" />
-                    </div>
-                    <div class="form-group" style="margin:0;">
-                      <label>Title <span style="color:var(--red);">*</span></label>
-                      <input type="text" id="map-title" placeholder="e.g. Title, Description" value="title" />
-                    </div>
-                    <div class="form-group" style="margin:0;">
-                      <label>Area / System <span style="color:var(--text-4);font-weight:400;">(optional)</span></label>
-                      <input type="text" id="map-area" placeholder="e.g. Area, System, Unit" value="area" />
-                    </div>
-                    <div class="form-group" style="margin:0;">
-                      <label>Revision <span style="color:var(--text-4);font-weight:400;">(optional)</span></label>
-                      <input type="text" id="map-revision" placeholder="e.g. Rev, Revision" value="revision" />
-                    </div>
-                  </div>
-                </div>
 
               </div>
             </div>
@@ -405,12 +402,10 @@
               <p style="font-size:12px;color:var(--text-3);margin-bottom:6px;">These drawing numbers already exist in the register. Choose an action for each:</p>
               <div style="font-size:12px;color:var(--text-3);margin-bottom:16px;padding:10px 12px;background:var(--bg-4);border:1px solid var(--border);border-radius:var(--radius);display:flex;flex-direction:column;gap:4px;">
                 <div><strong style="color:var(--text-2);">Skip</strong> — Ignore this row and keep the existing drawing unchanged.</div>
-                <div><strong style="color:var(--text-2);">Update</strong> — Apply changes while preserving existing record history.</div>
-                <div><strong style="color:var(--text-2);">Replace</strong> — Fully overwrite the existing record with imported data.</div>
+                <div><strong style="color:var(--text-2);">Replace</strong> — Overwrite the existing drawing's Title/Area/Metadata with the imported data. Revision, Status, Created By, and Checked By are never touched.</div>
               </div>
               <div style="display:flex;gap:6px;margin-bottom:12px;">
                 <button id="bulk-skip"    onclick="setAllConflict('skip')"    class="btn btn-ghost btn-sm" style="font-size:11px;">Skip All</button>
-                <button id="bulk-update"  onclick="setAllConflict('update')"  class="btn btn-ghost btn-sm" style="font-size:11px;">Update All</button>
                 <button id="bulk-replace" onclick="setAllConflict('replace')" class="btn btn-ghost btn-sm" style="font-size:11px;">Replace All</button>
               </div>
               <div id="import-conflict-list" style="display:flex;flex-direction:column;gap:6px;max-height:300px;overflow-y:auto;"></div>
@@ -433,13 +428,37 @@
               <p style="font-size:12px;color:var(--text-3);margin-bottom:14px;">Toggle columns or add custom ones for <strong id="col-disc-name" style="color:var(--accent-light);"></strong></p>
               <div class="col-manager" id="col-list"></div>
               <div class="col-add-row">
-                <input type="text" id="new-col-name" placeholder="New column name…" />
+                <select id="new-col-select" style="flex:1;">
+                  <option value="">— Select a column to add —</option>
+                </select>
                 <button class="btn btn-primary btn-sm" onclick="addCustomColumn()">+ Add</button>
               </div>
             </div>
             <div class="modal-footer">
               <button class="btn btn-ghost" onclick="closeModal('col-modal')">Cancel</button>
               <button class="btn btn-primary" onclick="saveColumns()">Save Columns</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Generic "type to confirm" modal -->
+        <div class="modal" id="type-confirm-modal">
+          <div class="modal-backdrop" onclick="closeModal('type-confirm-modal')"></div>
+          <div class="modal-box modal-sm">
+            <div class="modal-header">
+              <h3 style="display:flex;align-items:center;gap:8px;color:var(--red);">${IC.trash} Confirm</h3>
+              <button class="modal-close" onclick="closeModal('type-confirm-modal')">✕</button>
+            </div>
+            <div class="modal-body">
+              <p id="type-confirm-message" style="font-size:13px;color:var(--text-3);margin-bottom:14px;"></p>
+              <div class="form-group">
+                <label>Type <strong id="type-confirm-word-label"></strong> to confirm</label>
+                <input type="text" id="type-confirm-input" oninput="onTypeConfirmInput()" autocomplete="off" />
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button class="btn btn-ghost" onclick="closeModal('type-confirm-modal')">Cancel</button>
+              <button class="btn btn-danger" id="type-confirm-btn" onclick="runTypeConfirm()" style="display:flex;align-items:center;gap:5px;"></button>
             </div>
           </div>
         </div>
@@ -452,25 +471,23 @@
 
     // ── DISCIPLINE PICKER ─────────────────────────────────
     async function loadDisciplinesAndPicker() {
-      const { data, error } = await db.from('disciplines').select('*').order('name');
-      if (error) {
+      let data;
+      try {
+        data = await cachedQuery('disciplines', async () => {
+          const { data, error } = await db.from('disciplines').select('*').order('name');
+          if (error) throw error;
+          return data || [];
+        });
+      } catch (error) {
         document.getElementById('disc-picker-grid').innerHTML =
           `<div style="grid-column:1/-1;text-align:center;padding:30px;color:var(--red);">Error loading disciplines: ${error.message}</div>`;
         return;
       }
-      allDisciplines = data || [];
+      allDisciplines = data;
 
       // Populate discipline select in Add Drawing modal
       const fSel = document.getElementById('f-discipline');
       allDisciplines.forEach(d => { fSel.innerHTML += `<option value="${d.id}">${d.name}</option>`; });
-
-	  // Populate project select in Add Drawing modal
-      const pSel = document.getElementById('f-project');
-      if (pSel) {
-        const { data: projs } = await db.from('projects').select('id, name, code').eq('status', 'Active').order('name');
-        pSel.innerHTML = `<option value="">— None —</option>` +
-          (projs || []).map(p => `<option value="${p.id}">${p.code} — ${p.name}</option>`).join('');
-      }
 	  
       // Render picker cards
       const grid = document.getElementById('disc-picker-grid');
@@ -489,14 +506,53 @@
     async function selectDiscipline(id, name) {
       activeDiscipline = { id, name, icon: DISC_ICONS[name] || DISC_ICON_DEFAULT };
       closeModal('disc-picker-modal');
+	  renderRegisterPage();
+	  await loadDrawingStatuses();
+	  await loadProjects();
       await loadColumnConfig();
-      // Auto-save migrated config back to database
       await saveColumnConfig();
-      renderRegisterPage();
-      await loadProjects();
+      renderTableHeader();
       await loadDrawings();
     }
+	
+	async function loadDrawingStatuses() {
+      const data = await cachedQuery('workflow_steps', async () => {
+        const { data, error } = await db.from('workflow_steps')
+          .select('name, sort_order, is_issuance, is_revision, activity_type')
+          .order('sort_order');
+        if (error) console.warn('[loadDrawingStatuses]', error.message);
+        return data || [];
+      });
+      drawingStatuses = data.filter(s => !s.activity_type || s.activity_type === 'drawing');
+    
+      const optionsHtml = `<option>Not Started</option>` +
+        drawingStatuses.map(s => `<option>${esc(s.name)}</option>`).join('');
+    
+      const filterSel = document.getElementById('filter-status');
+      if (filterSel) filterSel.innerHTML = `<option value="">All Statuses</option>` + optionsHtml;
+    
+      const formSel = document.getElementById('f-status');
+      if (formSel) formSel.innerHTML = optionsHtml;
+    }
 
+	async function loadColumnCatalog() {
+      columnCatalog = await cachedQuery('column_catalog', async () => {
+        const { data, error } = await db.from('custom_column_catalog').select('*').order('sort_order');
+        if (error) console.warn('[loadColumnCatalog]', error.message);
+        return data || [];
+      });
+    }
+	
+    function populateNewColSelect() {
+      const sel = document.getElementById('new-col-select');
+      if (!sel) return;
+      const usedKeys = new Set(pendingCols.map(c => c.key));
+      const available = columnCatalog.filter(c => !usedKeys.has(c.key));
+      sel.innerHTML = available.length
+        ? `<option value="">— Select a column to add —</option>` + available.map(c => `<option value="${c.id}">${esc(c.label)}${c.unit ? ' (' + esc(c.unit) + ')' : ''}</option>`).join('')
+        : `<option value="">No more columns available — ask an Admin</option>`;
+    }
+	
     // ── COLUMN CONFIG ─────────────────────────────────────
     async function loadColumnConfig() {
       const projId = document.getElementById('filter-project')?.value || 'all';
@@ -568,7 +624,7 @@
       const content = document.getElementById('page-content');
       content.innerHTML = `
         <div class="page-header" style="margin-bottom:14px;">
-          <h1 style="display:flex;align-items:center;gap:10px;"><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/><line x1="8" y1="9" x2="10" y2="9"/></svg> Fabrication Drawings</h1>
+          <h1 style="display:flex;align-items:center;gap:10px;"><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="17" x2="12" y2="14"/><line x1="12" y1="14" x2="15" y2="17"/><line x1="12" y1="14" x2="12" y2="11"/></svg> Fabrication Drawings</h1>
           <p>Central repository of all drawings and documents</p>
         </div>
 
@@ -577,8 +633,8 @@
             ${activeDiscipline.icon} ${activeDiscipline.name} <span style="opacity:0.6;display:flex;align-items:center;gap:2px;font-size:11px;margin-left:4px;">${IC.chevron} switch</span>
           </div>
           <div style="margin-left:auto;display:flex;gap:8px;flex-wrap:nowrap;flex-shrink:0;">
-            <button class="btn btn-ghost btn-sm" onclick="openColManager()" style="display:flex;align-items:center;gap:5px;">${IC.settings} Columns</button>
-            <button class="btn btn-ghost btn-sm" onclick="openModal('import-modal')" style="display:flex;align-items:center;gap:5px;">${IC.download} Import Excel</button>
+            ${ENG_UP.includes(currentUserRole) ? `<button class="btn btn-ghost btn-sm" onclick="openColManager()" style="display:flex;align-items:center;gap:5px;">${IC.settings} Columns</button>` : ''}
+            <button class="btn btn-ghost btn-sm" onclick="openImportModal()" style="display:flex;align-items:center;gap:5px;">${IC.download} Import Excel</button>
             <button class="btn btn-ghost btn-sm" onclick="exportDrawings()" style="display:flex;align-items:center;gap:5px;">${IC.upload} Export</button>
             <button class="btn btn-primary btn-sm" onclick="openAddModal()" style="display:flex;align-items:center;gap:5px;">${IC.plus} Add Drawing</button>
             <button class="btn btn-danger btn-sm" onclick="deleteAllDrawings()" style="display:flex;align-items:center;gap:5px;">${IC.trash} Delete All</button>
@@ -592,12 +648,10 @@
                 <input type="text" id="search-input" placeholder="Search…" oninput="onSearch(this.value)" />
               </div>
               <select class="filter-select" id="filter-project" onchange="onFilter()" style="font-size:12px;padding:6px 10px;">
-                <option value="">All Projects</option>
+                <option value="">— Select a project —</option>
               </select>
               <select class="filter-select" id="filter-status" onchange="onFilter()" style="font-size:12px;padding:6px 10px;">
                 <option value="">All Statuses</option>
-                <option>Not Started</option><option>Draft</option><option>Detailed</option><option>Checked</option>
-                <option>Issued</option><option>Issued for Approval</option><option>Issued for Construction</option><option>Completed</option>
               </select>
               <div class="toolbar-right" style="margin-right:24px;">
                 <button class="btn btn-ghost btn-sm expand-table-btn" id="expand-btn" onclick="toggleTableExpand()" title="Expand Table" style="display:flex;align-items:center;gap:5px;">${IC.columns} <span id="expand-label">Expand</span></button>
@@ -656,50 +710,39 @@
 
 	
 	async function loadProjects() {
-      const { data } = await db.from('projects').select('id, name, code').eq('status', 'Active').order('name');
+      const data = await cachedQuery('projects_active', async () => {
+        const { data, error } = await db.from('projects').select('id, name, code').eq('status', 'Active').order('name');
+        if (error) console.warn('[loadProjects]', error.message);
+        return data || [];
+      });
       const sel = document.getElementById('filter-project');
       if (!sel) return;
       const prev = sel.value;
-      sel.innerHTML = `<option value="">All Projects</option>` +
-		(data || []).map(p => `<option value="${p.id}" data-code="${p.code}">${p.code} — ${p.name}</option>`).join('');
+      sel.innerHTML = `<option value="">— Select a project —</option>` +
+		data.map(p => `<option value="${p.id}" data-code="${p.code}">${p.code} — ${p.name}</option>`).join('');
       // Restore previous selection or use remembered project
       const remembered = localStorage.getItem('activeProjectId');
       if (prev) sel.value = prev;
       else if (remembered) sel.value = remembered;
       activeProject = sel.value || null;
-
-      // Populate modal project dropdown
-      const modalProjSel = document.getElementById('f-project');
-      if (modalProjSel) {
-        const modalCurrent = modalProjSel.value;
-        modalProjSel.innerHTML = `<option value="">— None —</option>` +
-          (data || []).map(p => `<option value="${p.id}" data-code="${p.code}">${p.code} — ${p.name}</option>`).join('');
-        if (modalCurrent) modalProjSel.value = modalCurrent;
-      }
-      
-      // Also populate import modal project dropdown
-      const importSel = document.getElementById('import-project');
-      if (importSel) {
-        const current = importSel.value;
-        importSel.innerHTML = `<option value="auto">Auto-detect Project</option><option value="">— No project —</option>` +
-          (data || []).map(p => `<option value="${p.id}" data-code="${p.code}">${p.code} — ${p.name}</option>`).join('');
-        if (current) importSel.value = current;
-      }
     }
 	
 	async function loadStructureItems(projectId) {
       structureItems = [];
       if (!projectId) { renderAreaField([]); return; }
-      const sel = document.getElementById('f-project');
+      const sel = document.getElementById('filter-project');
       const selectedOpt = sel ? [...sel.options].find(o => o.value === projectId) : null;
       const projectCode = selectedOpt ? selectedOpt.dataset.code : null;
       if (!projectCode) { renderAreaField([]); return; }
-      const { data } = await db.from('structure_items')
-        .select('id, area_system_module, priority_shipment')
-        .eq('project_code', projectCode)
-        .order('priority_shipment')
-        .order('area_system_module');
-      structureItems = data || [];
+      structureItems = await cachedQuery(`structure_items_${projectCode}`, async () => {
+        const { data, error } = await db.from('structure_items')
+          .select('id, area_system_module, priority_shipment')
+          .eq('project_code', projectCode)
+          .order('priority_shipment')
+          .order('area_system_module');
+        if (error) console.warn('[loadStructureItems]', error.message);
+        return data || [];
+      });
       renderAreaField(structureItems);
     }
     
@@ -724,12 +767,21 @@
 
       // FIX [C2]: Query fabrication_drawings (not the generic drawings table).
       // FIX [H2]: Use fabrication_drawing_activities for manhours relation.
+      if (!activeProject) {
+        if (tbody) tbody.innerHTML = `<tr><td colspan="20" style="text-align:center;padding:40px;color:var(--text-4);">Select a project above to view its ${activeDiscipline.name} drawings.</td></tr>`;
+        const pag = document.getElementById('drawing-pagination');
+        if (pag) pag.innerHTML = '';
+        drawings = [];
+        return;
+      }
+
       let q = db.from('fabrication_drawings')
         .select('*, disciplines(name), fabrication_drawing_activities(manhours), metadata, creator:created_by(full_name), checker:checked_by(full_name)', { count: 'exact' })
         .eq('discipline_id', activeDiscipline.id)
-        .order('created_at', { ascending: false });
+        .order('drawing_number', { ascending: true })
+        .order('id', { ascending: true });
 
-      if (activeProject) q = q.eq('project_id', activeProject);
+      q = q.eq('project_id', activeProject);
       if (filterStatus)  q = q.eq('status', filterStatus);
       if (searchQ)       q = q.or(`drawing_number.ilike.%${searchQ}%,title.ilike.%${searchQ}%`);
 
@@ -762,23 +814,23 @@
         // FIX [H2]: Use fabrication_drawing_activities — drawing_activities always undefined here.
         const mh = (d.fabrication_drawing_activities || []).reduce((s, a) => s + (a.manhours || 0), 0);
         const meta = d.metadata || {};
-        const safeD = JSON.stringify({ ...d, fabrication_drawing_activities: undefined, disciplines: undefined }).replace(/"/g, '&quot;');
+		const safeD = encodeURIComponent(JSON.stringify({ ...d, fabrication_drawing_activities: undefined, disciplines: undefined }));
 
         const cells = visCols.map(col => {
           let cellStyle = 'style="text-align:center;white-space:nowrap;"';
 		  if (col.key === 'title') cellStyle = 'style="text-align:left;white-space:nowrap;"';
           
           switch(col.key) {
-            case 'drawing_number': return `<td ${cellStyle}><span style="font-weight:600;color:var(--accent-light);">${d.drawing_number}</span></td>`;
-            case 'title': 		   return `<td ${cellStyle}>${d.title||'—'}</td>`;
-            case 'area':           return `<td ${cellStyle} style="font-size:12px;color:var(--text-3);">${d.area||'—'}</td>`;
-            case 'revision':       return `<td ${cellStyle} style="color:var(--text-3);">${d.revision||'—'}</td>`;
+            case 'drawing_number': return `<td ${cellStyle}><span style="font-weight:600;color:var(--accent-light);">${esc(d.drawing_number)}</span></td>`;
+            case 'title':          return `<td ${cellStyle}>${esc(d.title)||'—'}</td>`;
+            case 'area':           return `<td ${cellStyle} style="font-size:12px;color:var(--text-3);">${esc(d.area)||'—'}</td>`;
+            case 'revision':       return `<td ${cellStyle} style="color:var(--text-3);">${esc(d.revision)||'—'}</td>`;
             case 'status':         return `<td ${cellStyle}>${statusBadge(d.status)}</td>`;
             case 'created_by':     return `<td ${cellStyle} style="font-size:12px;color:var(--text-2);">${d.creator?.full_name||'—'}</td>`;
             case 'checked_by':     return `<td ${cellStyle} style="font-size:12px;color:var(--text-2);">${d.checker?.full_name||'—'}</td>`;
             case 'manhours':       return `<td ${cellStyle} style="font-weight:700;color:var(--accent);">${formatHours(mh)}</td>`;
             case 'created_at':     return `<td ${cellStyle} style="font-size:12px;color:var(--text-3);white-space:nowrap;">${formatDate(d.created_at)}</td>`;
-            default:               return `<td ${cellStyle} style="font-size:12px;color:var(--text-2);">${meta[col.key]||'—'}</td>`;
+            default:               return `<td ${cellStyle} style="font-size:12px;color:var(--text-2);">${esc(meta[col.key])||'—'}</td>`;
           }
 
         }).join('');
@@ -786,7 +838,7 @@
         return `<tr>
           ${cells}
           <td style="text-align:center;"><div class="table-actions">
-            <button class="btn btn-icon edit" onclick='openEditModal(${safeD})' title="Edit">${IC.edit}</button>
+            <button class="btn btn-icon edit" onclick="openEditModal(JSON.parse(decodeURIComponent('${safeD}')))" title="Edit">${IC.edit}</button>
             <button class="btn btn-icon delete" onclick="deleteDrawing('${d.id}')" title="Delete">${IC.trash}</button>
           </div></td>
         </tr>`;
@@ -796,12 +848,14 @@
     }
 
     function statusBadge(s) {
-      const m = { 'Completed':'badge-green','Issued for Construction':'badge-green','Issued for Approval':'badge-orange','Issued':'badge-orange','Checked':'badge-amber','Detailed':'badge-amber','Draft':'badge-gray','Not Started':'badge-gray' };
-      return `<span class="badge ${m[s]||'badge-gray'}">${s||'Not Started'}</span>`;
+      const name = s || 'Not Started';
+      const cls = STATUS_COLORS[name] || 'badge-gray';
+      return `<span class="badge ${cls}">${esc(name)}</span>`;
     }
 
     // ── ADD / EDIT MODAL ──────────────────────────────────
     function openAddModal() {
+	  if (!activeProject) { toast('Select a project first.', 'info'); return; }
       document.getElementById('edit-id').value = '';
       document.getElementById('modal-title').textContent = 'Add Drawing';
       document.getElementById('f-number').value = '';
@@ -811,9 +865,8 @@
       document.getElementById('f-status').value = 'Not Started';
       document.getElementById('f-status').disabled = true;
       document.getElementById('f-discipline').value = activeDiscipline.id;
-	  if (activeProject) document.getElementById('f-project').value = activeProject;
 	  renderExtraFields({});
-	  loadStructureItems(document.getElementById('f-project').value || '');
+	  loadStructureItems(activeProject);
 	  openModal('drawing-modal');
 	  setTimeout(() => document.getElementById('f-number').focus(), 100);
     }
@@ -828,9 +881,8 @@
       document.getElementById('f-status').value = d.status || 'Not Started';
       document.getElementById('f-status').disabled = true;
       document.getElementById('f-discipline').value = d.discipline_id || activeDiscipline.id;
-      document.getElementById('f-project').value    = d.project_id    || '';
       renderExtraFields(d.metadata || {});
-      await loadStructureItems(d.project_id || '');
+      await loadStructureItems(d.project_id || activeProject);
       const areaEl = document.getElementById('f-area');
       if (areaEl) areaEl.value = d.area || '';
       openModal('drawing-modal');
@@ -840,16 +892,19 @@
       const customCols = activeCols.filter(c => !BASE_COLS.find(b => b.key === c.key));
       const el = document.getElementById('extra-fields');
       if (!customCols.length) { el.innerHTML = ''; return; }
-      el.innerHTML = `<hr class="divider" /><p style="font-size:11px;color:var(--text-4);margin-bottom:10px;">CUSTOM FIELDS</p>` +
+      el.innerHTML = `<hr class="divider" /><p style="font-size:11px;font-weight:700;letter-spacing:0.5px;color:var(--accent);text-transform:uppercase;margin:0 0 10px;">Custom Fields</p>` +
+        `<div style="display:grid;grid-template-columns:repeat(3, 1fr);gap:12px;">` +
         customCols.map(c => `
           <div class="form-group">
             <label>${c.label}</label>
             <input type="text" id="extra-${c.key}" value="${meta[c.key]||''}" placeholder="${c.label}…" />
           </div>
-        `).join('');
+        `).join('') +
+        `</div>`;
     }
 
     async function saveDrawing() {
+      if (!activeProject) { toast('Select a project first.', 'error'); return; }
       // FIX [L2]: Removed debug console.log.
       const id             = document.getElementById('edit-id').value;
       const drawing_number = document.getElementById('f-number').value.trim();
@@ -862,7 +917,7 @@
       const metadata = {};
       customCols.forEach(c => {
         const el = document.getElementById(`extra-${c.key}`);
-        if (el) metadata[c.key] = el.value.trim();
+        if (el && el.value.trim() !== '') metadata[c.key] = el.value.trim();
       });
 
       // FIX [C4]: status excluded from shared payload — only set on new inserts.
@@ -871,7 +926,7 @@
         drawing_number,
         title,
         discipline_id: document.getElementById('f-discipline').value || activeDiscipline.id,
-        project_id:    document.getElementById('f-project').value    || null,
+        project_id:    activeProject,
         area:          document.getElementById('f-area').value.trim() || null,
         revision:      document.getElementById('f-revision').value.trim() || null,
         metadata:      Object.keys(metadata).length ? metadata : null,
@@ -908,85 +963,65 @@
     }
 
     async function deleteAllDrawings() {
-      // Build project options for the confirm dialog
-      const projSel = document.getElementById('filter-project');
-      // Only include actual project options (skip the "All Projects" blank option)
-      const projOptions = [...projSel.options]
-        .filter(o => o.value !== '')
-        .map(o => `<option value="${o.value}">${o.text}</option>`)
-        .join('');
-
-      // Show custom confirm with project selector
-      const overlay = document.createElement('div');
-      overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:center;justify-content:center;';
-      overlay.innerHTML = `
-        <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:28px;max-width:420px;width:90%;">
-          <h3 style="margin:0 0 8px;color:var(--text);font-size:16px;">Delete Drawings</h3>
-          <p style="font-size:13px;color:var(--text-3);margin:0 0 16px;">Select which project's drawings to delete from <strong>${activeDiscipline.name}</strong>. This also removes all manhour entries and cannot be undone.</p>
-          <div class="form-group" style="margin-bottom:20px;">
-            <label style="font-size:12px;">Scope</label>
-            <select id="delete-proj-scope" style="width:100%;">
-              <option value="">— Select Scope —</option>
-              ${projOptions}
-              <option value="UNTAGGED">Untagged (no project assigned)</option>
-              <option value="ALL">⚠️ All — entire ${activeDiscipline.name} discipline</option>
-            </select>
-          </div>
-          <div id="del-type-wrap" style="display:none;margin-bottom:16px;">
-            <label style="font-size:12px;color:var(--red);font-weight:600;display:block;margin-bottom:6px;">Type <strong>delete all</strong> to confirm:</label>
-            <input type="text" id="del-confirm-input" placeholder="delete all" style="width:100%;box-sizing:border-box;" />
-          </div>
-          <div style="display:flex;gap:8px;justify-content:flex-end;">
-            <button class="btn btn-ghost" id="del-cancel-btn">Cancel</button>
-            <button class="btn btn-danger" id="del-confirm-btn" disabled>Delete</button>
-          </div>
-        </div>
-      `;
-      document.body.appendChild(overlay);
-      document.getElementById('del-cancel-btn').onclick = () => overlay.remove();
-
-      // Show type-to-confirm box only when a valid scope is selected
-      document.getElementById('delete-proj-scope').addEventListener('change', () => {
-        const scope = document.getElementById('delete-proj-scope').value;
-        const wrap  = document.getElementById('del-type-wrap');
-        const input = document.getElementById('del-confirm-input');
-        const btn   = document.getElementById('del-confirm-btn');
-        if (scope) {
-          wrap.style.display = 'block';
-          input.value = '';
-          btn.disabled = true;
-        } else {
-          wrap.style.display = 'none';
-          btn.disabled = true;
+      if (!activeProject) { toast('Select a project first.', 'info'); return; }
+      openTypeConfirm(
+        `This will permanently delete all ${activeDiscipline.name} drawings matching the current filters, for this project. This also removes all manhour entries and cannot be undone.`,
+        'Delete',
+        'Delete All',
+        async () => {
+          let q = db.from('fabrication_drawings').delete()
+            .eq('discipline_id', activeDiscipline.id)
+            .eq('project_id', activeProject);
+          if (filterStatus) q = q.eq('status', filterStatus);
+          const { error } = await q;
+          if (error) { toast(error.message, 'error'); return; }
+          toast('Drawings deleted.', 'success');
+          currentPage = 1;
+          await loadDrawings();
         }
-      });
+      );
+    }
 
-      // Enable delete button only when user types "delete all" exactly
-      document.getElementById('del-confirm-input').addEventListener('input', (e) => {
-        document.getElementById('del-confirm-btn').disabled = e.target.value.trim().toLowerCase() !== 'delete all';
-      });
+    // ── TYPE-TO-CONFIRM (used by Delete All) ─────────
+    let typeConfirmCallback = null;
+    let typeConfirmWord     = '';
 
-      document.getElementById('del-confirm-btn').onclick = async () => {
-        const scope = document.getElementById('delete-proj-scope').value;
-        overlay.remove();
-       // FIX [C2]: Delete from fabrication_drawings.
-       let q = db.from('fabrication_drawings').delete().eq('discipline_id', activeDiscipline.id);
-        if (scope === 'UNTAGGED')       q = q.is('project_id', null);
-        else if (scope !== 'ALL')       q = q.eq('project_id', scope);
-        // scope === 'ALL' = no extra filter, deletes entire discipline
-        const { error } = await q;
-        if (error) { toast(error.message, 'error'); return; }
-        toast('Drawings deleted.', 'success');
-        currentPage = 1;
-        await loadDrawings();
-      };
+    function openTypeConfirm(message, word, btnLabel, callback) {
+      typeConfirmCallback = callback;
+      typeConfirmWord = word;
+      document.getElementById('type-confirm-message').textContent = message;
+      document.getElementById('type-confirm-word-label').textContent = word;
+      document.getElementById('type-confirm-input').placeholder = word;
+      document.getElementById('type-confirm-input').value = '';
+      document.getElementById('type-confirm-btn').innerHTML = `${IC.trash} ${btnLabel}`;
+      openModal('type-confirm-modal');
+    }
+
+    function onTypeConfirmInput() {
+      // validation happens on click, in runTypeConfirm()
+    }
+
+    function runTypeConfirm() {
+      const val = document.getElementById('type-confirm-input').value.trim();
+      if (val !== typeConfirmWord) {
+        toast(`Incorrect. Please type "${typeConfirmWord}" exactly to confirm.`, 'error');
+        return;
+      }
+      closeModal('type-confirm-modal');
+      const cb = typeConfirmCallback;
+      typeConfirmCallback = null;
+      if (typeof cb === 'function') cb();
     }
 
     // ── COLUMN MANAGER ────────────────────────────────────
-    function openColManager() {
+    async function openColManager() {
+	  if (!activeProject) { toast('Select a project first.', 'info'); return; }
+	  if (!ENG_UP.includes(currentUserRole)) { toast('You do not have permission to manage columns.', 'error'); return; }	
       pendingCols = JSON.parse(JSON.stringify(activeCols));
       document.getElementById('col-disc-name').textContent = activeDiscipline.name;
+      if (!columnCatalog.length) await loadColumnCatalog();
       renderColList();
+      populateNewColSelect();
       openModal('col-modal');
     }
 
@@ -1098,17 +1133,19 @@
     function removeCol(i) {
       pendingCols.splice(i, 1);
       renderColList();
+	  populateNewColSelect();
     }
 
     function addCustomColumn() {
-      const input = document.getElementById('new-col-name');
-      const name = input.value.trim();
-      if (!name) { toast('Enter a column name.', 'error'); return; }
-      const key = name.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
-      if (pendingCols.find(c => c.key === key)) { toast('Column already exists.', 'warning'); return; }
-      pendingCols.push({ key, label: name, locked: false, visible: false, custom: true });
-      input.value = '';
+      const sel = document.getElementById('new-col-select');
+      const catalogId = sel.value;
+      if (!catalogId) { toast('Select a column to add.', 'error'); return; }
+      const entry = columnCatalog.find(c => c.id === catalogId);
+      if (!entry) return;
+      if (pendingCols.find(c => c.key === entry.key)) { toast('Column already added.', 'warning'); return; }
+      pendingCols.push({ key: entry.key, label: entry.label, unit: entry.unit || null, locked: false, visible: false, custom: true });
       renderColList();
+      populateNewColSelect();
     }
 
     async function saveColumns() {
@@ -1121,11 +1158,37 @@
     }
 
     // ── IMPORT EXCEL ──────────────────────────────────────
-    let importConflicts = {}; // drawing_number -> 'skip' | 'replace'
+    let importConflicts     = {}; // drawing_number -> 'skip' | 'replace'
+    let importConflictMeta  = {}; // drawing_number -> { id } — existing row to update on Replace
+    let validDrawingNumbers = new Set(); // drawing numbers that passed Project/Doc Type/Discipline/Area validation
+    let skippedDrawingRows  = []; // { num, reason } — excluded entirely, shown only in Status
+
+    // Drawing Number format: AGP-23002-FAD-PIP-E01-1301.00
+    //   [0]=company  [1]=Project Code  [2]=Doc Type  [3]=Discipline Code  [4..]=series
+    const DOC_TYPE_CODE = 'FAD';
+    function parseDrawingNumberParts(num) {
+      const parts = (num || '').split('-');
+      if (parts.length < 4) return null;
+      return { projectSegment: parts[1], docTypeSegment: parts[2], disciplineSegment: parts[3] };
+    }
+
+    function getActiveProjectCode() {
+      const sel = document.getElementById('filter-project');
+      const opt = sel ? [...sel.options].find(o => o.value === activeProject) : null;
+      return opt ? opt.dataset.code : null;
+    }
+
+    function getActiveDisciplineCode() {
+      const d = allDisciplines.find(d => d.id === activeDiscipline?.id);
+      return d ? d.code : null;
+    }
 
     function resetImportFile() {
       importData = [];
       importConflicts = {};
+      importConflictMeta = {};
+      validDrawingNumbers = new Set();
+      skippedDrawingRows = [];
       document.getElementById('import-upload-zone').style.display = 'block';
       document.getElementById('import-details-section').style.display = 'none';
       document.getElementById('import-btn').disabled = true;
@@ -1133,64 +1196,113 @@
       document.getElementById('import-file').value = '';
     }
 
+    function openImportModal() {
+      if (!activeProject) { toast('Select a project first.', 'info'); return; }
+      resetImportFile();
+      openModal('import-modal');
+    }
+
     function handleImportFileDrop(file) {
-      if (!file) return;
-      processImportFile(file);
+      if (file) processImportFile(file);
     }
 
     async function handleImportFile(e) {
       const file = e.target.files[0];
-      if (!file) return;
-      processImportFile(file);
+      if (file) await processImportFile(file);
     }
 
     async function processImportFile(file) {
+      if (!activeProject) { toast('Select a project first.', 'error'); return; }
       try {
         const ab = await file.arrayBuffer();
         const wb = XLSX.read(ab, { type: 'array' });
         const ws = wb.Sheets[wb.SheetNames[0]];
         importData = XLSX.utils.sheet_to_json(ws, { defval: '' });
-        const detectedCols = Object.keys(importData[0] || {});
 
-        // Try to auto-detect column mappings
-        const find = (matchers) => detectedCols.find(c => matchers.some(m => c.toLowerCase().includes(m))) || '';
-        document.getElementById('map-drawing-number').value = find(['drawing', 'dwg', 'doc no', 'document no']) || 'drawing_number';
-        document.getElementById('map-title').value        = find(['title', 'description', 'name']) || 'title';
-        document.getElementById('map-area').value         = find(['area', 'system', 'unit', 'location']) || 'area';
-        document.getElementById('map-revision').value     = find(['rev', 'revision']) || 'revision';
+        const projectCode    = getActiveProjectCode();
+        const disciplineCode = getActiveDisciplineCode();
 
-        // Check for duplicates against existing drawings
-        const drawingNumberCol = document.getElementById('map-drawing-number').value;
+        let validAreas = new Set();
+        if (projectCode) {
+          const { data: structureRows } = await db.from('structure_items')
+            .select('area_system_module')
+            .eq('project_code', projectCode);
+          validAreas = new Set((structureRows || []).map(s => s.area_system_module));
+        }
+
+        // ── Validate every Drawing Number against Project / Doc Type / Discipline / Area ──
+        validDrawingNumbers = new Set();
+        skippedDrawingRows  = [];
+        importData.forEach(r => {
+          const num        = (r['Drawing Number'] || r['drawing_number'] || '').toString().trim();
+          const area       = (r['Area/System'] || r['area_system'] || r['Area'] || '').toString().trim();
+          const discipline = (r['Discipline'] || r['discipline'] || '').toString().trim();
+          if (!num) return; // blank numbers are silently ignored
+
+          const parts = parseDrawingNumberParts(num);
+          const disciplineRecord = discipline ? allDisciplines.find(d => d.name === discipline) : null;
+
+          if (!parts) {
+            skippedDrawingRows.push({ num, reason: 'Unrecognized Drawing Number format' });
+          } else if (parts.projectSegment !== projectCode) {
+            skippedDrawingRows.push({ num, reason: `Project Code "${parts.projectSegment}" doesn't match selected project "${projectCode}"` });
+          } else if (parts.docTypeSegment.toUpperCase() !== DOC_TYPE_CODE) {
+            skippedDrawingRows.push({ num, reason: `Document type "${parts.docTypeSegment}" is not ${DOC_TYPE_CODE}` });
+          } else if (!discipline) {
+            skippedDrawingRows.push({ num, reason: 'Missing Discipline' });
+          } else if (!disciplineRecord) {
+            skippedDrawingRows.push({ num, reason: `Discipline "${discipline}" not found` });
+          } else if (disciplineRecord.code !== parts.disciplineSegment) {
+            skippedDrawingRows.push({ num, reason: `Discipline "${discipline}" doesn't match discipline code "${parts.disciplineSegment}" in Drawing Number` });
+          } else if (parts.disciplineSegment !== disciplineCode) {
+            skippedDrawingRows.push({ num, reason: `Discipline "${parts.disciplineSegment}" doesn't match selected discipline "${disciplineCode}"` });
+          } else if (!area) {
+            skippedDrawingRows.push({ num, reason: 'Missing Area/System' });
+          } else if (!validAreas.has(area)) {
+            skippedDrawingRows.push({ num, reason: `Area/System "${area}" is not a valid area for this project` });
+          } else {
+            validDrawingNumbers.add(num);
+          }
+        });
+
+        // Duplicate check only applies to rows that already passed validation, scoped to this project + discipline
         const { data: existingRows } = await db.from('fabrication_drawings')
-          .select('drawing_number')
-          .eq('discipline_id', activeDiscipline.id);
-        const existingNumbers = new Set((existingRows || []).map(d => d.drawing_number));
-        const incoming = importData.map(r => (r[drawingNumberCol] || '').toString().trim()).filter(Boolean);
-        const duplicates = incoming.filter(n => existingNumbers.has(n));
+          .select('id, drawing_number')
+          .eq('discipline_id', activeDiscipline.id)
+          .eq('project_id', activeProject);
+        const existingMap = new Map((existingRows || []).map(d => [d.drawing_number, d.id]));
+        const duplicates = [...validDrawingNumbers].filter(n => existingMap.has(n));
 
-        // Populate IMPORT DETAILS block
+        importConflicts = {};
+        importConflictMeta = {};
+        duplicates.forEach(n => {
+          importConflicts[n] = 'skip';
+          importConflictMeta[n] = { id: existingMap.get(n) };
+        });
+
         document.getElementById('import-filename').textContent = file.name;
         document.getElementById('import-rowcount').textContent = `${importData.length} rows`;
 
-        if (duplicates.length) {
-          importConflicts = {};
-          duplicates.forEach(n => importConflicts[n] = 'skip');
-          const remarksEl = document.getElementById('import-remarks');
-          remarksEl.innerHTML = `<span style="color:var(--yellow);">⚠ ${duplicates.length} duplicate drawing${duplicates.length > 1 ? 's' : ''} found.</span> <a href="#" style="color:var(--accent);text-decoration:underline;font-size:12px;" onclick="event.preventDefault();openConflictModal()">Click here to review</a>`;
-          document.getElementById('import-remarks-row').style.display = 'flex';
+        // ── Status summary ──
+        let statusLine;
+        if (skippedDrawingRows.length === 0) {
+          statusLine = `<span style="color:var(--green);">${validDrawingNumbers.size} item${validDrawingNumbers.size !== 1 ? 's' : ''} found. Ready to import.</span>`;
+        } else if (validDrawingNumbers.size === 0) {
+          statusLine = `<span style="color:var(--red);">${skippedDrawingRows.length} item${skippedDrawingRows.length !== 1 ? 's' : ''} skipped. Ensure Drawing No., Discipline and Area are correct.</span>`;
         } else {
-          const remarksEl = document.getElementById('import-remarks');
-          remarksEl.innerHTML = `<span style="color:var(--green);">✓ No issues found. Ready to import.</span>`;
-          document.getElementById('import-remarks-row').style.display = 'flex';
-          importConflicts = {};
+          statusLine = `<span style="color:var(--green);">${validDrawingNumbers.size} item${validDrawingNumbers.size !== 1 ? 's' : ''} found.</span> <span style="color:var(--red);">${skippedDrawingRows.length} item${skippedDrawingRows.length !== 1 ? 's' : ''} skipped. Ensure Drawing No., Discipline and Area are correct.</span>`;
         }
+        let remarksHtml = statusLine;
+        if (duplicates.length) {
+          remarksHtml += `<br><span style="color:var(--yellow);">${duplicates.length} duplicate${duplicates.length > 1 ? 's' : ''} found.</span> <a href="#" style="color:var(--accent);text-decoration:underline;font-size:12px;" onclick="event.preventDefault();openConflictModal()">Click here to review</a>`;
+        }
+        document.getElementById('import-remarks').innerHTML = remarksHtml;
+        document.getElementById('import-remarks-row').style.display = 'flex';
 
-        // Switch view
         document.getElementById('import-upload-zone').style.display = 'none';
         document.getElementById('import-details-section').style.display = 'block';
-        document.getElementById('import-btn').disabled = false;
+        document.getElementById('import-btn').disabled = validDrawingNumbers.size === 0;
         document.getElementById('import-back-btn').style.display = 'inline-flex';
-
       } catch(err) {
         toast('Error reading file: ' + err.message, 'error');
       }
@@ -1205,32 +1317,29 @@
           <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--bg-4);border:1px solid var(--border);border-radius:var(--radius);">
             <span style="flex:1;font-size:12px;font-family:monospace;color:var(--text-2);">${n}</span>
             <button onclick="setConflict('${n}','skip')"    class="btn btn-ghost btn-sm" style="font-size:10px;padding:2px 8px;${hi('skip')}">Skip</button>
-            <button onclick="setConflict('${n}','update')"  class="btn btn-ghost btn-sm" style="font-size:10px;padding:2px 8px;${hi('update')}">Update</button>
             <button onclick="setConflict('${n}','replace')" class="btn btn-ghost btn-sm" style="font-size:10px;padding:2px 8px;${hi('replace')}">Replace</button>
           </div>`;
       }).join('');
     }
 
-	function openConflictModal() {
+    function openConflictModal() {
       renderConflictList(Object.keys(importConflicts));
-      ['skip','update','replace'].forEach(a => {
+      ['skip','replace'].forEach(a => {
         const btn = document.getElementById(`bulk-${a}`);
         if (btn) btn.style.cssText = 'font-size:11px;';
       });
       openModal('conflict-modal');
     }
-	
+
     function setConflict(drawingNo, action) {
       importConflicts[drawingNo] = action;
-      const duplicates = Object.keys(importConflicts);
-      renderConflictList(duplicates);
+      renderConflictList(Object.keys(importConflicts));
     }
 
     function setAllConflict(action) {
       Object.keys(importConflicts).forEach(k => importConflicts[k] = action);
       renderConflictList(Object.keys(importConflicts));
-      // Highlight active bulk action button
-      ['skip','update','replace'].forEach(a => {
+      ['skip','replace'].forEach(a => {
         const btn = document.getElementById(`bulk-${a}`);
         if (btn) btn.style.cssText = a === action
           ? 'font-size:11px;border-color:var(--accent);color:var(--accent);background:var(--accent-dim);'
@@ -1240,35 +1349,20 @@
 
     async function importDrawings() {
       if (!importData.length) return;
+      if (!activeProject) { toast('Select a project first.', 'error'); return; }
       const btn = document.getElementById('import-btn');
       btn.textContent = 'Importing…'; btn.disabled = true;
 
-      // Get column mappings from form
-      const drawingNumberCol = document.getElementById('map-drawing-number').value.trim();
-      const titleCol         = document.getElementById('map-title').value.trim();
-      const areaCol          = document.getElementById('map-area').value.trim();
-      const revisionCol      = document.getElementById('map-revision').value.trim();
+      const standardKeys = ['Drawing Number','drawing_number','Title','title','Discipline','discipline','Area/System','area_system','Area','Revision','revision','Status','status','Created by','created_by','Checked by','checked_by','Total Manhours','total_manhours','Date Created','date_created'];
 
-      if (!drawingNumberCol) { toast('Please specify Drawing Number column header.', 'error'); btn.textContent='Import'; btn.disabled=false; return; }
-      if (!titleCol) { toast('Please specify Title column header.', 'error'); btn.textContent='Import'; btn.disabled=false; return; }
-
-      const standardKeys = [drawingNumberCol, titleCol, areaCol, revisionCol, 'revision','Revision','status','Status'];
-
-      // Separate into: new inserts, updates (merge), and full replacements
       const toInsert  = [];
-      const toUpdate  = [];
       const toReplace = [];
 
-      // Load disciplines for auto-detect (once, before loop)
-      if (!window._importDisciplines) {
-        const { data: discs } = await db.from('disciplines').select('id, code');
-        window._importDisciplines = discs || [];
-      }
-
       importData.forEach(r => {
-        const drawing_number = (r[drawingNumberCol] || '').toString().trim();
-        const title          = (r[titleCol] || '').toString().trim();
+        const drawing_number = (r['Drawing Number'] || r['drawing_number'] || '').toString().trim();
+        const title          = (r['Title'] || r['title'] || '').toString().trim();
         if (!drawing_number) return;
+        if (!validDrawingNumbers.has(drawing_number)) return; // Project/Doc Type/Discipline/Area mismatch — excluded upfront
 
         const conflictAction = importConflicts[drawing_number];
         if (conflictAction === 'skip') return;
@@ -1278,81 +1372,55 @@
           if (!standardKeys.includes(k) && r[k] !== '') metadata[k] = r[k];
         });
 
-        // FIX [C3]: Resolve discipline_id BEFORE constructing base to avoid ReferenceError.
-        const importProjSel = document.getElementById('import-project');
-        let project_id = null;
-        let auto_discipline_id = null;
-        if (importProjSel.value === 'auto') {
-          const parts = drawing_number.toUpperCase().split('-');
-          const projCode = parts[1] || '';
-          const discCode = parts[3] || '';
-          const allOpts = [...importProjSel.options].filter(o => o.dataset.code);
-          const projMatch = allOpts.find(o => o.dataset.code.toUpperCase() === projCode);
-          project_id = projMatch ? projMatch.value : null;
-          if (discCode) {
-            const discMatch = (window._importDisciplines || []).find(d => (d.code || '').toUpperCase() === discCode);
-            if (discMatch) auto_discipline_id = discMatch.id;
-          }
-        } else {
-          project_id = importProjSel.value || null;
-        }
-
+        // NOTE: revision is intentionally NOT part of this payload — it's app-controlled.
         const base = {
           drawing_number,
           title:         title || drawing_number,
-          discipline_id: auto_discipline_id || activeDiscipline.id,
-          project_id,
-          area:          (r[areaCol] || '').toString().trim() || null,
+          discipline_id: activeDiscipline.id,
+          project_id:    activeProject,
+          area:          (r['Area/System'] || r['area_system'] || r['Area'] || '').toString().trim() || null,
           metadata:      Object.keys(metadata).length ? metadata : null,
         };
 
         if (!conflictAction) {
-          // New drawing
-          toInsert.push({ ...base, revision: (r[revisionCol] || r.revision || r['Revision'] || '').toString().trim() || null, status: 'Not Started' });
-        } else if (conflictAction === 'update') {
-          // Update only safe fields — no revision, status, created_by, checked_by
-          toUpdate.push(base);
+          toInsert.push({ ...base, status: 'Not Started' }); // new record — needs an initial status
         } else if (conflictAction === 'replace') {
-          // Full overwrite
-          toReplace.push({ ...base, revision: (r[revisionCol] || r.revision || r['Revision'] || '').toString().trim() || null, status: 'Not Started' });
+          // Only Title, Area, and Custom Fields are ever affected by Replace — everything else
+          // (status, revision, created_by, checked_by) is left untouched.
+          const meta = importConflictMeta[drawing_number];
+          if (meta && meta.id) toReplace.push({ id: meta.id, fields: { title: base.title, area: base.area, metadata: base.metadata } });
         }
       });
 
       let hasError = false;
 
-      // FIX [C2]: All three operations target fabrication_drawings.
       if (toInsert.length) {
         const { error } = await db.from('fabrication_drawings').insert(toInsert);
         if (error) { toast('Insert error: ' + error.message, 'error'); hasError = true; }
       }
 
-      if (toUpdate.length) {
-        for (const row of toUpdate) {
-          const { drawing_number, ...fields } = row;
-          const { error } = await db.from('fabrication_drawings').update(fields).eq('drawing_number', drawing_number).eq('discipline_id', activeDiscipline.id);
-          if (error) { toast(`Update error (${drawing_number}): ` + error.message, 'error'); hasError = true; }
-        }
-      }
-
       if (toReplace.length) {
-        const { error } = await db.from('fabrication_drawings').upsert(toReplace, { onConflict: 'drawing_number' });
-        if (error) { toast('Replace error: ' + error.message, 'error'); hasError = true; }
+        const results = await Promise.all(toReplace.map(row =>
+          db.from('fabrication_drawings').update(row.fields).eq('id', row.id)
+        ));
+        const failed = results.filter(r => r.error);
+        if (failed.length) { toast('Replace error: ' + failed[0].error.message, 'error'); hasError = true; }
       }
 
       btn.textContent = 'Import'; btn.disabled = false;
       if (!hasError) {
-        const total = toInsert.length + toUpdate.length + toReplace.length;
+        const total = toInsert.length + toReplace.length;
         toast(`Imported ${total} drawing${total !== 1 ? 's' : ''} successfully.`, 'success');
         closeModal('import-modal');
         resetImportFile();
-        importData = [];
         currentPage = 1;
         await loadDrawings();
       }
-	}
- 
+    }
+
     // ── EXPORT ────────────────────────────────────────────
     async function exportDrawings() {
+      if (!activeProject) { toast('Select a project first.', 'info'); return; }
       // FIX [C2]: Query fabrication_drawings with correct activity relation.
       let q = db.from('fabrication_drawings')
         .select('drawing_number, title, disciplines(name), area, revision, status, creator:created_by(full_name), checker:checked_by(full_name), created_at, fabrication_drawing_activities(manhours), metadata')
@@ -1360,7 +1428,7 @@
         .order('drawing_number');
 
       // Apply same filters as the current table view
-      if (activeProject) q = q.eq('project_id', activeProject);
+      q = q.eq('project_id', activeProject);
       if (filterStatus)  q = q.eq('status', filterStatus);
       if (searchQ)       q = q.or(`drawing_number.ilike.%${searchQ}%,title.ilike.%${searchQ}%`);
 
@@ -1374,7 +1442,7 @@
           'Drawing Number': d.drawing_number,
           'Title':          d.title,
           'Discipline':     d.disciplines?.name || '',
-          'Area':           d.area || '',
+          'Area/System':    d.area || '',
           'Revision':       d.revision || '',
           'Status':         d.status || '',
           'Created by':     d.creator?.full_name || '',
@@ -1390,7 +1458,7 @@
         ? ([...document.getElementById('filter-project').options].find(o => o.value === activeProject)?.text?.split(' — ')[0] || '')
         : 'all';
       const statusSuffix = filterStatus ? `_${filterStatus.toLowerCase().replace(/ /g,'_')}` : '';
-      exportToExcel(rows, `drawing_register_${activeDiscipline.name.toLowerCase()}_${projCode}${statusSuffix}`);
+      exportToExcel(rows, `fad-register_${activeDiscipline.name.toLowerCase()}_${projCode}${statusSuffix}`);
     }
 
     // ── SEARCH / FILTER / PAGE ────────────────────────────

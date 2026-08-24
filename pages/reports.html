@@ -15,6 +15,11 @@
       cursor:pointer; transition:border-color .15s, background .15s;
     }
     .report-card:hover { border-color:var(--accent); background:var(--accent-dim); }
+    .report-card.disabled:hover { border-color:var(--border); background:var(--bg-4); }
+    .report-card.disabled .report-card-title { color:#888; }
+    .report-card.disabled .report-card-desc  { color:#666; }
+    .report-card.disabled .report-card-icon  { background:rgba(136,136,136,0.08); color:#888; }
+    .report-card.disabled > svg:last-child    { color:#999; }
     .report-card-icon { width:40px; height:40px; border-radius:var(--radius); background:var(--accent-dim); display:flex; align-items:center; justify-content:center; color:var(--accent); flex-shrink:0; }
     .report-card-body { flex:1; }
     .report-card-title { font-size:14px; font-weight:600; color:var(--text); }
@@ -28,36 +33,120 @@
 	.settings-table input:focus { background:var(--bg-4); border-radius:4px; }
 	.settings-table tr:hover td { background:var(--bg-4); }
 	.settings-table tbody tr:last-child td { border-bottom:none; }
+	
+	.status-badge { display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600; }
+    .status-open       { background:rgba(249,115,22,.15);color:#f97316; }
+    .status-inprogress { background:rgba(59,130,246,.15);color:#3b82f6; }
+    .status-completed  { background:rgba(34,197,94,.15);color:#22c55e; }
+    .status-cancelled  { background:rgba(100,116,139,.15);color:#64748b; }
 
     /* ── PRINT / PDF STYLES ── */
     @media print {
-      body * { visibility:hidden; }
-      #pdf-preview, #pdf-preview * { visibility:visible; }
-      #pdf-preview { position:fixed; top:0; left:0; width:100%; }
-      @page { size:A3 landscape; margin:10mm; }
+      /* Force background colors (orange, green, blue headers) */
+      * {
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+        color-adjust: exact !important;
+      }
+
+      html, body {
+        margin: 0 !important;
+        padding: 0 !important;
+        background: #fff !important;
+        height: auto !important;
+        overflow: visible !important;
+      }
+
+      /* Hide everything — the JS clone (#pdf-preview-print) is position:fixed
+         so it sits on top and prints correctly */
+      body > *:not(#pdf-preview-print):not(#print-overlay) {
+        display: none !important;
+      }
+
+      #print-overlay { display: none !important; }
+
+      #pdf-preview-print {
+        display: block !important;
+        position: static !important;
+        width: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        background: #fff !important;
+        z-index: auto !important;
+      }
+
+      /* Each pdf-page = one physical page */
+      .pdf-page {
+        display: block !important;
+        width: 100% !important;
+        margin: 0 !important;
+        padding: 10mm !important;
+        box-sizing: border-box !important;
+        background: #fff !important;
+        border: none !important;
+        page-break-after: always;
+        break-after: page;
+        page-break-inside: avoid;
+        break-inside: avoid;
+      }
+      .pdf-page:last-child {
+        page-break-after: auto;
+        break-after: auto;
+      }
+
+      /* Portrait pages (default) */
+      @page { size: A3 portrait; margin: 0; }
+
+      /* Landscape — Engineering Deliverables */
+      @page land { size: A3 landscape; margin: 0; }
+      .pdf-page.landscape { page: land; }
+    }
+	
+	#drawing-list-view .settings-table th {
+      white-space: normal;
+      word-break: break-word;
+      line-height: 1.3;
     }
 
-    /* ── PDF PREVIEW ── */
+    /* ── AG&P colour palette (matched to the Excel-exported sample WPR) ── */
     #pdf-preview {
+      --ag-gray:   #BFBFBF; /* top-level section title bars, status-box header */
+      --ag-orange: #FABF8F; /* table headers + default cell fill (primary AG&P accent) */
+      --ag-green:  #D8E4BC; /* identifier column accent — portrait/Highlights pivot tables */
+      --ag-blue:   #B8CCE4; /* identifier column accent — landscape Engineering Deliverables tables */
+      --ag-border: #000000;
       font-family: Arial, sans-serif;
       font-size: 9px;
       color: #000;
       background: #fff;
     }
-    .pdf-page { padding:8mm; page-break-after:always; }
-    .pdf-page:last-child { page-break-after:auto; }
+    /* Screen preview styles for pdf-page */
+    .pdf-page {
+      padding: 8mm;
+      width: 277mm;
+      box-sizing: border-box;
+      background: #fff;
+      margin-bottom: 12px;
+      border: 1px solid #ccc;  /* subtle page border for screen only */
+    }
+    .pdf-page.landscape {
+      width: 400mm;
+    }
+    .pdf-page:last-child {
+      margin-bottom: 0;
+    }
 
     /* Header */
     .pdf-header {
       display:grid; grid-template-columns:120px 1fr auto;
-      border:2px solid #000; margin-bottom:6px;
+      border:1px solid #000; margin-bottom:6px;
     }
     .pdf-logo-cell {
-      border-right:2px solid #000; display:flex;
+      border-right:1px solid #000; display:flex;
       align-items:center; justify-content:center; padding:8px;
     }
     .pdf-logo-box {
-      width:80px; height:50px; border:2px dashed #ccc;
+      width:80px; height:50px; border:2px dashed #999;
       display:flex; align-items:center; justify-content:center;
       font-size:10px; color:#999; font-weight:700;
     }
@@ -66,46 +155,63 @@
       font-size:16px; font-weight:700; text-transform:uppercase; letter-spacing:1px;
     }
     .pdf-meta-cell {
-      border-left:2px solid #000; padding:8px 12px;
+      border-left:1px solid #000; padding:8px 12px;
       font-size:9px; line-height:1.8; min-width:200px;
     }
     .pdf-meta-cell div { display:flex; gap:4px; }
     .pdf-meta-label { font-weight:700; min-width:80px; }
 
-    /* Section headers */
+    /* Section headers — gray top-level bar, orange sub-section bar (matches sample) */
     .pdf-section-header {
-      background:#E8E8E8; border:1px solid #999;
+      background:var(--ag-gray); border:0.5px solid #000;
       padding:4px 8px; font-weight:700; font-style:italic;
-      margin-bottom:0; font-size:9px;
+      margin-bottom:0; font-size:9px; color:#000 !important;
     }
     .pdf-subsection-header {
-      background:#D4D4D4; border:1px solid #999; border-top:none;
+      background:var(--ag-orange); border:0.5px solid #000; border-top:none;
       padding:4px 8px; font-weight:700; font-style:italic;
-      margin-bottom:0; font-size:9px;
+      margin-bottom:0; font-size:9px; color:#000 !important;
     }
 
-    /* Report tables */
-    .pdf-table { width:100%; border-collapse:collapse; font-size:8px; }
+    /* Small "Status / Quantity" summary box */
+    .pdf-status-box { border-collapse:collapse; font-size:8px; margin:4px 0 6px; border:0.5px solid #000; }
+	.pdf-status-box th, .pdf-status-box td { border:0.5px solid #000; padding:2px 14px; text-align:left; background:#fff; color:#000 !important; }
+    .pdf-status-box th { background:var(--ag-orange); font-weight:700; font-style:italic; color:#000 !important; }
+    .pdf-status-box td:first-child { font-weight:700; font-style:italic; color:#000 !important; }
+
+    /* Report tables — AG&P orange, with green/blue identifier-column accents */
+    .pdf-table { width:100%; border-collapse:collapse; font-size:8px; border:1px solid #000; }
     .pdf-table th, .pdf-table td {
-      border:1px solid #999; padding:3px 5px; text-align:center;
+      border:1px solid #000; padding:3px 5px; text-align:center;
+      background:var(--ag-orange); color:#000;
     }
-    .pdf-table th { background:#F4A460; font-weight:700; font-style:italic; }
-    .pdf-table th.group-header { background:#E8943A; font-size:9px; }
-    .pdf-table td.area-col { text-align:left; font-style:italic; }
-    .pdf-table tr.total-row td { font-weight:700; font-style:italic; background:#F9D89C; }
-    .pdf-table tr:nth-child(even) td { background:#FEF0D8; }
-    .pdf-table tr:nth-child(odd)  td { background:#fff; }
-    .pdf-table tr.total-row td    { background:#F9D89C !important; }
-    .pdf-table td.dash { color:#999; }
+    .pdf-table thead { display:table-header-group; } /* repeat header on every printed page */
+    .pdf-table tr { page-break-inside:avoid; }
+    .pdf-table th { font-weight:700; font-style:italic; color:#000; }
+    .pdf-table th.group-header { font-size:9px; color:#000; }
+    .pdf-table td.area-col, .pdf-table th.area-col { text-align:left; font-style:italic; color:#000; }
+
+    /* Identifier columns (e.g. "Area / Tank No.") — green accent, portrait pivot tables */
+    .pdf-table td.id-col, .pdf-table th.id-col { background:var(--ag-green); text-align:left; font-style:italic; color:#000; }
+    /* Identifier columns — blue accent, landscape Engineering Deliverables tables */
+    .pdf-table td.id-col-blue, .pdf-table th.id-col-blue { background:var(--ag-blue); color:#000; }
+
+    /* Alternating column-group bands for grouped/pivot tables (doc-code groups) */
+    .pdf-table .band-a { background:var(--ag-orange); color:#000; }
+    .pdf-table .band-b { background:var(--ag-green); color:#000; }
+
+    .pdf-table tr.total-row td { font-weight:700; font-style:italic; background:var(--ag-orange) !important; color:#000 !important; }
+    .pdf-table td.dash { color:#555; }
   </style>
 </head>
 <body>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style/dist/xlsx.bundle.js"></script>
   <script src="../js/supabase.js"></script>
   <script src="../js/utils.js"></script>
   <script src="../js/layout.js"></script>
   <script src="../js/messaging.js"></script>
+  <script src="../js/pdf_integration_vercel.js"></script>
 
   <script>
     const SVG_SM = (p) => `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
@@ -115,6 +221,7 @@
       trash:    SVG_SM('<polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/>'),
       settings: SVG_SM('<circle cx="12" cy="12" r="3"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2m-3.22-6.78-1.42 1.42M6.64 17.36l-1.42 1.42m0-11.56 1.42 1.42m8.48 8.48 1.42 1.42"/>'),
       report:   SVG_SM('<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/>'),
+      monitor:  SVG_SM('<rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>'),
       print:    SVG_SM('<polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/>'),
       back:     SVG_SM('<polyline points="15 18 9 12 15 6"/>'),
     };
@@ -122,67 +229,74 @@
     let projectsData    = [];
     let disciplinesData = [];
     let docCodesData    = [];
-    let settingsData    = [];
+    let workflowSteps   = [];
     let activeProject   = null;
+	let revisionReasonsById = new Map();
+
+    // Shared across Weekly Report and Activity Log — each drawing type's
+    // parent table + its corresponding activity-log table.
+    const DRAW_SOURCES = [
+      { table: 'erection_drawings',     acts: 'erection_drawing_activities'    },
+      { table: 'fabrication_drawings',  acts: 'fabrication_drawing_activities' },
+      { table: 'support_drawings',      acts: 'support_drawing_activities'     },
+      { table: 'weld_map_drawings',     acts: 'weld_map_drawing_activities'    },
+      { table: 'test_package_drawings', acts: 'test_package_drawing_activities'},
+    ];
+	
+	// Drawing List config — one entry per document type. `isCalc` marks the
+    // one type with a materially different shape (no discipline_id/revision_number
+    // on the parent row, no BASE_COLS custom-column pattern differences otherwise).
+    const DL_SOURCES = [
+      { key: 'erection',     table: 'erection_drawings',     acts: 'erection_drawing_activities',     activityType: 'drawing',      label: 'Erection' },
+      { key: 'fabrication',  table: 'fabrication_drawings',  acts: 'fabrication_drawing_activities',  activityType: 'drawing',      label: 'Fabrication' },
+      { key: 'support',      table: 'support_drawings',      acts: 'support_drawing_activities',      activityType: 'drawing',      label: 'Support' },
+      { key: 'weld_map',     table: 'weld_map_drawings',     acts: 'weld_map_drawing_activities',     activityType: 'drawing',      label: 'Weld Map' },
+      { key: 'test_package', table: 'test_package_drawings', acts: 'test_package_drawing_activities', activityType: 'test_package', label: 'Test Package' },
+      { key: 'calc',         table: 'eng_calculations',      acts: 'eng_calculation_activities',      activityType: 'calculations', label: 'Engineering Calc', isCalc: true },
+    ];
+    
+    const DL_METADATA_FIELDS = [
+      { key: 'no_of_sheets',    col: 'no_of_sheets' },
+      { key: 'shop_dia_inch',   col: 'shop_dia_inch' },
+      { key: 'field_dia_inch',  col: 'field_dia_inch' },
+      { key: 'surface_area_m2', col: 'surface_area_m2' },
+      { key: 'weight_kg',       col: 'weight_kg' },
+    ];
+	
     let activeView      = 'home';
+    let loggedInProfile = null;
+	
+	// Loaded from report_permissions in pageInit(), keyed by report_key.
+    // An item with no row here (like drawingList) is open to everyone —
+    // matches the default behavior in the admin's Report Permission modal.
+    let reportPermissionsByKey = {};
 
-    // Step name mappings
-    const STEP_PREPARED = 'Draft';
-    const STEP_IFA      = 'Issued for Approval';
-    const STEP_IFC      = 'Issued for Construction';
-
-    function injectModals() {
-      document.body.insertAdjacentHTML('beforeend', `
-        <div class="modal" id="area-modal">
-          <div class="modal-backdrop" onclick="closeModal('area-modal')"></div>
-          <div class="modal-box modal-sm" style="max-width: 460px; width: 90%;">
-            <div class="modal-header">
-              <h3 id="area-modal-title" style="display:flex;align-items:center;gap:8px;">
-                ${IC.plus} Add Quota
-              </h3>
-              <button class="modal-close" onclick="closeModal('area-modal')">✕</button>
-            </div>
-            <div class="modal-body">
-              <input type="hidden" id="a-id" />
-              <div class="form-group">
-                <label class="required">Area / Tank No.</label>
-                <input type="text" id="a-area" placeholder="e.g. Tank T-30 CRT" />
-              </div>
-              <div class="form-row">
-                <div class="form-group">
-                  <label class="required">Document Code</label>
-                  <select id="a-doccode"><option value="">— Select —</option></select>
-                </div>
-                <div class="form-group">
-                  <label class="required">Discipline</label>
-                  <select id="a-discipline" onchange="onDisciplineChange(this)"><option value="">— Select —</option></select>
-                </div>
-              </div>
-              <div class="form-row">
-                <div class="form-group">
-                  <label class="required">Estimated Qty</label>
-                  <input type="number" id="a-qty" min="0" step="1" placeholder="0" />
-                </div>
-                <div class="form-group" id="a-diainch-group" style="display:none;">
-                  <label>Dia Inch</label>
-                  <input type="number" id="a-diainch" min="0" step="0.01" placeholder="0.00" />
-                </div>
-              </div>
-            </div>
-            <div class="modal-footer">
-              <button class="btn btn-ghost" onclick="closeModal('area-modal')">Cancel</button>
-              <button class="btn btn-primary" id="area-save-btn" onclick="saveAreaSetting()" style="display:flex;align-items:center;gap:5px;">
-                ${IC.save} Save
-              </button>
-            </div>
-          </div>
-        </div>
-      `);
+    async function loadReportPermissions() {
+      const { data, error } = await db.from('report_permissions').select('report_key, allowed_roles');
+      if (error) { console.error('[Reports] Failed to load report_permissions:', error); return; }
+      reportPermissionsByKey = {};
+      (data || []).forEach(row => { reportPermissionsByKey[row.report_key] = row.allowed_roles || []; });
     }
 
+    function canView(reportKey) {
+      const allowed = reportPermissionsByKey[reportKey];
+      if (!allowed) return true; // no row = open to all
+      return allowed.includes(loggedInProfile?.role);
+    }
+	
+	function preparedByLabel() {
+      return loggedInProfile?.full_name || loggedInProfile?.initials || 'Engineering';
+    }
+	
     async function pageInit(profile) {
-      injectModals();
-
+      loggedInProfile = profile;
+      await loadReportPermissions();
+      const showWeekly         = canView('weeklyProgress');
+      const showActivity       = canView('activityLog');
+      const showInquiry        = canView('inquirySummary');
+      const showDrawingList    = canView('drawingList');
+      const showReportsTab     = showWeekly || showActivity;
+      const showMonitoringTab  = showInquiry || showDrawingList;
       const content = document.getElementById('page-content');
       content.innerHTML = `
         <div class="page-header">
@@ -204,56 +318,79 @@
         </div>
 
         <!-- Main Report Area -->
-        <div id="report-main" style="display:none;">
+        <div id="report-main" style="display:block;">
 
           <!-- Tabs -->
           <div class="tabs" id="report-tabs">
+            ${showReportsTab ? `
             <button class="tab-btn active" onclick="switchReportTab('reports', this)">
               ${IC.report} Reports
-            </button>
-            <button class="tab-btn" onclick="switchReportTab('settings', this)">
-              ${IC.settings} Settings
+            </button>` : ''}
+            <button class="tab-btn ${showReportsTab ? '' : 'active'}" onclick="switchReportTab('monitoring', this)">
+              ${IC.monitor} Monitoring
             </button>
           </div>
 
+          ${showReportsTab ? `
           <!-- Reports Tab -->
           <div class="tab-panel active" id="tab-reports">
             <div class="report-list">
-              <div class="report-card" onclick="openWeeklyReport()">
+              ${showWeekly ? `
+              <div class="report-card requires-project" onclick="openWeeklyReport()">
                 <div class="report-card-icon">
                   <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
                 </div>
                 <div class="report-card-body">
                   <div class="report-card-title">Weekly Progress Report</div>
-                  <div class="report-card-desc">Engineering deliverables summary, progress by area and discipline, and activity log for a selected week range.</div>
+                  <div class="report-card-desc">Highlights, engineering deliverables by discipline, purchase requisition status, engineering calculations, technical queries, and issues &amp; concerns for a selected week range.</div>
                 </div>
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-              </div>
+              </div>` : ''}
+
+              ${showActivity ? `
+              <div class="report-card requires-project" onclick="openActivityLogReport()">
+                <div class="report-card-icon">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>
+                </div>
+                <div class="report-card-body">
+                  <div class="report-card-title">Activity Log</div>
+                  <div class="report-card-desc">Detailed activity history for a custom date range, filterable by discipline and user.</div>
+                </div>
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+              </div>` : ''}
             </div>
           </div>
+          ` : ''}
 
-          <!-- Settings Tab -->
-          <div class="tab-panel" id="tab-settings">
-            <div class="card">
-              <div class="card-header">
-                <span class="card-title">Report Settings — Quotas</span>
-                <button class="btn btn-primary btn-sm" onclick="openAddArea()" style="display:flex;align-items:center;gap:5px;">
-                  ${IC.plus} Add Quota
-                </button>
-              </div>
-              <div class="card-body">
-                <p style="font-size:12px;color:var(--text-3);margin-bottom:16px;">
-                  Define all project areas and their estimated quantities per discipline. These values drive the progress calculations in all reports.
-                </p>
-                <div class="toolbar" style="margin-bottom:12px;">
-                  <select class="filter-select" id="settings-disc-filter" onchange="renderSettingsTable()">
-                    <option value="">All Disciplines</option>
-                  </select>
+          <!-- Monitoring Tab -->
+          <div class="tab-panel ${showReportsTab ? '' : 'active'}" id="tab-monitoring">
+            <div class="report-list">
+              ${!showMonitoringTab ? `
+              <div style="text-align:center;padding:40px;color:var(--text-4);font-size:13px;">
+                You don't have access to any monitoring items yet. Contact an admin if you believe this is a mistake.
+              </div>` : ''}
+              ${showInquiry ? `
+              <div class="report-card" onclick="openInquirySummary()">
+                <div class="report-card-icon">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="15" y2="16"/></svg>
                 </div>
-                <div id="settings-table-wrap">
-                  <p style="color:var(--text-4);font-size:13px;text-align:center;padding:30px;">Loading…</p>
+                <div class="report-card-body">
+                  <div class="report-card-title">Project Inquiry Summary</div>
+                  <div class="report-card-desc">Estimated vs. spent manhours per inquiry, with preparer and status.</div>
                 </div>
-              </div>
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+              </div>` : ''}
+              ${showDrawingList ? `
+              <div class="report-card requires-project" onclick="openDrawingList()">
+                <div class="report-card-icon">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                </div>
+                <div class="report-card-body">
+                  <div class="report-card-title">Drawing List</div>
+                  <div class="report-card-desc">Consolidated drawing/document register — erection, fabrication, support, weld map, test package, and engineering calc — filterable by date, discipline, user, type, and step.</div>
+                </div>
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+              </div>` : ''}
             </div>
           </div>
 
@@ -266,21 +403,20 @@
               ${IC.back} Back
             </button>
             <h2 style="font-size:16px;font-weight:700;color:var(--text);margin:0;flex:1;">Weekly Progress Report</h2>
-            <button class="btn btn-primary btn-sm" onclick="window.print()" style="display:flex;align-items:center;gap:5px;">
+            <button class="btn btn-primary btn-sm" onclick="generatePDFFromPreview()" style="display:flex;align-items:center;gap:5px;">
               ${IC.print} Print / Export PDF
             </button>
           </div>
 
-          <!-- Week Range Picker -->
+          <!-- Week Picker -->
           <div class="card" style="margin-bottom:16px;">
             <div class="card-body" style="display:flex;align-items:flex-end;gap:14px;flex-wrap:wrap;">
               <div class="form-group" style="margin:0;">
-                <label>Week From</label>
-                <input type="date" id="week-from" />
+                <label>As of Date</label>
+                <input type="date" id="report-asof" onchange="recalcWeekRange()" />
               </div>
-              <div class="form-group" style="margin:0;">
-                <label>Week To</label>
-                <input type="date" id="week-to" />
+              <div style="font-size:12px;color:var(--text-3);padding-bottom:9px;">
+                Week: <strong id="week-range-display" style="color:var(--text);">—</strong>
               </div>
               <button class="btn btn-primary" onclick="generateWeeklyReport()" style="display:flex;align-items:center;gap:5px;">
                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
@@ -288,10 +424,196 @@
               </button>
             </div>
           </div>
-
-          <!-- PDF Preview -->
-          <div id="pdf-preview"></div>
         </div>
+
+        <!-- Activity Log View (replaces main when active) -->
+        <div id="activity-view" style="display:none;">
+          <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;flex-wrap:wrap;">
+            <button class="btn btn-ghost btn-sm" onclick="closeActivityLogReport()" style="display:flex;align-items:center;gap:5px;">
+              ${IC.back} Back
+            </button>
+            <h2 style="font-size:16px;font-weight:700;color:var(--text);margin:0;flex:1;">Activity Log</h2>
+            <button class="btn btn-primary btn-sm" onclick="generatePDFFromPreview()" style="display:flex;align-items:center;gap:5px;">
+              ${IC.print} Print / Export PDF
+            </button>
+          </div>
+
+          <!-- Filters -->
+          <div class="card" style="margin-bottom:16px;">
+            <div class="card-body" style="display:flex;align-items:flex-end;gap:14px;flex-wrap:wrap;">
+              <div class="form-group" style="margin:0;">
+                <label>From</label>
+                <input type="date" id="activity-from" />
+              </div>
+              <div class="form-group" style="margin:0;">
+                <label>To</label>
+                <input type="date" id="activity-to" />
+              </div>
+              <div class="form-group" style="margin:0;">
+                <label>Discipline</label>
+                <select id="activity-discipline" onchange="onActivityDisciplineChange()" style="min-width:160px;">
+                  <option value="">All</option>
+                </select>
+              </div>
+              <div class="form-group" style="margin:0;">
+                <label>User</label>
+                <select id="activity-user" disabled style="min-width:160px;">
+                  <option value="">All</option>
+                </select>
+              </div>
+              <button class="btn btn-primary" onclick="generateActivityLogReport()" style="display:flex;align-items:center;gap:5px;">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+                Generate
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Project Inquiry Summary View (replaces main when active) -->
+        <div id="inquiry-summary-view" style="display:none;">
+          <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;flex-wrap:wrap;">
+            <button class="btn btn-ghost btn-sm" onclick="closeInquirySummary()" style="display:flex;align-items:center;gap:5px;">
+              ${IC.back} Back
+            </button>
+            <h2 style="font-size:16px;font-weight:700;color:var(--text);margin:0;flex:1;">Project Inquiry Summary</h2>
+            <button class="btn btn-ghost btn-sm" onclick="loadProjectInquirySummary()" style="display:flex;align-items:center;gap:5px;">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+              Refresh
+            </button>
+            <button class="btn btn-primary btn-sm" onclick="exportInquirySummaryExcel()" style="display:flex;align-items:center;gap:5px;">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              Export Excel
+            </button>
+          </div>
+
+          <div class="card">
+            <div class="card-body">
+              <div style="overflow-x:auto;">
+                <table class="settings-table" style="text-align:left;">
+                  <thead>
+                    <tr>
+                      <th style="text-align:left;">Control No.</th>
+                      <th style="text-align:left;">Client</th>
+                      <th style="text-align:left;">Project</th>
+                      <th style="text-align:left;">Estimated MH</th>
+                      <th style="text-align:left;">Prepared By</th>
+                      <th style="text-align:left;">MH Spent</th>
+                      <th style="text-align:left;">Remarks</th>
+                    </tr>
+                  </thead>
+                  <tbody id="monitoring-inquiry-tbody">
+                    <tr><td colspan="7" style="text-align:center;padding:20px;color:var(--text-4);">Loading…</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+		
+		<!-- Drawing List View -->
+        <div id="drawing-list-view" style="display:none;">
+          <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;flex-wrap:wrap;">
+            <button class="btn btn-ghost btn-sm" onclick="closeDrawingList()" style="display:flex;align-items:center;gap:5px;">
+              ${IC.back} Back
+            </button>
+            <h2 style="font-size:16px;font-weight:700;color:var(--text);margin:0;flex:1;">Drawing List</h2>
+            <button class="btn btn-primary btn-sm" onclick="exportDrawingListExcel()" style="display:flex;align-items:center;gap:5px;">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              Export Excel
+            </button>
+          </div>
+        
+          <!-- Filters -->
+          <div class="card" style="margin-bottom:16px;">
+            <div class="card-body" style="display:flex;align-items:flex-end;gap:14px;flex-wrap:wrap;">
+              <div class="form-group" style="margin:0;">
+                <label>Date</label>
+                <input type="date" id="dl-date" />
+              </div>
+              <div class="form-group" style="margin:0;">
+                <label>Discipline</label>
+                <select id="dl-discipline" onchange="onDrawingListDisciplineChange()" style="min-width:160px;">
+                  <option value="">All</option>
+                </select>
+              </div>
+              <div class="form-group" style="margin:0;">
+                <label>User</label>
+                <select id="dl-user" disabled style="min-width:160px;">
+                  <option value="">All</option>
+                </select>
+              </div>
+              <div class="form-group" style="margin:0;">
+                <label>Document/Drawing Type</label>
+                <select id="dl-doctype" onchange="onDrawingListTypeChange()" style="min-width:180px;">
+                  <option value="">All</option>
+                  <option value="erection">Erection</option>
+                  <option value="fabrication">Fabrication</option>
+                  <option value="support">Support</option>
+                  <option value="weld_map">Weld Map</option>
+                  <option value="test_package">Test Package</option>
+                  <option value="calc">Engineering Calc</option>
+                </select>
+              </div>
+              <div class="form-group" style="margin:0;">
+                <label>Step Done</label>
+                <select id="dl-step" disabled style="min-width:160px;">
+                  <option value="">All</option>
+                </select>
+              </div>
+              <button class="btn btn-primary" onclick="generateDrawingList()" style="display:flex;align-items:center;gap:5px;">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+                Generate
+              </button>
+            </div>
+          </div>
+        
+          <div class="card">
+            <div class="card-body">
+              <div style="overflow-x:auto;">
+                <table class="settings-table" style="text-align:left;table-layout:fixed;min-width:1500px;">
+                  <colgroup>
+                    <col style="width:60px;">   <!-- Item No. -->
+                    <col style="width:240px;">  <!-- AGP Document No. -->
+                    <col style="width:280px;">  <!-- Description / Title -->
+                    <col style="width:90px;">   <!-- No. of Sheets -->
+                    <col style="width:90px;">   <!-- Revision No. -->
+                    <col style="width:100px;">  <!-- Shop Dia Inch -->
+                    <col style="width:100px;">  <!-- Field Dia Inch -->
+                    <col style="width:110px;">  <!-- Surface Area (M2) -->
+                    <col style="width:90px;">   <!-- Weight (KG) -->
+                    <col style="width:110px;">  <!-- Date Released -->					
+                    <col style="width:150px;">  <!-- Revision Type -->
+                    <col style="width:220px;">  <!-- Revision Description -->
+                    <col style="width:160px;">  <!-- ETD No. -->
+                  </colgroup>
+                  <thead>
+                    <tr>
+                      <th style="text-align:center;">Item No.</th>
+                      <th style="text-align:left;">AGP Document No.</th>
+                      <th style="text-align:left;">Description / Title</th>
+                      <th style="text-align:center;">No. of Sheets</th>
+                      <th style="text-align:center;">Rev. No.</th>
+                      <th style="text-align:center;">Shop Dia Inch</th>
+                      <th style="text-align:center;">Field Dia Inch</th>
+                      <th style="text-align:center;">Surface Area (M2)</th>
+                      <th style="text-align:center;">Weight (KG)</th>
+					  <th style="text-align:center;">Date Released</th>
+                      <th style="text-align:left;">Revision Type</th>
+                      <th style="text-align:left;">Revision Description</th>
+                      <th style="text-align:center;">ETD No.</th>
+                    </tr>
+                  </thead>
+                  <tbody id="drawing-list-tbody">
+                    <tr><td colspan="14" style="text-align:center;padding:20px;color:var(--text-4);">Select filters and click Generate.</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- PDF Preview — shared by whichever report view is currently open -->
+        <div id="pdf-preview"></div>
       `;
 
       await loadBaseData();
@@ -302,46 +624,55 @@
         document.getElementById('report-project').value = saved;
         await onProjectChange(saved);
       }
+      updateReportCardStates();
     }
 
     async function loadBaseData() {
-      const [projRes, discRes, docRes] = await Promise.all([
+      const [projRes, discRes, docRes, stepRes] = await Promise.all([
         db.from('projects').select('*').order('name'),
         db.from('disciplines').select('*').order('name'),
         db.from('document_codes').select('*').order('code'),
+        db.from('workflow_steps').select('*').order('sort_order'),
       ]);
       projectsData    = projRes.data  || [];
       disciplinesData = discRes.data  || [];
       docCodesData    = docRes.data   || [];
+      workflowSteps   = stepRes.data  || [];
 
       // Populate project dropdown
       const projSel = document.getElementById('report-project');
       projSel.innerHTML = `<option value="">— Select Project —</option>` +
         projectsData.map(p => `<option value="${p.id}">${p.code} — ${p.name}</option>`).join('');
-
-      // Populate discipline filter in settings
-      const discFil = document.getElementById('settings-disc-filter');
-      discFil.innerHTML = `<option value="">All Disciplines</option>` +
-        disciplinesData.map(d => `<option value="${d.id}">${d.name}</option>`).join('');
-
-      // Populate area modal selects
-      const aDisc = document.getElementById('a-discipline');
-      aDisc.innerHTML = `<option value="">— Select —</option>` +
-        disciplinesData.map(d => `<option value="${d.id}">${d.name}</option>`).join('');
-
-      const aDoc = document.getElementById('a-doccode');
-      aDoc.innerHTML = `<option value="">— Select —</option>` +
-        docCodesData.map(d => `<option value="${d.id}" data-code="${d.code}">${d.type}</option>`).join('');
+		
+	  const revRes = await db.from('revision_reasons').select('*');
+      revisionReasonsById = new Map((revRes.data || []).map(r => [r.id, r]));
+    }
+	
+	function updateReportCardStates() {
+      document.querySelectorAll('.report-card.requires-project').forEach(card => {
+        card.classList.toggle('disabled', !activeProject);
+      });
     }
 
     async function onProjectChange(projectId) {
       activeProject = projectId || null;
-      const main = document.getElementById('report-main');
-      if (!activeProject) { main.style.display = 'none'; return; }
-      localStorage.setItem('activeProjectId', activeProject);
-      main.style.display = 'block';
-      document.getElementById('weekly-view').style.display = 'none';
-      await loadSettings();
+      if (activeProject) {
+        localStorage.setItem('activeProjectId', activeProject);
+      } else {
+        localStorage.removeItem('activeProjectId');
+      }
+      // Switching projects mid-report used to hide whichever report view was
+      // open (Drawing List, Weekly, Activity Log, Inquiry Summary) without
+      // ever bringing the report-selection screen back — leaving nothing
+      // visible at all. Now it returns to the selection screen instead,
+      // same as clicking that report's own "Close"/"Back" button would.
+      document.getElementById('weekly-view').style.display          = 'none';
+      document.getElementById('activity-view').style.display        = 'none';
+      document.getElementById('inquiry-summary-view').style.display  = 'none';
+	  document.getElementById('drawing-list-view').style.display     = 'none';
+      document.getElementById('report-main').style.display           = 'block';
+      document.getElementById('pdf-preview').innerHTML                = '';
+      updateReportCardStates();
     }
 
     function switchReportTab(tab, btn) {
@@ -351,395 +682,625 @@
       document.getElementById(`tab-${tab}`).classList.add('active');
     }
 
-    // ── SETTINGS ─────────────────────────────────────────────
-
-    async function loadSettings() {
-      if (!activeProject) return;
-      const { data, error } = await db.from('report_settings')
-        .select('*, disciplines(name)')
-        .eq('project_id', activeProject)
-        .order('sort_order');
-      settingsData = data || [];
-      renderSettingsTable();
+    function openInquirySummary() {
+	  if (!canView('inquirySummary')) { toast("You don't have permission to view this report.", 'error'); return; }
+      document.getElementById('report-main').style.display          = 'none';
+      document.getElementById('inquiry-summary-view').style.display  = 'block';
+      loadProjectInquirySummary();
     }
 
-    function renderSettingsTable() {
-  const wrap    = document.getElementById('settings-table-wrap');
-  const discFil = document.getElementById('settings-disc-filter').value;
-  const list    = discFil ? settingsData.filter(s => s.discipline_id === discFil) : settingsData;
-
-  if (!list.length) {
-    wrap.innerHTML = `<p style="color:var(--text-4);font-size:13px;text-align:center;padding:30px;">No areas defined yet. Click "+ Add Quota" to get started.</p>`;
-    return;
-  }
-
-  const rows = list.map(s => {
-    const dc   = docCodesData.find(d => d.id === s.doc_code_id);
-    const disc = s.disciplines?.name || '—';
-    const isPiping = disc.toLowerCase() === 'piping';
-    return `
-      <tr>
-        <td style="color:var(--accent);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;">${disc}</td>
-        <td style="font-weight:600;color:var(--text);">${s.area}</td>
-        <td style="text-align:center;">${dc ? dc.type : '—'}</td>
-        <td style="text-align:center;">${s.estimated_qty ?? '—'}</td>
-        <td style="text-align:center;">${isPiping ? (s.dia_inch ?? '—') : '—'}</td>
-        <td style="text-align:center;">
-          <div class="table-actions">
-            <button class="btn btn-icon edit"   onclick="openEditArea('${s.id}')" title="Edit">${SVG_SM('<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>')}</button>
-            <button class="btn btn-icon delete" onclick="deleteAreaSetting('${s.id}')" title="Delete">${SVG_SM('<polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/>')}</button>
-          </div>
-        </td>
-      </tr>
-    `;
-  }).join('');
-
-  wrap.innerHTML = `
-    <table class="settings-table">
-      <thead>
-        <tr>
-          <th style="text-align:left;">Discipline</th>
-          <th style="text-align:left;">Area / Tank No.</th>
-          <th style="text-align:center;">Document Code</th>
-          <th style="text-align:center;">Est. Qty</th>
-          <th style="text-align:center;">Dia Inch</th>
-          <th style="text-align:center;">Actions</th>
-        </tr>
-      </thead>
-      <tbody>${rows}</tbody>
-    </table>
-  `;
-}
-
-    function onDisciplineChange(sel) {
-      const isPiping = sel.options[sel.selectedIndex]?.text.trim().toLowerCase() === 'piping';
-      const group = document.getElementById('a-diainch-group');
-      group.style.display = isPiping ? '' : 'none';
-      if (!isPiping) document.getElementById('a-diainch').value = '';
+    function closeInquirySummary() {
+      document.getElementById('inquiry-summary-view').style.display = 'none';
+      document.getElementById('report-main').style.display           = 'block';
+      document.getElementById('pdf-preview').innerHTML                = '';
     }
 
-    function openAddArea() {
-      document.getElementById('a-id').value         = '';
-      document.getElementById('a-area').value       = '';
-      document.getElementById('a-discipline').value = '';
-      document.getElementById('a-doccode').value    = '';
-      document.getElementById('a-qty').value        = '';
-      document.getElementById('a-diainch').value    = '';
-      document.getElementById('a-diainch-group').style.display = 'none';
-      document.getElementById('area-modal-title').innerHTML = `${IC.plus} Add Quota`;
-      openModal('area-modal');
-      setTimeout(() => document.getElementById('a-area').focus(), 100);
+	
+	function toLocalISODate(d) {
+      const y   = d.getFullYear();
+      const m   = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${y}-${m}-${day}`;
     }
-
-    function openEditArea(id) {
-      const s = settingsData.find(x => x.id === id);
-      if (!s) return;
-      document.getElementById('a-id').value         = s.id;
-      document.getElementById('a-area').value       = s.area          || '';
-      document.getElementById('a-discipline').value = s.discipline_id || '';
-      document.getElementById('a-doccode').value    = s.doc_code_id   || '';
-      document.getElementById('a-qty').value        = s.estimated_qty ?? '';
-      document.getElementById('a-diainch').value    = s.dia_inch      ?? '';
-      const discSel = document.getElementById('a-discipline');
-      const isPiping = discSel.options[discSel.selectedIndex]?.text.trim().toLowerCase() === 'piping';
-      document.getElementById('a-diainch-group').style.display = isPiping ? '' : 'none';
-      document.getElementById('area-modal-title').innerHTML = `${IC.save} Edit Quota`;
-      openModal('area-modal');
-      setTimeout(() => document.getElementById('a-area').focus(), 100);
-    }
-
-    async function saveAreaSetting() {
-      const btn           = document.getElementById('area-save-btn');
-      const id            = document.getElementById('a-id').value;
-      const area          = document.getElementById('a-area').value.trim();
-      const discipline_id = document.getElementById('a-discipline').value;
-      const doc_code_id   = document.getElementById('a-doccode').value   || null;
-      const estimated_qty = parseInt(document.getElementById('a-qty').value)     || null;
-      const dia_inch      = parseFloat(document.getElementById('a-diainch').value) || null;
-
-      if (!area)          { toast('Area is required.',       'error'); document.getElementById('a-area').focus();      return; }
-      if (!discipline_id) { toast('Discipline is required.', 'error'); document.getElementById('a-discipline').focus(); return; }
-      if (!doc_code_id)   { toast('Document code is required.', 'error'); document.getElementById('a-doccode').focus(); return; }
-
-      btn.disabled = true; btn.textContent = 'Saving…';
-      const { error } = id
-        ? await db.from('report_settings').update({ area, discipline_id, doc_code_id, estimated_qty, dia_inch }).eq('id', id)
-        : await db.from('report_settings').insert({ project_id: activeProject, area, discipline_id, doc_code_id, estimated_qty, dia_inch });
-      btn.disabled = false; btn.innerHTML = `${IC.save} Save`;
-
-      if (error) { toast('Error: ' + error.message, 'error'); return; }
-      toast(id ? 'Quota updated.' : 'Quota added.', 'success');
-      closeModal('area-modal');
-      await loadSettings();
-    }
-
-    async function deleteAreaSetting(id) {
-      confirmDialog('Delete this area setting?', async () => {
-        const { error } = await db.from('report_settings').delete().eq('id', id);
-        if (error) { toast('Error: ' + error.message, 'error'); return; }
-        toast('Deleted.', 'success');
-        await loadSettings();
-      });
-    }
-
+	
     // ── WEEKLY REPORT ─────────────────────────────────────────
+    // Snap `dateStr` back to the most recent day matching weekStartDay (0=Sun..6=Sat).
+    // Returns { from, to } as 'YYYY-MM-DD' strings (to = from + 6 days).
+    function snapToWeekStart(dateStr, weekStartDay) {
+      const wsd = Number.isInteger(weekStartDay) ? weekStartDay : 1; // default Monday
+      const d = new Date(dateStr + 'T00:00:00');
+      const diff = (d.getDay() - wsd + 7) % 7;
+      const from = new Date(d); from.setDate(d.getDate() - diff);
+      const to   = new Date(from); to.setDate(from.getDate() + 6);
+      return { from: toLocalISODate(from), to: toLocalISODate(to) };
+    }
+
+    function recalcWeekRange() {
+      const asof = document.getElementById('report-asof').value;
+      if (!asof) return { from: null, to: null };
+      const proj = projectsData.find(p => p.id === activeProject);
+      const range = snapToWeekStart(asof, proj?.week_start_day);
+      document.getElementById('week-range-display').textContent =
+        `${formatDate(range.from)} – ${formatDate(range.to)}`;
+      return range;
+    }
 
     function openWeeklyReport() {
+      if (!canView('weeklyProgress')) { toast("You don't have permission to view this report.", 'error'); return; }
+      if (!activeProject) { toast('Please select a project first.', 'error'); return; }
       document.getElementById('report-main').style.display  = 'none';
       document.getElementById('weekly-view').style.display  = 'block';
 
-      // Default to current week (Mon–Sun)
-      const now   = new Date();
-      const day   = now.getDay();
-      const mon   = new Date(now); mon.setDate(now.getDate() - (day === 0 ? 6 : day - 1));
-      const sun   = new Date(mon); sun.setDate(mon.getDate() + 6);
-      document.getElementById('week-from').value = mon.toISOString().slice(0,10);
-      document.getElementById('week-to').value   = sun.toISOString().slice(0,10);
+      document.getElementById('report-asof').value = new Date().toISOString().slice(0,10);
+      recalcWeekRange();
       document.getElementById('pdf-preview').innerHTML = `<p style="text-align:center;padding:40px;color:var(--text-4);">Click "Generate" to preview the report.</p>`;
     }
 
     function closeWeeklyReport() {
       document.getElementById('weekly-view').style.display  = 'none';
       document.getElementById('report-main').style.display  = 'block';
+      document.getElementById('pdf-preview').innerHTML       = '';
+    }
+	
+	// ── ACTIVITY LOG REPORT ─────────────────────────────────────
+
+    function openActivityLogReport() {
+      if (!canView('activityLog')) { toast("You don't have permission to view this report.", 'error'); return; }
+      if (!activeProject) { toast('Please select a project first.', 'error'); return; }
+      document.getElementById('report-main').style.display  = 'none';
+      document.getElementById('activity-view').style.display = 'block';
+
+      // Default range: last 7 days
+      const today = new Date();
+      const weekAgo = new Date(today); weekAgo.setDate(today.getDate() - 6);
+      document.getElementById('activity-to').value   = today.toISOString().slice(0,10);
+      document.getElementById('activity-from').value = weekAgo.toISOString().slice(0,10);
+
+      // Populate discipline dropdown (users dropdown starts disabled/"All")
+      const discSel = document.getElementById('activity-discipline');
+      discSel.innerHTML = `<option value="">All</option>` +
+        disciplinesData.map(d => `<option value="${d.id}">${esc(d.name)}</option>`).join('');
+
+      const userSel = document.getElementById('activity-user');
+      userSel.innerHTML = `<option value="">All</option>`;
+      userSel.disabled = true;
+
+      document.getElementById('pdf-preview').innerHTML = `<p style="text-align:center;padding:40px;color:var(--text-4);">Click "Generate" to preview the report.</p>`;
     }
 
-    async function generateWeeklyReport() {
-      const from = document.getElementById('week-from').value;
-      const to   = document.getElementById('week-to').value;
-      if (!from || !to) { toast('Please select a week range.', 'error'); return; }
+    function closeActivityLogReport() {
+      document.getElementById('activity-view').style.display = 'none';
+      document.getElementById('report-main').style.display   = 'block';
+      document.getElementById('pdf-preview').innerHTML        = '';
+    }
+	
+	// ── MONITORING: PROJECT INQUIRY SUMMARY ─────────────────────
+    // Note: this is intentionally NOT scoped to the "Active Project" selector
+    // above — project_inquiries.project is a free-text project code column,
+    // not a link to the currently selected project, so this summary always
+    // shows all inquiries across all projects.
+
+    async function loadProjectInquirySummary() {
+      const tbody = document.getElementById('monitoring-inquiry-tbody');
+      tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:20px;color:var(--text-4);">Loading…</td></tr>`;
+
+      const [inqRes, actRes, usersRes] = await Promise.all([
+        db.from('project_inquiries').select('id, control_number, client, project, estimated_mh, status').order('control_number'),
+        db.from('inquiry_activities').select('inquiry_id, user_id, manhours'),
+        db.from('users').select('id, full_name, initials'),
+      ]);
+
+      if (inqRes.error) {
+        console.error('[Monitoring] Failed to load project_inquiries:', inqRes.error);
+        tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:20px;color:#c00;">Failed to load data.</td></tr>`;
+        return;
+      }
+
+      const inquiries  = inqRes.data  || [];
+      const activities = actRes.data  || [];
+      const usersById  = new Map((usersRes.data || []).map(u => [u.id, u]));
+
+      // Group logged manhours by inquiry_id: total MH spent + the set of
+      // distinct users who logged against it (for the "Prepared By" list).
+      const byInquiry = new Map();
+      activities.forEach(a => {
+        if (!a.inquiry_id) return;
+        if (!byInquiry.has(a.inquiry_id)) byInquiry.set(a.inquiry_id, { users: new Set(), totalMh: 0 });
+        const bucket = byInquiry.get(a.inquiry_id);
+        bucket.totalMh += (a.manhours || 0);
+        const u = usersById.get(a.user_id);
+        if (u) bucket.users.add(u.initials || u.full_name || 'Unknown');
+      });
+
+      if (!inquiries.length) {
+        tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:20px;color:var(--text-4);">No project inquiries found.</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = inquiries.map(inq => {
+        const bucket = byInquiry.get(inq.id);
+        const preparedBy = bucket && bucket.users.size ? Array.from(bucket.users).join(', ') : '—';
+        const mhSpent    = bucket ? bucket.totalMh : 0;
+        const statusCls  = {'Open':'status-open','In Progress':'status-inprogress','Completed':'status-completed','Cancelled':'status-cancelled'}[inq.status] || 'status-open';
+        return `
+          <tr>
+            <td style="text-align:left;">${esc(inq.control_number) || '—'}</td>
+            <td style="text-align:left;">${esc(inq.client) || '—'}</td>
+            <td style="text-align:left;">${esc(inq.project) || '—'}</td>
+            <td style="text-align:left;color:#f97316;font-weight:700;">${parseFloat(inq.estimated_mh || 0).toFixed(1)}</td>
+            <td style="text-align:left;">${preparedBy}</td>
+            <td style="text-align:left;">${mhSpent.toFixed(1)}</td>
+            <td style="text-align:left;"><span class="status-badge ${statusCls}">${esc(inq.status) || 'Open'}</span></td>
+          </tr>
+        `;
+      }).join('');
+    }
+	
+	async function exportInquirySummaryExcel() {
+      const [inqRes, actRes, usersRes] = await Promise.all([
+        db.from('project_inquiries').select('id, control_number, client, project, estimated_mh, status').order('control_number'),
+        db.from('inquiry_activities').select('inquiry_id, user_id, manhours'),
+        db.from('users').select('id, full_name, initials'),
+      ]);
+
+      const inquiries  = inqRes.data  || [];
+      const activities = actRes.data  || [];
+      const usersById  = new Map((usersRes.data || []).map(u => [u.id, u]));
+
+      const byInquiry = new Map();
+      activities.forEach(a => {
+        if (!a.inquiry_id) return;
+        if (!byInquiry.has(a.inquiry_id)) byInquiry.set(a.inquiry_id, { users: new Set(), totalMh: 0 });
+        const bucket = byInquiry.get(a.inquiry_id);
+        bucket.totalMh += (a.manhours || 0);
+        const u = usersById.get(a.user_id);
+        if (u) bucket.users.add(u.initials || u.full_name || 'Unknown');
+      });
+
+      const headers = ['CONTROL NO.', 'CLIENT', 'PROJECTS', 'ESTIMATED MH', 'PREPARED BY', 'MH SPENT', 'REMARKS'];
+      const rows = inquiries.map(inq => {
+        const bucket = byInquiry.get(inq.id);
+        return [
+          inq.control_number || '',
+          inq.client || '',
+          inq.project || '',
+          parseFloat(inq.estimated_mh || 0),
+          bucket && bucket.users.size ? Array.from(bucket.users).join(', ') : '',
+          bucket ? bucket.totalMh : 0,
+          inq.status || '',
+        ];
+      });
+
+      const ORANGE = 'FABF8F';
+      const aoa = [
+        ['PROJECT INQUIRY SUMMARY', '', '', '', '', '', ''],
+        headers,
+        ...rows,
+      ];
+      const ws = XLSX.utils.aoa_to_sheet(aoa);
+
+      ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 6 } }];
+      ws['!cols'] = [{ wch: 18 }, { wch: 20 }, { wch: 45 }, { wch: 14 }, { wch: 24 }, { wch: 12 }, { wch: 12 }];
+
+      // Row heights: title + header rows = 25pt, all data rows = 18pt
+      ws['!rows'] = [
+        { hpt: 25 },
+        { hpt: 25 },
+        ...rows.map(() => ({ hpt: 18 })),
+      ];
+
+      const thinBorder = { top:{style:'thin'}, bottom:{style:'thin'}, left:{style:'thin'}, right:{style:'thin'} };
+
+      // Title row
+      for (let c = 0; c <= 6; c++) {
+        const ref = XLSX.utils.encode_cell({ r: 0, c });
+        if (!ws[ref]) ws[ref] = { t: 's', v: '' };
+        ws[ref].s = { fill: { fgColor: { rgb: ORANGE } }, font: { bold: true, sz: 11 }, alignment: { horizontal: 'center', vertical: 'center' }, border: thinBorder };
+      }
+      // Header row
+      for (let c = 0; c <= 6; c++) {
+        const ref = XLSX.utils.encode_cell({ r: 1, c });
+        ws[ref].s = { fill: { fgColor: { rgb: ORANGE } }, font: { bold: true }, alignment: { horizontal: 'center', vertical: 'center' }, border: thinBorder };
+      }
+      // Data rows — font size 11 throughout; center-aligned except Client (c=1) and Projects (c=2)
+      for (let r = 0; r < rows.length; r++) {
+        const rowIdx = r + 2;
+        for (let c = 0; c <= 6; c++) {
+          const ref = XLSX.utils.encode_cell({ r: rowIdx, c });
+          if (!ws[ref]) continue;
+          const isLeftCol = (c === 1 || c === 2); // Client, Projects
+          const style = {
+            alignment: { horizontal: isLeftCol ? 'left' : 'center', vertical: 'center' },
+            border: thinBorder,
+            font: { sz: 11 },
+          };
+          if (c === 3) style.font = { sz: 11, color: { rgb: 'F97316' }, bold: true };                  // Estimated MH
+          ws[ref].s = style;
+        }
+      }
+
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Project Inquiry Summary');
+      XLSX.writeFile(wb, `Project_Inquiry_Summary_${new Date().toISOString().slice(0,10)}.xlsx`);
+    }
+	
+	function exportDrawingListExcel() {
+      const rows = window._drawingListRows || [];
+      if (!rows.length) { toast('Generate the list first.', 'error'); return; }
+    
+      const headers = ['ITEM NO.', 'AGP DOCUMENT NO.', 'DESCRIPTION/TITLE', 'NO. OF\nSHEETS', 'REV. NO.', 'SHOP\nDIA INCH', 'FIELD\nDIA INCH', 'SURFACE\nAREA (M2)', 'WEIGHT\n(KG)', 'DATE RELEASED', 'REVISION TYPE', 'REVISION DESCRIPTION', 'ETD NO.'];
+    
+      const aoa = [
+        headers,
+        ...rows.map((r, i) => [
+          i + 1, r.docNo, r.title, r.sheets, r.revisionNo, r.shopDia, r.fieldDia,
+          r.surfaceArea, r.weight, r.dateReleased, r.revType, r.revDesc, r.etdNo,
+        ]),
+      ];
+      const ws = XLSX.utils.aoa_to_sheet(aoa);
+    
+      ws['!cols'] = [
+        { wch: 8 }, { wch: 20 }, { wch: 34 }, { wch: 10 }, { wch: 12 },
+        { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 10 }, { wch: 14 },
+        { wch: 16 }, { wch: 26 }, { wch: 12 },
+      ];
+    
+      // Header 37.5pt, body rows 25pt
+      ws['!rows'] = [{ hpt: 37.5 }, ...rows.map(() => ({ hpt: 25 }))];
+    
+      const thinBorder = { top:{style:'thin'}, bottom:{style:'thin'}, left:{style:'thin'}, right:{style:'thin'} };
+      const GREY = 'D9D9D9';
+    
+      for (let c = 0; c < headers.length; c++) {
+        const ref = XLSX.utils.encode_cell({ r: 0, c });
+        ws[ref].s = {
+          fill: { fgColor: { rgb: GREY } },
+          font: { bold: true, sz: 11 },
+          alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
+          border: thinBorder,
+        };
+      }
+      for (let r = 0; r < rows.length; r++) {
+        for (let c = 0; c < headers.length; c++) {
+          const ref = XLSX.utils.encode_cell({ r: r + 1, c });
+          if (!ws[ref]) ws[ref] = { t: 's', v: '' };
+          const isLeftCol = (c === 1 || c === 2); // Doc No., Title
+          ws[ref].s = {
+            alignment: { horizontal: isLeftCol ? 'left' : 'center', vertical: 'center' },
+            border: thinBorder,
+            font: { sz: 11 },
+          };
+        }
+      }
+    
+      const proj      = projectsData.find(p => p.id === activeProject);
+      const discId    = document.getElementById('dl-discipline').value;
+      const discCode  = discId ? (disciplinesData.find(d => d.id === discId)?.code || 'ALL') : 'ALL';
+      const dateStr   = (document.getElementById('dl-date').value || new Date().toISOString().slice(0,10)).replace(/-/g, '');
+      const filename  = `${proj?.code || 'PROJ'}-${discCode}-DLIST-${dateStr}.xlsx`;
+    
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Drawing List');
+      XLSX.writeFile(wb, filename);
+    }
+	
+	// ── MONITORING: DRAWING LIST ─────────────────────────────────
+	function openDrawingList() {
+	  if (!canView('drawingList')) { toast("You don't have permission to view this report.", 'error'); return; }
+	  if (!activeProject) { toast('Please select a project first.', 'error'); return; }
+      document.getElementById('report-main').style.display        = 'none';
+      document.getElementById('drawing-list-view').style.display   = 'block';
+    
+      document.getElementById('dl-date').value = new Date().toISOString().slice(0,10);
+    
+      const discSel = document.getElementById('dl-discipline');
+      discSel.innerHTML = `<option value="">All</option>` +
+        disciplinesData.map(d => `<option value="${d.id}">${esc(d.name)}</option>`).join('');
+    
+      document.getElementById('dl-user').innerHTML = `<option value="">All</option>`;
+      document.getElementById('dl-user').disabled = true;
+      document.getElementById('dl-doctype').value = '';
+      document.getElementById('dl-step').innerHTML = `<option value="">All</option>`;
+      document.getElementById('dl-step').disabled = true;
+    
+      document.getElementById('drawing-list-tbody').innerHTML =
+        `<tr><td colspan="14" style="text-align:center;padding:20px;color:var(--text-4);">Select filters and click Generate.</td></tr>`;
+    }
+    
+    function closeDrawingList() {
+      document.getElementById('drawing-list-view').style.display = 'none';
+      document.getElementById('report-main').style.display       = 'block';
+    }
+    
+    // Discipline → User cascade (same pattern as Activity Log).
+    async function onDrawingListDisciplineChange() {
+      const disciplineId = document.getElementById('dl-discipline').value;
+      const userSel = document.getElementById('dl-user');
+      if (!disciplineId) { userSel.innerHTML = `<option value="">All</option>`; userSel.disabled = true; return; }
+      userSel.disabled = true;
+      userSel.innerHTML = `<option value="">Loading…</option>`;
+      const { data, error } = await db.from('users').select('id, full_name').eq('discipline_id', disciplineId).eq('is_active', true).order('full_name');
+      if (error) { userSel.innerHTML = `<option value="">All</option>`; userSel.disabled = true; return; }
+      userSel.innerHTML = `<option value="">All</option>` + (data || []).map(u => `<option value="${u.id}">${esc(u.full_name)}</option>`).join('');
+      userSel.disabled = false;
+    }
+    
+    // Document Type → Step Done cascade.
+    function onDrawingListTypeChange() {
+      const typeKey = document.getElementById('dl-doctype').value;
+      const stepSel = document.getElementById('dl-step');
+      if (!typeKey) { stepSel.innerHTML = `<option value="">All</option>`; stepSel.disabled = true; return; }
+      const src = DL_SOURCES.find(s => s.key === typeKey);
+      const steps = workflowSteps.filter(s => (s.activity_type || 'drawing') === src.activityType).sort((a,b) => (a.sort_order||0) - (b.sort_order||0));
+      stepSel.innerHTML = `<option value="">All</option>` + steps.map(s => `<option value="${esc(s.name)}">${esc(s.name)}</option>`).join('');
+      stepSel.disabled = false;
+    }
+	
+	function formatDateDMY(dateStr) {
+      if (!dateStr) return '';
+      const d = new Date(dateStr + 'T00:00:00');
+      if (isNaN(d)) return dateStr;
+      const day = String(d.getDate()).padStart(2, '0');
+      const month = d.toLocaleString('en-US', { month: 'short' });
+      const year = d.getFullYear();
+      return `${day}-${month}-${year}`;
+    }
+	
+	async function generateDrawingList() {
+      const date         = document.getElementById('dl-date').value;
+      if (!date) { toast('Please select a date.', 'error'); return; }
+      const disciplineId = document.getElementById('dl-discipline').value || null;
+      const userId        = document.getElementById('dl-user').value || null;
+      const typeKey        = document.getElementById('dl-doctype').value || null;
+      const stepDone        = document.getElementById('dl-step').value || null;
+    
+      const tbody = document.getElementById('drawing-list-tbody');
+      tbody.innerHTML = `<tr><td colspan="14" style="text-align:center;padding:20px;color:var(--text-4);">Loading…</td></tr>`;
+    
+      const sources = typeKey ? DL_SOURCES.filter(s => s.key === typeKey) : DL_SOURCES;
+      const disciplinesById = new Map(disciplinesData.map(d => [d.id, d]));
+    
+      const rows = [];
+    
+      for (const src of sources) {
+        // 1) Find activities matching the filter for this source, on this date.
+        let q = db.from(src.acts)
+          .select('*')
+          .eq('project_id', activeProject)
+          .gte('created_at', date + 'T00:00:00')
+          .lte('created_at', date + 'T23:59:59')
+          .order('created_at', { ascending: false });
+        if (userId)   q = q.eq('user_id', userId);
+        if (stepDone) q = q.eq('step_done', stepDone);
+    
+        const { data: acts, error } = await q;
+        if (error) { console.error(`[Drawing List] ${src.table} activities error:`, error); continue; }
+        if (!acts || !acts.length) continue;
+    
+        // One matching activity per parent document — most recent wins.
+        const latestActByParent = new Map();
+        const parentIdField = src.isCalc ? 'eng_calculation_id' : `${src.table.replace(/s$/, '')}_id`;
+        // NOTE: confirm each activities table's FK column name — it may not follow
+        // this exact convention (e.g. erection_drawing_id, fabrication_drawing_id,
+        // support_drawing_id, weld_map_drawing_id, test_package_drawing_id,
+        // eng_calculation_id). Adjust parentIdField per table if it doesn't match.
+        for (const a of acts) {
+          const pid = a[parentIdField];
+          if (!pid) continue;
+          if (!latestActByParent.has(pid)) latestActByParent.set(pid, a);
+        }
+        if (!latestActByParent.size) continue;
+    
+        // 2) Fetch parent document rows for the matched IDs.
+        const ids = Array.from(latestActByParent.keys());
+        const selectCols = src.isCalc
+          ? 'id, doc_number, doc_description, metadata, ifa_cycles, discipline_id, ifc_revision'
+          : 'id, drawing_number, title, discipline_id, revision_number, metadata';
+        const { data: docs, error: docErr } = await db.from(src.table).select(selectCols).in('id', ids);
+        if (docErr) { console.error(`[Drawing List] ${src.table} fetch error:`, docErr); continue; }
+        
+        const filteredDocs = disciplineId
+          ? (docs || []).filter(d => d.discipline_id === disciplineId)
+          : (docs || []);
+    
+        for (const d of filteredDocs) {
+          const act  = latestActByParent.get(d.id);
+          const meta = d.metadata || {};
+    
+          const disc = disciplinesById.get(d.discipline_id);
+		  const discName = disc ? disc.name : '—';
+    
+          let revisionNo = '—';
+          if (src.isCalc) {
+            if (d.ifc_revision !== null && d.ifc_revision !== undefined) {
+              revisionNo = String(d.ifc_revision);
+            } else {
+              const cycles = Array.isArray(d.ifa_cycles) ? d.ifa_cycles : (d.ifa_cycles ? JSON.parse(d.ifa_cycles) : []);
+              revisionNo = cycles.length ? (cycles[cycles.length - 1].revision || '—') : '—';
+            }
+          } else {
+            revisionNo = (d.revision_number ?? 0).toString();
+          }
+		  
+          let dateReleased = '';
+          if (!src.isCalc) {
+            const stepMeta = workflowSteps.find(s => s.name === act.step_done && s.activity_type === src.activityType);
+            if (stepMeta && stepMeta.is_issuance && act.created_at) {
+              dateReleased = formatDateDMY(act.created_at.slice(0, 10));   // ← was: act.created_at.slice(0, 10)
+            }
+          }
+    
+          rows.push({
+            docNo:       src.isCalc ? (d.doc_number || '—') : (d.drawing_number || '—'),
+            title:       src.isCalc ? (d.doc_description || '—') : (d.title || '—'),
+            discipline:  discName,
+            type:        src.label,
+            sheets:      meta.no_of_sheets    || '',
+            revisionNo,
+            shopDia:     meta.shop_dia_inch   || '',
+            fieldDia:    meta.field_dia_inch  || '',
+            surfaceArea: meta.surface_area_m2 || '',
+            weight:      meta.weight_kg       || '',
+			dateReleased,
+            revType:     src.isCalc ? '—' : (act.revision_reason_id ? (revisionReasonsById.get(act.revision_reason_id)?.description || '—') : '—'),
+            revDesc:     src.isCalc ? '—' : (act.revision_description || '—'),
+            etdNo:       src.isCalc ? '—' : (act.etd_no || '—'),
+          });
+        }
+      }
+    
+      // Sort by Document No.
+      rows.sort((a, b) => (a.docNo || '').localeCompare(b.docNo || ''));
+    
+      if (!rows.length) {
+        tbody.innerHTML = `<tr><td colspan="13" style="text-align:center;padding:30px;color:var(--text-4);">No matching documents for these filters.</td></tr>`;
+        return;
+      }
+    
+      tbody.innerHTML = rows.map((r, i) => `
+        <tr>
+          <td style="text-align:center;">${i + 1}</td>
+          <td style="font-weight:600;color:var(--accent-light);">${esc(r.docNo)}</td>
+          <td>${esc(r.title)}</td>
+          <td style="text-align:center;">${esc(String(r.sheets || '—'))}</td>
+          <td style="text-align:center;">${esc(r.revisionNo)}</td>
+          <td style="text-align:center;">${esc(String(r.shopDia || '—'))}</td>
+          <td style="text-align:center;">${esc(String(r.fieldDia || '—'))}</td>
+          <td style="text-align:center;">${esc(String(r.surfaceArea || '—'))}</td>
+          <td style="text-align:center;">${esc(String(r.weight || '—'))}</td>
+		  <td style="text-align:center;">${esc(r.dateReleased || '—')}</td>
+          <td>${esc(r.revType)}</td>
+          <td>${esc(r.revDesc)}</td>
+          <td style="text-align:center;">${esc(r.etdNo)}</td>
+        </tr>
+      `).join('');
+    
+      window._drawingListRows = rows; // for export
+    }
+
+    // Discipline → User cascading filter.
+    // "All" disciplines → user filter disabled/reset to "All".
+    // A specific discipline → user filter enabled, listing only users assigned to it.
+    async function onActivityDisciplineChange() {
+      const disciplineId = document.getElementById('activity-discipline').value;
+      const userSel = document.getElementById('activity-user');
+
+      if (!disciplineId) {
+        userSel.innerHTML = `<option value="">All</option>`;
+        userSel.disabled = true;
+        return;
+      }
+
+      userSel.disabled = true;
+      userSel.innerHTML = `<option value="">Loading…</option>`;
+
+      const { data, error } = await db.from('users')
+        .select('id, full_name')
+        .eq('discipline_id', disciplineId)
+        .eq('is_active', true)
+        .order('full_name');
+
+      if (error) {
+        console.error('[Activity Log] Failed to load users for discipline:', error);
+        userSel.innerHTML = `<option value="">All</option>`;
+        userSel.disabled = true;
+        return;
+      }
+
+      userSel.innerHTML = `<option value="">All</option>` +
+        (data || []).map(u => `<option value="${u.id}">${esc(u.full_name)}</option>`).join('');
+      userSel.disabled = false;
+    }
+
+    async function generateActivityLogReport() {
+      const from = document.getElementById('activity-from').value;
+      const to   = document.getElementById('activity-to').value;
+      if (!from || !to) { toast('Please select both From and To dates.', 'error'); return; }
+      if (from > to)    { toast('"From" date must be before "To" date.', 'error'); return; }
+
+      const disciplineId = document.getElementById('activity-discipline').value || null;
+      const userId       = document.getElementById('activity-user').value || null;
 
       const preview = document.getElementById('pdf-preview');
       preview.innerHTML = `<p style="text-align:center;padding:40px;color:var(--text-4);">Generating report…</p>`;
 
-      // Fetch all data
       const proj = projectsData.find(p => p.id === activeProject);
 
-      // 1. All drawings for this project
-      const { data: drawings } = await db.from('drawings')
-        .select('id, drawing_number, title, area, discipline_id, drawing_activities(step_done, created_at, manhours)')
-        .eq('project_id', activeProject);
+      // Users lookup (manual join — same reason as the Weekly Report:
+      // no FK relationship PostgREST can embed on for these tables).
+      const { data: usersData } = await db.from('users').select('id, full_name');
+      const usersById = new Map((usersData || []).map(u => [u.id, u]));
 
-      // 2. Activities within date range
-      const { data: activities } = await db.from('drawing_activities')
-        .select('*, drawings(drawing_number, title, area, discipline_id, disciplines(name)), users(full_name)')
-        .eq('project_id', activeProject)
-        .gte('created_at', from + 'T00:00:00')
-        .lte('created_at', to   + 'T23:59:59')
-        .order('created_at', { ascending: false });
+      const actFetches = DRAW_SOURCES.map(src => {
+        let q = db.from(src.acts)
+          .select(`*, ${src.table}(drawing_number, title, area, discipline_id, disciplines(name))`)
+          .eq('project_id', activeProject)
+          .gte('created_at', from + 'T00:00:00')
+          .lte('created_at', to + 'T23:59:59')
+          .order('created_at', { ascending: false });
 
-      // 3. Report settings (areas)
-      const settings = settingsData.filter(s => s.project_id === activeProject || true);
+        if (disciplineId) q = q.eq('discipline_id', disciplineId);
+        if (userId)       q = q.eq('user_id', userId);
 
-      // Build report HTML
-      const html = buildWeeklyReportHTML(proj, drawings || [], activities || [], settings, from, to);
+        return q.then(r => (r.data || []).map(a => ({
+          ...a,
+          drawings: a[src.table] || null,
+          users: usersById.get(a.user_id) || null,
+        })));
+      });
+
+      const actArrays = await Promise.all(actFetches);
+      const activities = actArrays.flat().sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+      const disciplineLabel = disciplineId
+        ? (disciplinesData.find(d => d.id === disciplineId)?.name || '—')
+        : 'All';
+      const userLabel = userId
+        ? (usersById.get(userId)?.full_name || '—')
+        : 'All';
+
+      const html = buildActivityLogHTML(proj, activities, from, to, disciplineLabel, userLabel);
       preview.innerHTML = html;
     }
 
-    function buildWeeklyReportHTML(proj, drawings, activities, settings, from, to) {
-      const fromDate = new Date(from);
-      const toDate   = new Date(to);
-      const fmtDate  = (d) => d.toLocaleDateString('en-US', { day:'numeric', month:'short', year:'numeric' });
-      const weekStr  = `${fmtDate(fromDate)} - ${fmtDate(toDate)}`;
+    function buildActivityLogHTML(proj, activities, from, to, disciplineLabel, userLabel) {
+      const fmtDate = (d) => new Date(d).toLocaleDateString('en-US', { day:'numeric', month:'short', year:'numeric' });
+      const rangeStr = `${fmtDate(from)} - ${fmtDate(to)}`;
+      const scopeStr = `Discipline: ${esc(disciplineLabel)} | User: ${esc(userLabel)}`;
 
-      // Group settings by discipline
-      const settingsByDisc = {};
-      settings.forEach(s => {
-        if (!settingsByDisc[s.discipline_id]) settingsByDisc[s.discipline_id] = [];
-        settingsByDisc[s.discipline_id].push(s);
-      });
-
-      // Group drawings by discipline
-      const drawingsByDisc = {};
-      drawings.forEach(d => {
-        if (!drawingsByDisc[d.discipline_id]) drawingsByDisc[d.discipline_id] = [];
-        drawingsByDisc[d.discipline_id].push(d);
-      });
-
-      // Helper: count drawings for an area+discipline that have reached a step
-      const countStep = (discId, area, stepName) => {
-        const discDrawings = drawingsByDisc[discId] || [];
-        const areaDrawings = area
-          ? discDrawings.filter(d => (d.area || '').trim().toLowerCase() === area.trim().toLowerCase())
-          : discDrawings;
-        return areaDrawings.filter(d =>
-          (d.drawing_activities || []).some(a => a.step_done === stepName)
-        ).length;
-      };
-
-      const pct = (done, total) => total > 0 ? Math.round(done / total * 100) + '%' : '-';
-      const dash = (val) => val != null && val !== '' ? val : '<span class="dash">-</span>';
-
-      // ── PAGE HEADER ──
-      const pageHeader = (title) => `
-        <div class="pdf-header">
+      const pageHeader = `
+        <div class="pdf-header" data-project="${esc(proj?.name || '—')}" data-date-range="${esc(rangeStr + ' | ' + scopeStr)}" data-prepared-by="${esc(preparedByLabel())}">
           <div class="pdf-logo-cell">
             <div class="pdf-logo-box">LOGO</div>
           </div>
-          <div class="pdf-title-cell">${title}</div>
+          <div class="pdf-title-cell">ACTIVITY LOG</div>
           <div class="pdf-meta-cell">
-            <div><span class="pdf-meta-label">Project</span><span>: ${proj?.name || '—'}</span></div>
-            <div><span class="pdf-meta-label">Week</span><span>: ${weekStr}</span></div>
-            <div><span class="pdf-meta-label">Prepared By</span><span>: Engineering</span></div>
+            <div><span class="pdf-meta-label">Project</span><span>: ${esc(proj?.name || '—')}</span></div>
+            <div><span class="pdf-meta-label">Range</span><span>: ${rangeStr}</span></div>
+            <div><span class="pdf-meta-label">Prepared By</span><span>: ${esc(preparedByLabel())}</span></div>
           </div>
         </div>
       `;
 
-      let pages = '';
-
-      // ── PAGE 1: ENGINEERING DELIVERABLES (per discipline) ──
-      Object.entries(settingsByDisc).forEach(([discId, discSettings]) => {
-        const disc = disciplinesData.find(d => d.id === discId);
-        if (!disc) return;
-
-        const areas = discSettings.sort((a, b) => a.sort_order - b.sort_order);
-        let totalEstQty = 0, totalPrepared = 0, totalIFA = 0, totalIFC = 0;
-        let totalEstDI  = 0, totalPrepDI   = 0, totalIFADI = 0, totalIFCDI = 0;
-        const hasDI = areas.some(a => a.estimated_di);
-
-        const rows = areas.map(area => {
-          const prepared = countStep(discId, area.area, STEP_PREPARED);
-          const ifa      = countStep(discId, area.area, STEP_IFA);
-          const ifc      = countStep(discId, area.area, STEP_IFC);
-          const estQty   = area.estimated_qty || 0;
-          const estDI    = area.estimated_di  || 0;
-
-          // DI proportional estimate (prepared/total * estDI)
-          const prepDI  = estQty > 0 ? Math.round(prepared / estQty * estDI) : 0;
-          const ifaDI   = estQty > 0 ? Math.round(ifa      / estQty * estDI) : 0;
-          const ifcDI   = estQty > 0 ? Math.round(ifc      / estQty * estDI) : 0;
-
-          totalEstQty  += estQty;
-          totalPrepared+= prepared;
-          totalIFA     += ifa;
-          totalIFC     += ifc;
-          totalEstDI   += estDI;
-          totalPrepDI  += prepDI;
-          totalIFADI   += ifaDI;
-          totalIFCDI   += ifcDI;
-
-          return `
-            <tr>
-              <td class="area-col">${area.area}</td>
-              <td>${dash(estQty || null)}</td>
-              ${hasDI ? `<td>${dash(estDI || null)}</td>` : ''}
-              <td>${dash(prepared || null)}</td>
-              ${hasDI ? `<td>${dash(prepDI || null)}</td>` : ''}
-              <td>${dash(ifa || null)}</td>
-              ${hasDI ? `<td>${dash(ifaDI || null)}</td>` : ''}
-              <td>${dash(ifc || null)}</td>
-              ${hasDI ? `<td>${dash(ifcDI || null)}</td>` : ''}
-              <td></td>
-            </tr>
-          `;
-        });
-
-        pages += `
-          <div class="pdf-page">
-            ${pageHeader('WEEKLY PROGRESS REPORT')}
-            <div class="pdf-section-header">Engineering Deliverables</div>
-            <div class="pdf-subsection-header">${disc.name.toUpperCase()} DRAWINGS</div>
-            <table class="pdf-table">
-              <thead>
-                <tr>
-                  <th rowspan="2" class="area-col" style="text-align:left;min-width:120px;">Area / Tank No.</th>
-                  <th colspan="${hasDI ? 2 : 1}" class="group-header">Estimated</th>
-                  <th colspan="${hasDI ? 2 : 1}" class="group-header">Prepared</th>
-                  <th colspan="${hasDI ? 2 : 1}" class="group-header">IFA</th>
-                  <th colspan="${hasDI ? 2 : 1}" class="group-header">IFC</th>
-                  <th rowspan="2">Remarks</th>
-                </tr>
-                <tr>
-                  <th>Qty</th>${hasDI ? '<th>DI</th>' : ''}
-                  <th>Qty</th>${hasDI ? '<th>DI</th>' : ''}
-                  <th>Qty</th>${hasDI ? '<th>DI</th>' : ''}
-                  <th>Qty</th>${hasDI ? '<th>DI</th>' : ''}
-                </tr>
-              </thead>
-              <tbody>
-                ${rows.join('')}
-                <tr class="total-row">
-                  <td class="area-col"><strong>Total</strong></td>
-                  <td><strong>${totalEstQty}</strong></td>
-                  ${hasDI ? `<td><strong>${totalEstDI}</strong></td>` : ''}
-                  <td><strong>${totalPrepared}</strong></td>
-                  ${hasDI ? `<td><strong>${totalPrepDI}</strong></td>` : ''}
-                  <td><strong>${totalIFA}</strong></td>
-                  ${hasDI ? `<td><strong>${totalIFADI}</strong></td>` : ''}
-                  <td><strong>${totalIFC}</strong></td>
-                  ${hasDI ? `<td><strong>${totalIFCDI}</strong></td>` : ''}
-                  <td></td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        `;
-      });
-
-      // ── PAGE 2: PROGRESS BY DISCIPLINE (per area) ──
-      const allAreas = [...new Set(settings.map(s => s.area))].sort();
-      const discs    = disciplinesData.filter(d => settingsByDisc[d.id]);
-
-      pages += `
-        <div class="pdf-page">
-          ${pageHeader('WEEKLY PROGRESS REPORT')}
-          <div class="pdf-section-header">Construction Engineering Progress</div>
-          <table class="pdf-table">
-            <thead>
-              <tr>
-                <th rowspan="2" style="text-align:left;min-width:120px;">Area / Tank No.</th>
-                <th class="group-header">Over-All</th>
-                ${discs.map(d => `<th class="group-header">${d.name}</th>`).join('')}
-                <th rowspan="2">Remarks</th>
-              </tr>
-              <tr>
-                <th>Progress (%)</th>
-                ${discs.map(() => `<th>Progress (%)</th>`).join('')}
-              </tr>
-            </thead>
-            <tbody>
-              ${allAreas.map(area => {
-                const discPcts = discs.map(d => {
-                  const s = settingsByDisc[d.id]?.find(x => x.area === area);
-                  if (!s || !s.estimated_qty) return null;
-                  const ifc = countStep(d.id, area, STEP_IFC);
-                  return Math.round(ifc / s.estimated_qty * 100);
-                });
-                const validPcts = discPcts.filter(p => p !== null);
-                const overall   = validPcts.length ? Math.round(validPcts.reduce((a,b) => a+b, 0) / validPcts.length) : null;
-                return `
-                  <tr>
-                    <td class="area-col">${area}</td>
-                    <td>${overall !== null ? overall + '%' : '<span class="dash">-</span>'}</td>
-                    ${discPcts.map(p => `<td>${p !== null ? p + '%' : '<span class="dash">-</span>'}</td>`).join('')}
-                    <td></td>
-                  </tr>
-                `;
-              }).join('')}
-            </tbody>
-          </table>
-        </div>
-      `;
-
-      // ── PAGE 3: ACTIVITY LOG (within week range) ──
-      const actRows = activities.length
+      const rows = activities.length
         ? activities.map(a => `
             <tr>
               <td style="white-space:nowrap;">${formatDate(a.created_at)}</td>
-              <td style="font-weight:700;">${a.drawings?.drawing_number || '—'}</td>
-              <td style="text-align:left;max-width:150px;">${a.drawings?.title || '—'}</td>
+              <td style="font-weight:700;">${esc(a.drawings?.drawing_number) || '—'}</td>
+              <td style="text-align:left;max-width:150px;">${esc(a.drawings?.title) || '—'}</td>
               <td>${a.step_done || '—'}</td>
-              <td>${a.users?.full_name || '—'}</td>
-              <td>${a.drawings?.disciplines?.name || '—'}</td>
+              <td>${esc(a.users?.full_name) || '—'}</td>
+              <td>${esc(a.drawings?.disciplines?.name) || '—'}</td>
               <td style="text-align:right;">${a.manhours || 0}</td>
-              <td>${a.remarks || ''}</td>
+              <td>${esc(a.revision_description) || ''}</td>
             </tr>
           `).join('')
-        : `<tr><td colspan="8" style="text-align:center;padding:10px;color:#999;">No activities recorded for this week.</td></tr>`;
+        : `<tr><td colspan="8" style="text-align:center;padding:10px;color:#999;">No activities found for this range/filter.</td></tr>`;
 
-      pages += `
+      return `
         <div class="pdf-page">
-          ${pageHeader('WEEKLY PROGRESS REPORT')}
-          <div class="pdf-section-header">Activity Log — ${weekStr}</div>
+          ${pageHeader}
+          <div class="pdf-section-header">Activity Log — ${rangeStr} (${scopeStr})</div>
           <table class="pdf-table">
             <thead>
               <tr>
@@ -753,7 +1314,737 @@
                 <th>Remarks</th>
               </tr>
             </thead>
-            <tbody>${actRows}</tbody>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+      `;
+    }
+
+    // ── Print helpers ──────────────────────────────────────────────────────────
+    // We need to temporarily move #pdf-preview to the top of <body> before
+    // printing, because it is deeply nested inside display:none ancestors,
+    // which prevents the browser from printing it even with !important overrides.
+
+    let _printClone = null;
+    let _printOverlay = null;
+
+    function printWeeklyReport() {
+      const preview = document.getElementById('pdf-preview');
+      if (!preview || !preview.querySelector('.pdf-page')) {
+        toast('Please generate the report first before printing.', 'error');
+        return;
+      }
+
+      // Clone pdf-preview and append directly to body so it is always visible
+      _printClone = preview.cloneNode(true);
+      _printClone.id = 'pdf-preview-print';
+      _printClone.style.cssText = 'position:fixed;top:0;left:0;width:100%;z-index:99999;background:#fff;';
+      document.body.appendChild(_printClone);
+
+      // Overlay to hide the rest of the page during print
+      _printOverlay = document.createElement('div');
+      _printOverlay.id = 'print-overlay';
+      _printOverlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:#fff;z-index:99998;';
+      document.body.appendChild(_printOverlay);
+
+      // Give browser a frame to paint, then print
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          window.print();
+        });
+      });
+    }
+
+    // Clean up clone after print dialog closes
+    window.addEventListener('afterprint', () => {
+      if (_printClone)   { _printClone.remove();   _printClone = null; }
+      if (_printOverlay) { _printOverlay.remove();  _printOverlay = null; }
+    });
+
+    async function generateWeeklyReport() {
+      const range = recalcWeekRange();
+      const from = range.from, to = range.to;
+      if (!from || !to) { toast('Please select an as-of date.', 'error'); return; }
+
+      const preview = document.getElementById('pdf-preview');
+      preview.innerHTML = `<p style="text-align:center;padding:40px;color:var(--text-4);">Generating report…</p>`;
+
+      // Fetch all data
+      const proj = projectsData.find(p => p.id === activeProject);
+
+      // 1. All drawings for this project — query each discipline table separately 
+      const drawFetches = DRAW_SOURCES.map(src =>
+        db.from(src.table)
+          .select(`id, drawing_number, title, area, discipline_id, status, ${src.acts}(step_done, created_at, manhours)`)
+          .eq('project_id', activeProject)
+          .then(r => (r.data || []).map(d => ({
+            ...d,
+            drawing_activities: d[src.acts] || [],  // normalize to common key name
+          })))
+      );
+      const drawArrays = await Promise.all(drawFetches);
+      const drawings = drawArrays.flat();
+      
+      // 2. Activities — cumulative up to (and including) the report's week-end date,
+      //    not scoped to the week itself. This report shows current/cumulative
+      //    progress, not just "what happened this week".
+      // Fetch all users once, build a lookup map (id -> full_name).
+      // We do this manually because these _activities tables have no FK
+      // relationship to `users` that PostgREST's embed feature can use.
+      const { data: usersData } = await db.from('users').select('id, full_name');
+      const usersById = new Map((usersData || []).map(u => [u.id, u]));
+      
+      const actFetches = DRAW_SOURCES.map(src =>
+        db.from(src.acts)
+          .select(`*, ${src.table}(drawing_number, title, area, discipline_id, disciplines(name))`)
+          .eq('project_id', activeProject)
+          .lte('created_at', to + 'T23:59:59')
+          .order('created_at', { ascending: false })
+          .then(r => (r.data || []).map(a => ({
+            ...a,
+            drawings: a[src.table] || null,       // normalize to common key name
+            users: usersById.get(a.user_id) || null,  // manual join replacing the broken embed
+          })))
+      );
+      const actArrays = await Promise.all(actFetches);
+      const activities = actArrays.flat().sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+      // 3. Progress engine — per-area x per-discipline % complete, built the same
+      //    way as the Dashboard's computeActualProgress (ROC-weighted, reached-step
+      //    credit), just re-scoped down to each structure_item/area.
+      const progress = await computeProgressEngine(proj);
+
+      // 4. Purchase Requisition Status, Engineering Calculations, Technical Queries —
+      //    these key off the project's short code (not its UUID), Issues & Concerns
+      //    keys off project_id like the drawing tables.
+      const projCode = proj?.code || null;
+      const [prRes, calcRes, tqRes, issuesRes] = await Promise.all([
+        projCode ? db.from('material_status').select('*').eq('project_code', projCode) : Promise.resolve({ data: [] }),
+        projCode ? db.from('eng_calculations').select('*').eq('project_code', projCode) : Promise.resolve({ data: [] }),
+        projCode ? db.from('technical_queries').select('*').eq('project_code', projCode) : Promise.resolve({ data: [] }),
+        db.from('issues_concerns').select('*, disciplines(name)').eq('project_id', activeProject),
+      ]);
+      const prStatus   = prRes.data    || [];
+      const calcs      = calcRes.data  || [];
+      const tqs        = tqRes.data    || [];
+      const issues     = issuesRes.data|| [];
+
+      // Build report HTML
+      const html = buildWeeklyReportHTML(proj, drawings || [], activities || [], progress, from, to, prStatus, calcs, tqs, issues);
+      preview.innerHTML = html;
+    }
+
+    // ── PROGRESS ENGINE ─────────────────────────────────────────
+    // Reuses the exact ROC-weighted / reached-step logic from Dashboard's
+    // computeActualProgress, re-scoped per structure_item (area) using
+    // target_kpi_areas, instead of just the project-wide estimated_output.
+    async function computeProgressEngine(proj) {
+      const empty = { structureItems: [], disciplines: [], areaDisciplinePct: {}, disciplineOverallPct: {}, docCodesByDiscipline: {}, rocByDisc: {} };
+      if (!activeProject) return empty;
+      const projId   = activeProject;
+      const projCode = proj?.code || null;
+
+      const [siRes, kpiRes, rocRes, rocDiscRes] = await Promise.all([
+        projCode ? db.from('structure_items').select('*').eq('project_code', projCode).order('priority_shipment', { ascending: true, nullsFirst: false }) : Promise.resolve({ data: [] }),
+        db.from('target_kpi').select('id, discipline_id, doc_code_id, step_id, estimated_output, document_codes(id, code, type, activity_type), workflow_steps(id, name, sort_order, activity_type)').eq('project_id', projId),
+        db.from('roc_items').select('discipline_id, doc_code_id, weight, roc_step_items(step_name, weight)').eq('project_id', projId),
+        db.from('project_discipline_roc').select('discipline_id, roc').eq('project_id', projId),
+      ]);
+
+      const structureItems = siRes.data || [];
+      const kpiRows        = kpiRes.data || [];
+      if (!kpiRows.length) return { ...empty, structureItems };
+
+      const kpiIds = kpiRows.map(k => k.id);
+      const { data: kpiAreaRows } = await db.from('target_kpi_areas').select('kpi_id, structure_item_id, estimated_output').in('kpi_id', kpiIds);
+      const areasByKpi = {};
+      (kpiAreaRows || []).forEach(a => {
+        if (!areasByKpi[a.kpi_id]) areasByKpi[a.kpi_id] = {};
+        areasByKpi[a.kpi_id][a.structure_item_id] = parseFloat(a.estimated_output) || 0;
+      });
+
+      const rocMap = {};
+      (rocRes.data || []).forEach(r => {
+        const key = r.discipline_id + '|' + r.doc_code_id;
+        rocMap[key] = { weight: parseFloat(r.weight) || 0, steps: {} };
+        (r.roc_step_items || []).forEach(s => { rocMap[key].steps[s.step_name] = parseFloat(s.weight) || 0; });
+      });
+
+      const rocByDisc = {};
+      (rocDiscRes.data || []).forEach(r => { rocByDisc[r.discipline_id] = parseFloat(r.roc) || 0; });
+
+      // step sort-order per activity_type — "reached this step or later" credit, matching Dashboard
+      const stepOrderByType = {};
+      workflowSteps.forEach(s => {
+        const t = s.activity_type || 'drawing';
+        stepOrderByType[t] = stepOrderByType[t] || {};
+        stepOrderByType[t][s.name] = parseFloat(s.sort_order) || 0;
+      });
+      function reachedStep(currentStatus, stepName, activityType) {
+        const orderMap = stepOrderByType[activityType];
+        if (!orderMap || orderMap[currentStatus] == null || orderMap[stepName] == null) return currentStatus === stepName;
+        return orderMap[currentStatus] >= orderMap[stepName];
+      }
+
+      // ── raw actual-data sources (same tables/shape as Dashboard's computeActualProgress) ──
+      const hasDrawingKpi = kpiRows.some(k => k.document_codes?.activity_type === 'drawing');
+      const drawingRowsByTable = {};
+      if (hasDrawingKpi) {
+        for (const table of ['erection_drawings', 'fabrication_drawings', 'support_drawings', 'weld_map_drawings']) {
+          const { data } = await db.from(table).select('status, discipline_id, drawing_number, area').eq('project_id', projId);
+          drawingRowsByTable[table] = data || [];
+        }
+      }
+      const hasTestPkgKpi = kpiRows.some(k => k.document_codes?.activity_type === 'test_package');
+      let testPkgRows = [];
+      if (hasTestPkgKpi) {
+        const { data } = await db.from('test_package_drawings').select('status, discipline_id, area').eq('project_id', projId);
+        testPkgRows = data || [];
+      }
+      const hasCalcKpi = kpiRows.some(k => k.document_codes?.activity_type === 'calculations');
+      let calcRows = [];
+      if (hasCalcKpi && projCode) {
+        const { data } = await db.from('eng_calculations').select('status, discipline_id').eq('project_code', projCode);
+        calcRows = data || [];
+      }
+      const hasMaterialsKpi = kpiRows.some(k => k.document_codes?.activity_type === 'materials');
+      let materialRows = [];
+      const disciplineCodeById = {};
+      if (hasMaterialsKpi) {
+        disciplinesData.forEach(d => { disciplineCodeById[d.id] = d.code; });
+        const { data } = await db.from('material_status').select('status, discipline_code, area_system').eq('project_code', projCode || '__no_match__');
+        materialRows = data || [];
+      }
+
+      // Count actual items for a kpi row, optionally scoped to one structure_item (area).
+      function countActual(kpi, area) {
+        const docCode = kpi.document_codes, step = kpi.workflow_steps;
+        if (!docCode || !step) return 0;
+        const areaMatches = (rowArea) => !area || (rowArea || '').trim().toLowerCase() === (area.area_system_module || '').trim().toLowerCase();
+        let n = 0;
+        if (docCode.activity_type === 'drawing') {
+          const prefix = (docCode.code || '').toUpperCase();
+          Object.values(drawingRowsByTable).forEach(rows => rows.forEach(r => {
+            if (r.discipline_id !== kpi.discipline_id || !areaMatches(r.area)) return;
+            const code = (r.drawing_number || '').toUpperCase();
+            if (prefix && !code.startsWith(prefix)) return;
+            if (reachedStep(r.status, step.name, 'drawing')) n++;
+          }));
+        } else if (docCode.activity_type === 'test_package') {
+          testPkgRows.forEach(r => {
+            if (r.discipline_id !== kpi.discipline_id || !areaMatches(r.area)) return;
+            if (reachedStep(r.status, step.name, 'test_package')) n++;
+          });
+        } else if (docCode.activity_type === 'calculations') {
+          if (area) return 0; // eng_calculations has no area attribution
+          calcRows.forEach(r => {
+            if (r.discipline_id !== kpi.discipline_id) return;
+            if (reachedStep(r.status, step.name, 'calculations')) n++;
+          });
+        } else if (docCode.activity_type === 'materials') {
+          const discCode = disciplineCodeById[kpi.discipline_id];
+          materialRows.forEach(r => {
+            if (discCode && r.discipline_code !== discCode) return;
+            if (!areaMatches(r.area_system)) return;
+            if (reachedStep(r.status, step.name, 'materials')) n++;
+          });
+        }
+        return n;
+      }
+
+      const disciplinesWithKpi = [...new Set(kpiRows.map(k => k.discipline_id))];
+
+      // ── Discipline-level Overall % (whole project) — identical math to Dashboard ──
+      const disciplineOverallPct = {};
+      disciplinesWithKpi.forEach(discId => {
+        let total = 0;
+        kpiRows.filter(k => k.discipline_id === discId).forEach(kpi => {
+          const roc = rocMap[discId + '|' + kpi.doc_code_id];
+          if (!roc) return;
+          const docWeight  = (roc.weight || 0) / 100;
+          const stepWeight = (roc.steps[kpi.workflow_steps?.name] || 0) / 100;
+          const estOutput  = parseFloat(kpi.estimated_output) || 0;
+          if (!docWeight || !stepWeight || !estOutput) return;
+          const stepPct = Math.min(1, countActual(kpi, null) / estOutput);
+          total += docWeight * stepWeight * stepPct * 100;
+        });
+        disciplineOverallPct[discId] = Math.min(100, total);
+      });
+
+      // ── Per-area x per-discipline % (Highlights rows + per-discipline detail pages) ──
+      const areaDisciplinePct   = {};
+      const docCodesByDiscipline = {};
+      disciplinesWithKpi.forEach(discId => {
+        areaDisciplinePct[discId] = {};
+        const discKpis = kpiRows.filter(k => k.discipline_id === discId);
+
+        const seen = new Set();
+        docCodesByDiscipline[discId] = [];
+        discKpis.forEach(k => {
+          if (k.document_codes && !seen.has(k.doc_code_id)) { seen.add(k.doc_code_id); docCodesByDiscipline[discId].push(k.document_codes); }
+        });
+
+        structureItems.forEach(si => {
+          const byDocCode = {}, byDocCodeDetail = {};
+          let overallTotal = 0;
+
+          docCodesByDiscipline[discId].forEach(dc => {
+            const docKpis = discKpis.filter(k => k.doc_code_id === dc.id);
+            const inScope = docKpis.some(k => (areasByKpi[k.id] || {})[si.id]);
+            if (!inScope) return;
+
+            let docTotal = 0;
+            docKpis.forEach(kpi => {
+              const roc = rocMap[discId + '|' + kpi.doc_code_id];
+              if (!roc) return;
+              const stepWeight = (roc.steps[kpi.workflow_steps?.name] || 0) / 100;
+              const areaEst = (areasByKpi[kpi.id] || {})[si.id];
+              if (!stepWeight || !areaEst) return;
+              docTotal += stepWeight * Math.min(1, countActual(kpi, si) / areaEst) * 100;
+            });
+            docTotal = Math.min(100, docTotal);
+            byDocCode[dc.id] = docTotal;
+
+            // "Req/Done" reference figures = the doc-code's furthest-along step
+            const lastKpi = docKpis.reduce((best, k) => (!best || (k.workflow_steps?.sort_order || 0) > (best.workflow_steps?.sort_order || 0)) ? k : best, null);
+            const req  = lastKpi ? ((areasByKpi[lastKpi.id] || {})[si.id] || 0) : 0;
+            const done = lastKpi ? countActual(lastKpi, si) : 0;
+            byDocCodeDetail[dc.id] = { req, done };
+
+            const roc = rocMap[discId + '|' + dc.id];
+            overallTotal += ((roc?.weight || 0) / 100) * docTotal;
+          });
+
+          areaDisciplinePct[discId][si.id] = Object.keys(byDocCode).length
+            ? { overall: Math.min(100, overallTotal), byDocCode, byDocCodeDetail }
+            : null;
+        });
+      });
+
+      const disciplines = disciplinesData.filter(d => disciplinesWithKpi.includes(d.id));
+      return { structureItems, disciplines, areaDisciplinePct, disciplineOverallPct, docCodesByDiscipline, rocByDisc };
+    }
+
+    function buildWeeklyReportHTML(proj, drawings, activities, progress, from, to, prStatus, calcs, tqs, issues) {
+      const fromDate = new Date(from);
+      const toDate   = new Date(to);
+      const fmtDate  = (d) => d.toLocaleDateString('en-US', { day:'numeric', month:'short', year:'numeric' });
+      const weekStr  = `${fmtDate(fromDate)} - ${fmtDate(toDate)}`;
+
+      const dash = (val) => val != null && val !== '' ? val : '<span class="dash">-</span>';
+      const pctStr = (v) => v == null ? '<span class="dash">-</span>' : Math.round(v) + '%';
+
+      // ── PAGE HEADER ──
+      const pageHeader = (title) => `
+        <div class="pdf-header" data-project="${esc(proj?.name || '—')}" data-date-range="${esc(weekStr)}" data-prepared-by="${esc(preparedByLabel())}">
+          <div class="pdf-logo-cell">
+            <div class="pdf-logo-box">LOGO</div>
+          </div>
+          <div class="pdf-title-cell">${title}</div>
+          <div class="pdf-meta-cell">
+            <div><span class="pdf-meta-label">Project</span><span>: ${proj?.name || '—'}</span></div>
+            <div><span class="pdf-meta-label">Week</span><span>: ${weekStr}</span></div>
+            <div><span class="pdf-meta-label">Prepared By</span><span>: ${esc(preparedByLabel())}</span></div>
+          </div>
+        </div>
+      `;
+
+      // Small "Status | Quantity" summary box shown under a sub-section bar
+      // (Lifting Plan / Temporary Structure / TQ / TD / MAR pages), matching the sample WPR.
+      // `counts` = { Open: 3, Closed: 10, ... }; `total` defaults to the sum of values.
+      const statusBox = (counts, total) => {
+        const rows = Object.entries(counts).map(([k, v]) => `<tr><td>${esc(k)}</td><td>${v}</td></tr>`).join('');
+        const tot  = total != null ? total : Object.values(counts).reduce((a, b) => a + (b || 0), 0);
+        return `
+          <table class="pdf-status-box">
+            <thead><tr><th>Status</th><th>Quantity</th></tr></thead>
+            <tbody>
+              ${rows}
+              <tr><td>Total</td><td>${tot}</td></tr>
+            </tbody>
+          </table>
+        `;
+      };
+
+      let pages = '';
+      const { structureItems, disciplines, areaDisciplinePct, docCodesByDiscipline, rocByDisc } = progress;
+
+      // Blend a structure_item's per-discipline % into one Over-All figure,
+      // weighted by project_discipline_roc among the disciplines actually
+      // in scope for that area.
+      function areaOverallPct(si) {
+        let totalW = 0, sum = 0;
+        disciplines.forEach(d => {
+          const cell = areaDisciplinePct[d.id]?.[si.id];
+          if (!cell) return;
+          const w = rocByDisc[d.id] || 0;
+          totalW += w; sum += w * cell.overall;
+        });
+        return totalW > 0 ? sum / totalW : null;
+      }
+
+      // ── HIGHLIGHTS — one table per page: overview page, then one page per discipline ──
+      if (!structureItems.length || !disciplines.length) {
+        pages += `
+          <div class="pdf-page">
+            ${pageHeader('WEEKLY PROGRESS REPORT')}
+            <div class="pdf-section-header">Highlights</div>
+            <p style="padding:16px;color:#666;">No targets/structure items configured for this project yet — set these up in Targets and Structure first.</p>
+          </div>
+        `;
+      } else {
+        // Page 1: overview table (all disciplines' overall % side by side)
+        pages += `
+          <div class="pdf-page">
+            ${pageHeader('WEEKLY PROGRESS REPORT')}
+            <div class="pdf-section-header">Highlights</div>
+            <div class="pdf-subsection-header">CONSTRUCTION ENGINEERING PROGRESS</div>
+            <table class="pdf-table">
+              <thead>
+                <tr>
+                  <th rowspan="2" class="id-col" style="min-width:110px;">Area / Tank No.</th>
+                  <th class="group-header">Over-All</th>
+                  ${disciplines.map(d => `<th class="group-header">${esc(d.name)}</th>`).join('')}
+                  <th rowspan="2">Remarks</th>
+                </tr>
+                <tr>
+                  <th>Progress (%)</th>
+                  ${disciplines.map(() => `<th>Progress (%)</th>`).join('')}
+                </tr>
+              </thead>
+              <tbody>
+                ${structureItems.map(si => `
+                  <tr>
+                    <td class="area-col id-col">${esc(si.area_system_module)}</td>
+                    <td>${pctStr(areaOverallPct(si))}</td>
+                    ${disciplines.map(d => `<td>${pctStr(areaDisciplinePct[d.id]?.[si.id]?.overall ?? null)}</td>`).join('')}
+                    <td class="area-col">${esc(si.remarks || '')}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+        `;
+
+        // One page per discipline (e.g. "STRUCTURAL PROGRESS"), columns = that
+        // discipline's document codes, all %.
+        disciplines.forEach(d => {
+          const docCodes = docCodesByDiscipline[d.id] || [];
+          if (!docCodes.length) return;
+          pages += `
+            <div class="pdf-page">
+              ${pageHeader('WEEKLY PROGRESS REPORT')}
+              <div class="pdf-section-header">Highlights</div>
+              <div class="pdf-subsection-header">${esc(d.name).toUpperCase()} PROGRESS</div>
+              <table class="pdf-table">
+                <thead>
+                  <tr>
+                    <th rowspan="2" class="id-col" style="min-width:110px;">Area / Tank No.</th>
+                    <th class="group-header">${esc(d.name)} Over-All</th>
+                    ${docCodes.map(dc => `<th class="group-header">${esc(dc.type)}</th>`).join('')}
+                    <th rowspan="2">Remarks</th>
+                  </tr>
+                  <tr>
+                    <th>Progress (%)</th>
+                    ${docCodes.map(() => `<th>Progress (%)</th>`).join('')}
+                  </tr>
+                </thead>
+                <tbody>
+                  ${structureItems.map(si => {
+                    const cell = areaDisciplinePct[d.id]?.[si.id];
+                    if (!cell) return '';
+                    return `
+                      <tr>
+                        <td class="area-col id-col">${esc(si.area_system_module)}</td>
+                        <td>${pctStr(cell.overall)}</td>
+                        ${docCodes.map(dc => `<td>${pctStr(cell.byDocCode[dc.id] ?? null)}</td>`).join('')}
+                        <td></td>
+                      </tr>
+                    `;
+                  }).join('')}
+                </tbody>
+              </table>
+            </div>
+          `;
+        });
+      }
+
+      // ── ENGINEERING DELIVERABLES — one landscape page per discipline, with quantities ──
+      disciplines.forEach(d => {
+        const docCodes = docCodesByDiscipline[d.id] || [];
+        if (!docCodes.length) return;
+
+        // Alternate each doc-code group between the orange and green bands (band-a / band-b).
+        const bandOf = (idx) => idx % 2 === 0 ? 'band-a' : 'band-b';
+
+        const rows = structureItems.map(si => {
+          const cell = areaDisciplinePct[d.id]?.[si.id];
+          if (!cell) return '';
+          const docCells = docCodes.map((dc, idx) => {
+            const band = bandOf(idx);
+            const detail = cell.byDocCodeDetail[dc.id];
+            if (!detail) return `<td class="${band}">${dash(null)}</td><td class="${band}">${dash(null)}</td><td class="${band}">${dash(null)}</td>`;
+            return `
+              <td class="${band}">${dash(detail.req || null)}</td>
+              <td class="${band}">${dash(detail.done || null)}</td>
+              <td class="${band}">${pctStr(cell.byDocCode[dc.id] ?? null)}</td>
+            `;
+          }).join('');
+          return `
+            <tr>
+              <td class="area-col id-col-blue">${esc(si.area_system_module)}</td>
+              <td class="id-col-blue">${pctStr(cell.overall)}</td>
+              ${docCells}
+              <td></td>
+            </tr>
+          `;
+        }).join('');
+
+        pages += `
+          <div class="pdf-page landscape">
+            ${pageHeader('WEEKLY PROGRESS REPORT')}
+            <div class="pdf-section-header">Engineering Deliverables</div>
+            <div class="pdf-subsection-header">${esc(d.name).toUpperCase()} DRAWINGS</div>
+            <table class="pdf-table">
+              <thead>
+                <tr>
+                  <th rowspan="2" class="area-col id-col-blue" style="min-width:120px;">Area / Tank No.</th>
+                  <th rowspan="2" class="id-col-blue">${esc(d.name)}<br>Over-All</th>
+                  ${docCodes.map((dc, idx) => `<th colspan="3" class="group-header ${bandOf(idx)}">${esc(dc.type)}</th>`).join('')}
+                  <th rowspan="2">Remarks</th>
+                </tr>
+                <tr>
+                  ${docCodes.map((dc, idx) => `<th class="${bandOf(idx)}">Req</th><th class="${bandOf(idx)}">Done</th><th class="${bandOf(idx)}">%</th>`).join('')}
+                </tr>
+              </thead>
+              <tbody>
+                ${rows || `<tr><td colspan="${2 + docCodes.length * 3 + 1}" style="text-align:center;padding:10px;color:#999;">No areas in scope.</td></tr>`}
+              </tbody>
+            </table>
+          </div>
+        `;
+      });
+
+      // ── PURCHASE REQUISITION STATUS ──
+      const prSorted = [...prStatus].sort((a, b) => {
+        const dc = (a.discipline_code || '').localeCompare(b.discipline_code || '');
+        if (dc !== 0) return dc;
+        return (a.mto_number || '').localeCompare(b.mto_number || '');
+      });
+      const prCounts = {};
+      prStatus.forEach(p => { const k = p.pr_status || 'Draft'; prCounts[k] = (prCounts[k] || 0) + 1; });
+
+      const prRows = prSorted.map((p, i) => {
+        const poNos = (p.pos || []).map(po => esc(po.po_no)).filter(Boolean);
+        return `
+          <tr>
+            <td>${i + 1}</td>
+            <td>${dash(p.discipline_code)}</td>
+            <td style="font-weight:700;">${dash(p.mto_number)}${p.mto_revision ? ' (' + esc(p.mto_revision) + ')' : ''}</td>
+            <td class="area-col">${esc(p.mto_description || p.pr_description || '')}</td>
+            <td>${dash(p.pr_no)}</td>
+            <td>${p.date_created  ? formatDate(p.date_created)  : '<span class="dash">-</span>'}</td>
+            <td>${p.date_approved ? formatDate(p.date_approved) : '<span class="dash">-</span>'}</td>
+            <td>${poNos.length ? poNos.join('<br>') : '<span class="dash">-</span>'}</td>
+            <td>${dash(p.pr_status)}</td>
+            <td class="area-col">${esc(p.remarks || '')}</td>
+          </tr>
+        `;
+      }).join('');
+
+      pages += `
+        <div class="pdf-page">
+          ${pageHeader('WEEKLY PROGRESS REPORT')}
+          <div class="pdf-section-header">Material Status</div>
+          <div class="pdf-subsection-header">PURCHASE REQUISITION STATUS</div>
+          <table class="pdf-table">
+            <thead>
+              <tr>
+                <th>Seq</th>
+                <th>Discipline</th>
+                <th>MTO Number</th>
+                <th style="text-align:left;">Description</th>
+                <th>PR No.</th>
+                <th>Date Created</th>
+                <th>Date Approved</th>
+                <th>PO No.</th>
+                <th>PR Status</th>
+                <th style="text-align:left;">Remarks</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${prRows || `<tr><td colspan="10" style="text-align:center;padding:10px;color:#999;">No purchase requisitions recorded.</td></tr>`}
+            </tbody>
+          </table>
+        </div>
+      `;
+
+      // ── ENGINEERING CALCULATIONS (one page per calculation type) ──
+      const CALC_TYPE_LABELS = {
+        'Lifting Plan':        'Lifting Plan Calculation',
+        'Temporary Structure': 'Temporary Structure Design',
+        'Connection Design':   'Connection Design Calculation',
+      };
+      const calcsByType = {};
+      calcs.forEach(c => {
+        const t = c.calc_type || 'Other';
+        if (!calcsByType[t]) calcsByType[t] = [];
+        calcsByType[t].push(c);
+      });
+      const latestCycle = (arr) => Array.isArray(arr) && arr.length ? arr[arr.length - 1] : null;
+
+      Object.entries(calcsByType).forEach(([type, list]) => {
+        const statusCounts = {};
+        list.forEach(c => { const k = c.status || 'Not Started'; statusCounts[k] = (statusCounts[k] || 0) + 1; });
+
+        const rows = list.map((c, i) => {
+          const cyc = latestCycle(c.ifa_cycles);
+          return `
+            <tr>
+              <td>${i + 1}</td>
+              <td style="font-weight:700;">${dash(c.doc_number)}</td>
+              <td class="area-col">${esc(c.doc_description || '')}</td>
+              <td>${dash(c.status)}</td>
+              <td>${c.date_requested ? formatDate(c.date_requested) : '<span class="dash">-</span>'}</td>
+              <td>${cyc?.date_ifa     ? formatDate(cyc.date_ifa)     : '<span class="dash">-</span>'}</td>
+              <td>${cyc?.date_respond ? formatDate(cyc.date_respond) : '<span class="dash">-</span>'}</td>
+              <td>${dash(cyc?.revision)}</td>
+              <td>${c.date_ifc ? formatDate(c.date_ifc) : '<span class="dash">-</span>'}</td>
+              <td class="area-col">${esc(c.remarks || '')}</td>
+            </tr>
+          `;
+        }).join('');
+
+        pages += `
+          <div class="pdf-page">
+            ${pageHeader('WEEKLY PROGRESS REPORT')}
+            <div class="pdf-section-header">Engineering Calculations</div>
+            <div class="pdf-subsection-header">${esc((CALC_TYPE_LABELS[type] || type)).toUpperCase()} STATUS</div>
+            ${statusBox(statusCounts, list.length)}
+            <table class="pdf-table">
+              <thead>
+                <tr>
+                  <th>SN</th>
+                  <th>Doc Number</th>
+                  <th style="text-align:left;">Description</th>
+                  <th>Status</th>
+                  <th>Date Requested</th>
+                  <th>Date IFA</th>
+                  <th>Date Respond</th>
+                  <th>Rev</th>
+                  <th>Date IFC</th>
+                  <th style="text-align:left;">Remarks</th>
+                </tr>
+              </thead>
+              <tbody>${rows}</tbody>
+            </table>
+          </div>
+        `;
+      });
+
+      // ── TECHNICAL QUERIES — TQ, then TD, then MAR nested in the same section ──
+      const TQ_TYPE_ORDER  = ['Technical Query', 'Technical Deviation', 'Material Approval'];
+      const TQ_TYPE_LABELS = {
+        'Technical Query':     'Technical Query (TQ) Status',
+        'Technical Deviation': 'Technical Deviation (TD) Status',
+        'Material Approval':   'Material Approval Request (MAR) Status',
+      };
+      const TQ_SECTION_LABELS = {
+        'Technical Query':     'Technical Query',
+        'Technical Deviation': 'Technical Deviation',
+        'Material Approval':   'Material Approval Request',
+      };
+      const tqsByType = {};
+      tqs.forEach(t => {
+        const k = t.query_type || 'Technical Query';
+        if (!tqsByType[k]) tqsByType[k] = [];
+        tqsByType[k].push(t);
+      });
+
+      TQ_TYPE_ORDER.filter(t => tqsByType[t]).forEach(type => {
+        const list = tqsByType[type];
+        const statusCounts = { Open: 0, Closed: 0, Cancelled: 0 };
+        list.forEach(t => { const k = t.status || 'Open'; statusCounts[k] = (statusCounts[k] || 0) + 1; });
+
+        const rows = list.map((t, i) => {
+          const cyc = latestCycle(t.tq_cycles);
+          return `
+            <tr>
+              <td>${i + 1}</td>
+              <td>${dash(t.discipline)}</td>
+              <td style="font-weight:700;">${dash(t.doc_number)}</td>
+              <td class="area-col">${esc(t.doc_description || '')}</td>
+              <td>${cyc?.date_submitted ? formatDate(cyc.date_submitted) : '<span class="dash">-</span>'}</td>
+              <td>${cyc?.date_response  ? formatDate(cyc.date_response)  : '<span class="dash">-</span>'}</td>
+              <td>${dash(t.status)}</td>
+              <td class="area-col">${esc(t.remarks || '')}</td>
+            </tr>
+          `;
+        }).join('');
+
+        pages += `
+          <div class="pdf-page">
+            ${pageHeader('WEEKLY PROGRESS REPORT')}
+            <div class="pdf-section-header">${esc(TQ_SECTION_LABELS[type] || type)}</div>
+            <div class="pdf-subsection-header">${esc(TQ_TYPE_LABELS[type] || type).toUpperCase()}</div>
+            ${statusBox(statusCounts, list.length)}
+            <table class="pdf-table">
+              <thead>
+                <tr>
+                  <th>SN</th>
+                  <th>Discipline</th>
+                  <th>Doc Number</th>
+                  <th style="text-align:left;">Description</th>
+                  <th>Date Submitted</th>
+                  <th>Date Replied</th>
+                  <th>Status</th>
+                  <th style="text-align:left;">Remarks</th>
+                </tr>
+              </thead>
+              <tbody>${rows || `<tr><td colspan="8" style="text-align:center;padding:10px;color:#999;">No records.</td></tr>`}</tbody>
+            </table>
+          </div>
+        `;
+      });
+
+      // ── ISSUES AND CONCERNS (grouped by discipline) ──
+      const issuesByDisc = {};
+      issues.forEach(iss => {
+        const k = iss.disciplines?.name || 'General';
+        if (!issuesByDisc[k]) issuesByDisc[k] = [];
+        issuesByDisc[k].push(iss);
+      });
+
+      const issueRows = Object.entries(issuesByDisc).sort((a, b) => a[0].localeCompare(b[0])).map(([discName, list]) =>
+        list.map((iss, i) => `
+          <tr>
+            ${i === 0 ? `<td class="area-col" rowspan="${list.length}" style="vertical-align:top;font-weight:700;">${esc(discName)}</td>` : ''}
+            <td class="area-col" style="text-align:left;">
+              ${esc(iss.concern || '')}
+              ${iss.action ? `<div style="color:#888;font-style:italic;margin-top:2px;">Action: ${esc(iss.action)}</div>` : ''}
+            </td>
+            <td>${dash(iss.status)}</td>
+            <td>${iss.date_raised ? formatDate(iss.date_raised) : '<span class="dash">-</span>'}</td>
+          </tr>
+        `).join('')
+      ).join('');
+
+      pages += `
+        <div class="pdf-page">
+          ${pageHeader('WEEKLY PROGRESS REPORT')}
+          <div class="pdf-section-header">Issues and Concerns</div>
+          <table class="pdf-table">
+            <thead>
+              <tr>
+                <th style="text-align:left;">Discipline</th>
+                <th style="text-align:left;">Concerns</th>
+                <th>Status</th>
+                <th>Date Raised</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${issueRows || `<tr><td colspan="4" style="text-align:center;padding:10px;color:#999;">No open issues or concerns.</td></tr>`}
+            </tbody>
           </table>
         </div>
       `;

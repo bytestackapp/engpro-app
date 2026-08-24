@@ -33,11 +33,11 @@ function closeModal(id) {
 }
 
 function confirmDialog(message, onConfirm) {
-  const existing = document.getElementById('confirm-modal');
+  const existing = document.getElementById('confirm-modal-dynamic');
   if (existing) existing.remove();
 
   const modal = document.createElement('div');
-  modal.id = 'confirm-modal';
+  modal.id = 'confirm-modal-dynamic';
   modal.className = 'modal active';
   modal.innerHTML = `
     <div class="modal-backdrop"></div>
@@ -45,7 +45,7 @@ function confirmDialog(message, onConfirm) {
       <div class="modal-header"><h3>Confirm Action</h3></div>
       <div class="modal-body"><p>${message}</p></div>
       <div class="modal-footer">
-        <button class="btn btn-ghost" onclick="document.getElementById('confirm-modal').remove(); document.body.style.overflow=''">Cancel</button>
+        <button class="btn btn-ghost" onclick="document.getElementById('confirm-modal-dynamic').remove(); document.body.style.overflow=''">Cancel</button>
         <button class="btn btn-danger" id="confirm-ok">Confirm</button>
       </div>
     </div>`;
@@ -110,55 +110,6 @@ function renderPagination(containerId, total, page, perPage, onPageChange) {
   });
 }
 
-// ============================================================
-// SEARCHABLE DROPDOWN
-// ============================================================
-function initSearchableDropdown(inputId, hiddenId, items, labelKey = 'label', valueKey = 'value') {
-  const input = document.getElementById(inputId);
-  const hidden = document.getElementById(hiddenId);
-  if (!input || !hidden) return;
-
-  let dropdown = null;
-  let filtered = [...items];
-
-  function showDropdown() {
-    if (dropdown) dropdown.remove();
-    dropdown = document.createElement('div');
-    dropdown.className = 'search-dropdown';
-    filtered.forEach(item => {
-      const opt = document.createElement('div');
-      opt.className = 'search-option';
-      opt.textContent = item[labelKey];
-      opt.onclick = () => {
-        input.value = item[labelKey];
-        hidden.value = item[valueKey];
-        dropdown.remove(); dropdown = null;
-        input.dispatchEvent(new Event('change'));
-      };
-      dropdown.appendChild(opt);
-    });
-    if (filtered.length === 0) {
-      dropdown.innerHTML = '<div class="search-option no-results">No results found</div>';
-    }
-    input.parentElement.style.position = 'relative';
-    input.parentElement.appendChild(dropdown);
-  }
-
-  input.addEventListener('input', () => {
-    const q = input.value.toLowerCase();
-    filtered = items.filter(i => i[labelKey].toLowerCase().includes(q));
-    hidden.value = '';
-    showDropdown();
-  });
-
-  input.addEventListener('focus', () => { filtered = [...items]; showDropdown(); });
-
-  document.addEventListener('click', (e) => {
-    if (!input.contains(e.target) && dropdown && !dropdown.contains(e.target)) {
-      dropdown.remove(); dropdown = null;
-    }
-  });
-}
 
 // ============================================================
 // EXCEL EXPORT (SheetJS via CDN)
@@ -180,14 +131,46 @@ function debounce(fn, delay = 300) {
 }
 
 // ============================================================
-// SIDEBAR ACTIVE STATE
+// HTML Escaping
 // ============================================================
-function setActiveSidebarLink() {
-  const path = window.location.pathname;
-  document.querySelectorAll('.nav-link').forEach(link => {
-    link.classList.remove('active');
-    if (link.getAttribute('href') && path.includes(link.getAttribute('href').replace('.html', ''))) {
-      link.classList.add('active');
-    }
-  });
+function esc(str) {
+  if (str === null || str === undefined) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
 }
+
+// ============================================================
+// LOCAL CACHE FOR REFERENCE/LOOKUP DATA (sessionStorage, per-tab)
+// ============================================================
+const CACHE_PREFIX   = 'engpro_cache_';
+const DEFAULT_TTL_MS = 5 * 60 * 1000; // 5 minutes — adjust per table if needed
+
+async function cachedQuery(key, queryFn, ttlMs = DEFAULT_TTL_MS) {
+  const cacheKey = CACHE_PREFIX + key;
+  try {
+    const raw = sessionStorage.getItem(cacheKey);
+    if (raw) {
+      const { data, ts } = JSON.parse(raw);
+      if (Date.now() - ts < ttlMs) return data;
+    }
+  } catch (e) { /* corrupted entry — fall through and refetch */ }
+
+  const data = await queryFn();
+  try {
+    sessionStorage.setItem(cacheKey, JSON.stringify({ data, ts: Date.now() }));
+  } catch (e) { /* storage full/unavailable — non-fatal, skip caching */ }
+  return data;
+}
+
+function invalidateCache(key) {
+  sessionStorage.removeItem(CACHE_PREFIX + key);
+}
+
+function invalidateAllCache() {
+  Object.keys(sessionStorage)
+    .filter(k => k.startsWith(CACHE_PREFIX))
+    .forEach(k => sessionStorage.removeItem(k));
+}
+

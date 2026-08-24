@@ -20,17 +20,8 @@
       background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='13' height='13' viewBox='0 0 24 24' fill='none' stroke='%23555' stroke-width='2'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cpath d='m21 21-4.35-4.35'/%3E%3C/svg%3E") no-repeat center;
     }
 
-    .table-wrapper { overflow-x:auto;overflow-y:auto;max-height:calc(100vh - 340px); }
+    .table-wrapper { overflow-x:auto;overflow-y:auto; }
     .table-wrapper table { width:100%;min-width:900px;border-collapse:collapse; }
-
-    .role-legend { display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap; }
-    .role-card { background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:14px 18px;flex:1;min-width:180px; }
-    .role-card-title { font-size:12px;font-weight:700;margin-bottom:4px; }
-    .role-card-desc  { font-size:12px;color:var(--text-3); }
-
-    .access-denied { display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:60vh;text-align:center;color:var(--text-3); }
-    .access-denied svg { width:64px;height:64px;margin-bottom:20px;color:var(--text-4); }
-    .access-denied h2 { margin-bottom:10px;color:var(--text); }
 
     .modal-tabs { display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:18px; }
     .modal-tab-btn {
@@ -51,6 +42,7 @@
 </head>
 <body>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <script src="../js/supabase.js"></script>
   <script src="../js/utils.js"></script>
   <script src="../js/layout.js"></script>
@@ -64,8 +56,8 @@
       lock:   SVG_SM('<rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>'),
       unlock: SVG_SM('<rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/>'),
       trash:  SVG_SM('<polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/>'),
-      key:    SVG_SM('<path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0 3 3L22 7l-3-3m-3.5 3.5L19 4"/>'),
-      x:      SVG_SM('<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>'),
+      upload: SVG_SM('<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>'),
+	  key:    SVG_SM('<path d="m15.5 7.5 3 3L22 7l-3-3"/><path d="m21 2-9.6 9.6"/><circle cx="7.5" cy="15.5" r="5.5"/>'),
     };
 
     let disciplines     = [];
@@ -75,8 +67,7 @@
     let currentMode     = 'edit';
     let deleteUserId    = null;
     let loggedInProfile = null;
-
-    const FN_BASE = `${window.__SUPABASE_URL__ || 'https://dtjsgvajdgqjlindbhxw.supabase.co'}/functions/v1`;
+	let pwOnlyMode = false;
 
     async function pageInit(profile) {
       loggedInProfile = profile;
@@ -86,6 +77,7 @@
       await loadDisciplineOptions();
       await loadProjectOptions();
       await loadUsers(profile?.role !== 'admin' ? profile : undefined);
+	  adjustTableWrapperHeight();
     }
 
     function renderPage() {
@@ -113,10 +105,9 @@
               <select class="filter-select" id="proj-filter" onchange="filterUsers(document.getElementById('user-search').value)" style="font-size:12px;padding:6px 10px;">
                 <option value="">All Projects</option>
               </select>
-              <div style="margin-left:auto;" id="add-user-wrap">
-                <button class="btn btn-primary btn-sm" onclick="openAddUser()" style="display:flex;align-items:center;gap:5px;">
-                  ${IC.plus} Add User
-                </button>
+              <div style="margin-left:auto;display:flex;gap:8px;" id="add-user-wrap">
+                <button class="btn btn-ghost btn-sm" onclick="exportUsers()" style="display:flex;align-items:center;gap:5px;">${IC.upload} Export</button>
+                <button class="btn btn-primary btn-sm" onclick="openAddUser()" style="display:flex;align-items:center;gap:5px;">${IC.plus} Add User</button>
               </div>
             </div>
 
@@ -125,6 +116,7 @@
                 <thead>
                   <tr>
                     <th style="text-align:left;">Name</th>
+					<th>Initials</th>
                     <th>Username</th>
                     <th>Email</th>
                     <th>Role</th>
@@ -136,7 +128,7 @@
                   </tr>
                 </thead>
                 <tbody id="user-tbody">
-                  <tr><td colspan="9" style="text-align:center;padding:40px;color:var(--text-4);">
+                  <tr><td colspan="10" style="text-align:center;padding:40px;color:var(--text-4);">
                     <div style="display:flex;align-items:center;justify-content:center;gap:8px;">
                       <div class="spinner"></div> Loading…
                     </div>
@@ -175,14 +167,18 @@
                   <label class="required">Full Name</label>
                   <input type="text" id="u-name" placeholder="e.g. Juan dela Cruz" />
                 </div>
+                <div class="form-group">
+                  <label class="required">Email</label>
+                  <input type="email" id="u-email" placeholder="user@company.com" />
+                </div>
                 <div class="form-row">
                   <div class="form-group">
                     <label class="required">Username</label>
                     <input type="text" id="u-username" placeholder="e.g. jdelacruz" />
                   </div>
                   <div class="form-group">
-                    <label class="required">Email</label>
-                    <input type="email" id="u-email" placeholder="user@company.com" />
+                    <label>Initials</label>
+                    <input type="text" id="u-initials" placeholder="e.g. JDC" maxlength="5" style="text-transform:uppercase;" />
                   </div>
                 </div>
                 <div class="form-row">
@@ -299,12 +295,21 @@
       if (filt) filt.innerHTML = `<option value="">All Projects</option>` + projectsData.map(p => `<option value="${p.id}">${p.code} — ${p.name}</option>`).join('');
     }
 
+    function adjustTableWrapperHeight() {
+      const wrapper = document.querySelector('.table-wrapper');
+      if (!wrapper) return;
+      const top = wrapper.getBoundingClientRect().top;
+      const bottomPadding = 24; // breathing room below the table
+      wrapper.style.maxHeight = `calc(100vh - ${top}px - ${bottomPadding}px)`;
+    }
+    window.addEventListener('resize', adjustTableWrapperHeight);
+
     async function loadUsers(profile) {
       const tbody = document.getElementById('user-tbody');
       const { data, error } = await db.from('users')
         .select('*, disciplines(name), projects(name, code)')
         .order('full_name');
-      if (error) { tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;padding:30px;color:var(--red);">Error loading users.</td></tr>`; return; }
+      if (error) { tbody.innerHTML = `<tr><td colspan="10" style="text-align:center;padding:30px;color:var(--red);">Error loading users.</td></tr>`; return; }
       allUsers = data || [];
       renderUsers(allUsers);
     }
@@ -313,7 +318,7 @@
       const tbody = document.getElementById('user-tbody');
       const isAdmin = loggedInProfile?.role === 'admin';
       if (!list.length) {
-        tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;padding:40px;color:var(--text-4);">No users found.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="10" style="text-align:center;padding:40px;color:var(--text-4);">No users found.</td></tr>`;
         return;
       }
       tbody.innerHTML = list.map(u => {
@@ -331,6 +336,7 @@
               </div>
             </div>
           </td>
+          <td style="font-size:12px;color:var(--text-3);">${u.initials||'—'}</td>
           <td style="font-family:monospace;font-size:12px;color:var(--text-3);">@${u.username||'—'}</td>
           <td style="font-size:12px;color:var(--text-3);">${u.email||'—'}</td>
           <td>${role ? `<span class="badge" style="background-color:${roleColor}22;color:${roleColor};border-color:${roleColor}55;">${role.name}</span>` : '<span style="color:var(--text-4);">—</span>'}</td>
@@ -342,38 +348,45 @@
             </span>
           </td>
           <td style="font-size:11px;color:var(--text-4);">${u.created_at ? new Date(u.created_at).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '—'}</td>
-          <td>
+                    <td>
             <div class="table-actions">
               ${isAdmin ? `
                 <button class="btn btn-icon edit" onclick="openEditUser('${u.id}')" title="Edit">${IC.edit}</button>
                 <button class="btn btn-icon ${u.is_active ? 'delete' : 'edit'}" onclick="toggleActive('${u.id}','${(u.full_name||'').replace(/'/g,"\\'")}',${u.is_active})" title="${u.is_active ? 'Deactivate' : 'Activate'}">${u.is_active ? IC.lock : IC.unlock}</button>
-                ${!isSelf ? `<button class="btn btn-icon delete" onclick="prepareDelete(${JSON.stringify(u).replace(/"/g,'&quot;')})" title="Delete">${IC.trash}</button>` : ''}
-              ` : ''}
+				${!isSelf ? `<button class="btn btn-icon delete" onclick="prepareDelete('${u.id}')" title="Delete">${IC.trash}</button>` : ''}
+              ` : (isSelf ? `<button class="btn btn-icon edit" onclick="openChangePassword('${u.id}')" title="Change Password">${IC.key}</button>` : '')}
             </div>
           </td>
         </tr>`;
       }).join('');
     }
 
-    function filterUsers(search) {
-      const roleFilter = document.getElementById('role-filter').value;
-      const projFilter = document.getElementById('proj-filter').value;
+    function getFilteredUsers() {
+      const search = document.getElementById('user-search')?.value || '';
+      const roleFilter = document.getElementById('role-filter')?.value || '';
+      const projFilter = document.getElementById('proj-filter')?.value || '';
       const q = search.toLowerCase();
-      renderUsers(allUsers.filter(u => {
+      return allUsers.filter(u => {
         const matchSearch = !q ||
           u.full_name?.toLowerCase().includes(q) ||
           u.email?.toLowerCase().includes(q) ||
-          u.username?.toLowerCase().includes(q);
+          u.username?.toLowerCase().includes(q) ||
+          u.initials?.toLowerCase().includes(q);
         const matchRole = !roleFilter || u.role === roleFilter;
         const matchProj = !projFilter || u.project_id === projFilter;
         return matchSearch && matchRole && matchProj;
-      }));
+      });
+    }
+
+    function filterUsers() {
+      renderUsers(getFilteredUsers());
     }
 
     function openAddUser() {
       document.getElementById('u-id').value         = '';
       document.getElementById('u-name').value       = '';
       document.getElementById('u-username').value   = '';
+      document.getElementById('u-initials').value   = '';
       document.getElementById('u-email').value      = '';
       document.getElementById('u-role').value       = '';
       document.getElementById('u-discipline').value = '';
@@ -387,6 +400,8 @@
       document.getElementById('pw-tab-btn').style.display = '';
       document.getElementById('pw-label').classList.add('required');
       document.getElementById('pw-confirm-label').classList.add('required');
+	  pwOnlyMode = false;
+      document.querySelector('.modal-tabs').style.display = '';
       // Go to details tab
       switchModalTab('details', document.querySelector('.modal-tab-btn'));
       openModal('user-modal');
@@ -399,6 +414,7 @@
       document.getElementById('u-id').value         = u.id;
       document.getElementById('u-name').value       = u.full_name || '';
       document.getElementById('u-username').value   = u.username || '';
+      document.getElementById('u-initials').value   = u.initials || '';
       document.getElementById('u-email').value      = u.email || '';
       document.getElementById('u-role').value       = u.role || '';
       document.getElementById('u-discipline').value = u.discipline_id || '';
@@ -411,16 +427,60 @@
       document.getElementById('user-save-btn').textContent = 'Save Changes';
       document.getElementById('pw-label').classList.remove('required');
       document.getElementById('pw-confirm-label').classList.remove('required');
+	  pwOnlyMode = false;
+      document.querySelector('.modal-tabs').style.display = '';
       switchModalTab('details', document.querySelector('.modal-tab-btn'));
       openModal('user-modal');
       setTimeout(() => document.getElementById('u-name').focus(), 100);
     }
+	
+	function openChangePassword(id) {
+      const u = allUsers.find(x => x.id === id);
+      if (!u) return;
+      pwOnlyMode = true;
+      document.getElementById('u-id').value = u.id;
+      document.getElementById('u-password').value = '';
+      document.getElementById('u-password-confirm').value = '';
+      document.getElementById('pw-fill').style.width = '0';
+      document.getElementById('user-modal-title').lastChild.textContent = ' Change Password';
+      document.getElementById('user-save-btn').textContent = 'Update Password';
+      document.getElementById('pw-label').classList.add('required');
+      document.getElementById('pw-confirm-label').classList.add('required');
+      // Non-admins only get the password field — hide the tabs/details entirely
+      document.querySelector('.modal-tabs').style.display = 'none';
+      document.getElementById('modal-pane-details').classList.remove('active');
+      document.getElementById('modal-pane-password').classList.add('active');
+      openModal('user-modal');
+      setTimeout(() => document.getElementById('u-password').focus(), 100);
+    }
 
     async function saveUser() {
       const btn        = document.getElementById('user-save-btn');
+	  if (pwOnlyMode) {
+        const id        = document.getElementById('u-id').value;
+        const password  = document.getElementById('u-password').value;
+        const pwConfirm = document.getElementById('u-password-confirm').value;
+
+        if (!password)              { toast('Password is required.','error'); return; }
+        if (password.length < 6)    { toast('Password must be at least 6 characters.','error'); return; }
+        if (password !== pwConfirm) { toast('Passwords do not match.','error'); return; }
+        if (id !== loggedInProfile?.id) { toast("You can only change your own password.",'error'); return; }
+
+        btn.textContent = 'Saving…'; btn.disabled = true;
+        const { error } = await db.auth.updateUser({ password });
+        if (error) { toast('Failed to update password: ' + error.message,'error'); btn.textContent='Update Password'; btn.disabled=false; return; }
+
+        toast('Password updated successfully.','success');
+        btn.textContent = 'Update Password'; btn.disabled = false;
+        pwOnlyMode = false;
+        document.querySelector('.modal-tabs').style.display = '';
+        closeModal('user-modal');
+        return;
+      }
       const id         = document.getElementById('u-id').value;
       const name       = document.getElementById('u-name').value.trim();
       const username   = document.getElementById('u-username').value.trim();
+      const initials   = document.getElementById('u-initials').value.trim().toUpperCase();
       const email      = document.getElementById('u-email').value.trim();
       const role       = document.getElementById('u-role').value;
       const discId     = document.getElementById('u-discipline').value || null;
@@ -445,6 +505,13 @@
       btn.textContent = 'Saving…'; btn.disabled = true;
 
       if (!id) {
+        // Capture the currently-signed-in admin's session BEFORE creating the
+        // new user. With email confirmation off, auth.signUp() immediately
+        // logs the browser in as the newly-created user, silently replacing
+        // the admin's session — which then makes the profile insert below
+        // run as that brand-new, roleless user and get blocked by RLS.
+        const { data: { session: adminSession } } = await db.auth.getSession();
+
         const { data: signUpData, error: signUpError } = await db.auth.signUp({
           email,
           password,
@@ -452,9 +519,20 @@
         });
         if (signUpError) { toast('Auth error: ' + signUpError.message,'error'); btn.textContent='Save User'; btn.disabled=false; return; }
         const authId = signUpData?.user?.id;
+
+        // Restore the admin's session before touching the users table, so the
+        // insert below runs with the admin's actual permissions, not the
+        // brand-new user's.
+        if (adminSession) {
+          await db.auth.setSession({
+            access_token:  adminSession.access_token,
+            refresh_token: adminSession.refresh_token,
+          });
+        }
+
         if (authId) {
           const { error: upsertErr } = await db.from('users').upsert({
-            id: authId, email, full_name: name, username, role,
+            id: authId, email, full_name: name, username, initials, role,
             discipline_id: discId, project_id: projectId, is_active: isActive
           }, { onConflict: 'id' });
           if (upsertErr) { toast('Profile error: ' + upsertErr.message,'error'); btn.textContent='Save User'; btn.disabled=false; return; }
@@ -463,8 +541,21 @@
           toast('User created. If email confirmation is on, they must verify before logging in.','info');
         }
       } else {
+        // Email lives in both public.users and Supabase Auth — if it
+        // changed, update it via the admin RPC first (keeps both in sync
+        // and updates the actual login credential), then save everything
+        // else normally.
+        const original = allUsers.find(u => u.id === id);
+        if (original && email !== original.email) {
+          const { error: emailErr } = await db.rpc('admin_update_user_email', {
+            target_user_id: id,
+            new_email: email,
+          });
+          if (emailErr) { toast('Failed to update email: ' + emailErr.message,'error'); btn.textContent='Save Changes'; btn.disabled=false; return; }
+        }
+
         const { error } = await db.from('users').update({
-          full_name: name, username, role,
+          full_name: name, username, initials, role,
           discipline_id: discId, project_id: projectId,
           is_active: isActive, updated_at: new Date().toISOString()
         }).eq('id', id);
@@ -487,13 +578,15 @@
       });
     }
 
-    function prepareDelete(u) {
+    function prepareDelete(id) {
+      const u = allUsers.find(x => x.id === id);
+      if (!u) return;
       if (u.id === loggedInProfile?.id) { toast("You can't delete your own account.",'error'); return; }
       deleteUserId = u.id;
       document.getElementById('delete-user-info').innerHTML = `
-        <strong>${u.full_name || '—'}</strong>
-        <span style="font-size:11px;color:var(--text-3);margin-left:8px;">@${u.username || '—'}</span><br/>
-        <span style="font-size:11px;color:var(--text-3);">${u.email || ''}</span>
+        <strong>${esc(u.full_name) || '—'}</strong>
+        <span style="font-size:11px;color:var(--text-3);margin-left:8px;">@${esc(u.username) || '—'}</span><br/>
+        <span style="font-size:11px;color:var(--text-3);">${esc(u.email) || ''}</span>
       `;
       document.getElementById('delete-confirm-btn').textContent = 'Delete User';
       document.getElementById('delete-confirm-btn').disabled = false;
@@ -501,27 +594,54 @@
     }
 
     async function confirmDelete() {
-      if (!deleteUserId) return;
-      const btn = document.getElementById('delete-confirm-btn');
-      btn.textContent = 'Deleting…'; btn.disabled = true;
-      try {
-        const { error: dbErr } = await db.from('users').delete().eq('id', deleteUserId);
-        if (dbErr) throw new Error(dbErr.message);
-        try {
-          const { error: fnErr } = await db.rpc('admin_delete_user', { target_user_id: deleteUserId });
-          if (fnErr) throw new Error(fnErr.message);
-          toast('User deleted successfully.','success');
-        } catch (fnErr) {
-          console.warn('[EngPro] admin-delete-user:', fnErr);
-          toast('Profile deleted. Auth account not removed (Edge Function unavailable).','warning');
+      const id = deleteUserId;
+      if (!id) return;
+      confirmDialog('Delete this user? This cannot be undone.', async () => {
+        // 1. Revoke Auth account FIRST
+        const { error: rpcError } = await db.rpc('admin_delete_user', { target_user_id: id });
+        if (rpcError) {
+          // Postgres error code 23503 = foreign_key_violation. This user has
+          // already logged real activity (manhours, drawing updates, etc.)
+          // somewhere in the app, so hard-deleting them would either destroy
+          // or orphan that historical data — Postgres is correctly refusing.
+          // Deactivating instead revokes their access while keeping every
+          // record correctly attributed to them.
+          if (rpcError.code === '23503') {
+            toast("This user has already logged activity in the app and can't be permanently deleted — their history needs to stay attached to their account. Please Deactivate them instead to revoke access.", 'error');
+          } else {
+            toast('Failed to revoke account access: ' + rpcError.message, 'error');
+          }
+          return; // stop — do NOT delete the profile row if Auth revocation failed
         }
+        // 2. Only delete the profile row once Auth is confirmed gone
+        const { error } = await db.from('users').delete().eq('id', id);
+        if (error) { toast(error.message, 'error'); return; }
+        toast('User deleted.', 'success');
         deleteUserId = null;
         closeModal('delete-modal');
         await loadUsers();
-      } catch (err) {
-        toast('Error: ' + err.message,'error');
-        btn.textContent = 'Delete User'; btn.disabled = false;
-      }
+      });
+    }
+
+    // ── EXCEL EXPORT ──────────────────────────────────────────
+    function exportUsers() {
+      const list = getFilteredUsers();
+      if (!list.length) { toast('No users to export.', 'info'); return; }
+      const rows = list.map(u => {
+        const role = rolesData.find(r => r.key === u.role);
+        return {
+          'Full Name': u.full_name || '',
+          'Username':  u.username || '',
+          'Initials':  u.initials || '',
+          'Email':     u.email || '',
+          'Role':      role ? role.name : (u.role || ''),
+          'Discipline':u.disciplines?.name || '',
+          'Project':   u.projects?.code || '',
+          'Status':    u.is_active ? 'Active' : 'Inactive',
+          'Created':   u.created_at ? u.created_at.substring(0, 10) : '',
+        };
+      });
+      exportToExcel(rows, 'users');
     }
 
     initLayout('Users');

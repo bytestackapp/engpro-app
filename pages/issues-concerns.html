@@ -155,7 +155,7 @@
                   </tr>
                 </thead>
                 <tbody id="issues-tbody">
-                  <tr><td colspan="10" style="text-align:center;padding:40px;color:var(--text-4);">Loading…</td></tr>
+                  <tr><td colspan="9" style="text-align:center;padding:40px;color:var(--text-4);">Loading…</td></tr>
                 </tbody>
               </table>
             </div>
@@ -197,7 +197,7 @@
 
     async function loadIssues() {
       const tbody = document.getElementById('issues-tbody');
-      tbody.innerHTML = `<tr><td colspan="10" style="text-align:center;padding:30px;color:var(--text-4);">Loading…</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;padding:30px;color:var(--text-4);">Loading…</td></tr>`;
 
       let q = db.from('issues_concerns')
         .select('*, projects(name, code), disciplines(name)')
@@ -208,7 +208,7 @@
       if (filterStatus)  q = q.eq('status', filterStatus);
 
       const { data, error } = await q;
-      if (error) { tbody.innerHTML = `<tr><td colspan="10" style="text-align:center;padding:30px;color:var(--red);">Error loading data.</td></tr>`; return; }
+      if (error) { tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;padding:30px;color:var(--red);">Error loading data.</td></tr>`; return; }
 
       issuesData = data || [];
       renderIssues();
@@ -220,14 +220,13 @@
         ? issuesData.filter(i =>
             i.concern?.toLowerCase().includes(searchQ) ||
             i.action?.toLowerCase().includes(searchQ) ||
-            i.raised_by?.toLowerCase().includes(searchQ) ||
             i.projects?.name?.toLowerCase().includes(searchQ) ||
             i.disciplines?.name?.toLowerCase().includes(searchQ)
           )
         : issuesData;
 
       if (!list.length) {
-        tbody.innerHTML = `<tr><td colspan="10" style="text-align:center;padding:40px;color:var(--text-4);">No issues found. Click "+ Add Issue" to get started.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;padding:40px;color:var(--text-4);">No issues found. Click "+ Add Issue" to get started.</td></tr>`;
         return;
       }
 
@@ -248,8 +247,8 @@
           <td style="text-align:center;">
             ${item.disciplines ? `<span class="badge badge-gray">${item.disciplines.name}</span>` : '—'}
           </td>
-          <td><div class="concern-text">${item.concern || '—'}</div></td>
-          <td><div class="action-text">${item.action || '—'}</div></td>
+          <td><div class="concern-text">${esc(item.concern) || '—'}</div></td>
+          <td><div class="action-text">${esc(item.action) || '—'}</div></td>
           <td style="text-align:center;">
             <span class="badge ${STATUS_BADGE[item.status] || 'badge-gray'}">${item.status || '—'}</span>
           </td>
@@ -257,7 +256,7 @@
           <td style="text-align:center;font-size:12px;color:var(--text-3);">${item.target_date ? formatDate(item.target_date) : '—'}</td>
           <td style="text-align:center;">
             <div class="table-actions">
-              <button class="btn btn-icon edit"   onclick="openEditModal(${idx})" title="Edit">${IC.edit}</button>
+              <button class="btn btn-icon edit"   onclick="openEditModal('${item.id}')" title="Edit">${IC.edit}</button>
               <button class="btn btn-icon delete" onclick="deleteIssue('${item.id}')" title="Delete">${IC.trash}</button>
             </div>
           </td>
@@ -292,8 +291,8 @@
       setTimeout(() => document.getElementById('i-concern').focus(), 100);
     }
 
-    function openEditModal(index) {
-      const item = issuesData[index];
+    function openEditModal(id) {
+	  const item = issuesData.find(i => i.id === id);
       if (!item) return;
       document.getElementById('i-id').value          = item.id;
       document.getElementById('i-project').value     = item.project_id    || '';

@@ -22,6 +22,13 @@ const _MI = {
   list:      `<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>`,
 };
 
+// ── ESCAPE HELPER ────────────────────────────────────────────
+function _msgEsc(str) {
+  const d = document.createElement('div');
+  d.textContent = str ?? '';
+  return d.innerHTML;
+}
+
 // ── PUBLIC ENTRY POINT ──────────────────────────────────────
 async function initMessaging(profile) {
   if (!CAN_MESSAGE_ROLES.includes(profile?.role)) return;
@@ -42,6 +49,8 @@ let _msgActiveTab   = 'compose';
 let _selectedRtype  = 'all';
 let _selectedRids   = [];
 let _editingTplId   = null;
+let _msgSubjectDraft = '';
+let _msgBodyDraft    = '';
 
 // ── INJECT BUTTON INTO HEADER ────────────────────────────────
 function _injectMessageButton(profile) {
@@ -50,7 +59,6 @@ function _injectMessageButton(profile) {
     console.warn('[EngPro] topbar-clock not found — Message button not injected');
     return;
   }
-  console.log('[EngPro] Injecting Message button for role:', profile?.role);
 
   const btn = document.createElement('button');
   btn.id        = 'msg-open-btn';
@@ -64,13 +72,16 @@ function _injectMessageButton(profile) {
     border-radius:8px;border:1px solid #f07900;
     background:rgba(240,121,0,0.1);color:#f07900;
     font-size:12px;font-weight:600;cursor:pointer;
-    margin-left:12px;position:relative;
+    position:relative;
     transition:background .15s;
   `;
   btn.onmouseover = () => btn.style.background = 'rgba(240,121,0,0.2)';
   btn.onmouseout  = () => btn.style.background = 'rgba(240,121,0,0.1)';
   btn.onclick     = () => openMessageModal('compose');
-  clockEl.parentElement.insertBefore(btn, clockEl.nextSibling);
+  // Insert after the Refresh button if it exists, otherwise fall back to right after the clock
+  const refreshBtn = document.getElementById('refresh-data-btn');
+  const anchor = refreshBtn ? refreshBtn.nextSibling : clockEl.nextSibling;
+  clockEl.parentElement.insertBefore(btn, anchor);
 }
 
 // ── INJECT MODAL HTML ────────────────────────────────────────
@@ -78,12 +89,30 @@ function _injectMessageModal() {
   const div = document.createElement('div');
   div.id = 'msg-modal-wrap';
   div.innerHTML = `
+    <style>
+      .msg-checkbox {
+        appearance: none; -webkit-appearance: none;
+        width: 16px; height: 16px; border-radius: 5px;
+        border: 1.5px solid var(--border-2); background: var(--surface);
+        cursor: pointer; flex-shrink: 0; position: relative;
+        transition: background .15s, border-color .15s;
+      }
+      .msg-checkbox:hover { border-color: #f07900; }
+      .msg-checkbox:checked { background: #f07900; border-color: #f07900; }
+      .msg-checkbox:checked::after {
+        content: ''; position: absolute; left: 4px; top: 1px;
+        width: 4px; height: 8px;
+        border: solid #fff; border-width: 0 2px 2px 0;
+        transform: rotate(45deg);
+      }
+    </style>
+	
     <!-- Main modal -->
     <div id="msg-modal" style="display:none;position:fixed;inset:0;z-index:9998;
          background:rgba(0,0,0,0.65);backdrop-filter:blur(4px);
-         align-items:center;justify-content:center;">
+         align-items:flex-start;justify-content:center;padding-top:14vh;">
       <div style="background:var(--surface);border:1px solid var(--border-2);
-           border-radius:14px;width:min(660px,95vw);max-height:88vh;
+           border-radius:14px;width:min(660px,95vw);max-height:78vh;
            display:flex;flex-direction:column;box-shadow:0 32px 80px rgba(0,0,0,0.6);overflow:hidden;">
 
         <!-- Header -->
@@ -263,7 +292,7 @@ async function _loadMsgMeta() {
 // ── COMPOSE TAB ──────────────────────────────────────────────
 function _renderCompose(body) {
   const tplOpts = _msgTemplates.map(t =>
-    `<option value="${t.id}">${t.name}</option>`).join('');
+    `<option value="${t.id}">${_msgEsc(t.name)}</option>`).join('');
 
   body.innerHTML = `
     <div style="display:flex;flex-direction:column;gap:14px;">
@@ -289,7 +318,8 @@ function _renderCompose(body) {
       <div>
         <label style="font-size:11px;font-weight:600;color:var(--text-3);text-transform:uppercase;
                letter-spacing:.06em;display:block;margin-bottom:5px;color:#f07900;">Subject *</label>
-        <input id="msg-subject" type="text" placeholder="Enter subject…"
+        <input id="msg-subject" type="text" placeholder="Enter subject…" value="${_msgEsc(_msgSubjectDraft)}"
+          oninput="_msgSubjectDraft=this.value"
           style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid var(--border-2);
                  background:var(--surface-2);color:var(--text);font-size:13px;box-sizing:border-box;" />
       </div>
@@ -309,13 +339,13 @@ function _renderCompose(body) {
             style="display:flex;align-items:center;gap:5px;padding:5px 14px;border-radius:8px;
                    font-size:12px;font-weight:600;cursor:pointer;
                    border:1px solid var(--border-2);background:var(--surface-2);color:var(--text-3);">
-            ${_MI.group} Group (Discipline)
+            ${_MI.group} Discipline
           </button>
           <button class="msg-rtype-btn" data-rtype="team" onclick="_setRecipientType('team')"
             style="display:flex;align-items:center;gap:5px;padding:5px 14px;border-radius:8px;
                    font-size:12px;font-weight:600;cursor:pointer;
                    border:1px solid var(--border-2);background:var(--surface-2);color:var(--text-3);">
-            ${_MI.folder} Team (Project)
+            ${_MI.folder} Project
           </button>
           <button class="msg-rtype-btn" data-rtype="individual" onclick="_setRecipientType('individual')"
             style="display:flex;align-items:center;gap:5px;padding:5px 14px;border-radius:8px;
@@ -331,14 +361,20 @@ function _renderCompose(body) {
       <div>
         <label style="font-size:11px;font-weight:600;color:var(--text-3);text-transform:uppercase;
                letter-spacing:.06em;display:block;margin-bottom:5px;color:#f07900;">Message *</label>
-        <textarea id="msg-body" rows="6" placeholder="Type your message…"
+        <textarea id="msg-body" rows="6" placeholder="Type your message…" oninput="_msgBodyDraft=this.value"
           style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid var(--border-2);
                  background:var(--surface-2);color:var(--text);font-size:13px;
-                 resize:vertical;box-sizing:border-box;font-family:inherit;"></textarea>
+                 resize:vertical;box-sizing:border-box;font-family:inherit;">${_msgEsc(_msgBodyDraft)}</textarea>
       </div>
 
       <!-- Send -->
-      <div style="display:flex;justify-content:flex-end;">
+      <div style="display:flex;justify-content:flex-end;gap:8px;">
+        <button onclick="_clearComposeForm()"
+          style="display:flex;align-items:center;gap:6px;padding:9px 20px;border-radius:8px;
+                 background:transparent;color:var(--text-3);border:1px solid var(--border-2);
+                 font-size:13px;font-weight:600;cursor:pointer;">
+          Clear
+        </button>
         <button onclick="_sendAnnouncement()"
           style="display:flex;align-items:center;gap:6px;padding:9px 24px;border-radius:8px;
                  background:#f07900;color:#fff;border:none;font-size:13px;font-weight:700;cursor:pointer;">
@@ -347,13 +383,17 @@ function _renderCompose(body) {
       </div>
     </div>
   `;
-  _setRecipientType('all');
+  _restoreRecipientUI();
 }
 
 function _setRecipientType(type) {
   _selectedRtype = type;
   _selectedRids  = [];
+  _restoreRecipientUI();
+}
 
+function _restoreRecipientUI() {
+  const type = _selectedRtype;
   document.querySelectorAll('.msg-rtype-btn').forEach(b => {
     const active = b.dataset.rtype === type;
     b.style.background  = active ? '#f07900'        : 'var(--surface-2)';
@@ -380,7 +420,8 @@ function _setRecipientType(type) {
         <label style="display:flex;align-items:center;gap:5px;padding:5px 10px;border-radius:8px;
                border:1px solid var(--border-2);background:var(--surface-2);cursor:pointer;font-size:12px;color:var(--text);">
           <input type="checkbox" value="${d.id}" onchange="_toggleRid(this)"
-                 style="accent-color:#f07900;" /> ${d.name}
+                 ${_selectedRids.includes(d.id) ? 'checked' : ''}
+                 class="msg-checkbox" /> ${_msgEsc(d.name)}
         </label>`).join('')}
       </div>`;
   } else if (type === 'team') {
@@ -391,8 +432,9 @@ function _setRecipientType(type) {
         <label style="display:flex;align-items:center;gap:5px;padding:5px 10px;border-radius:8px;
                border:1px solid var(--border-2);background:var(--surface-2);cursor:pointer;font-size:12px;color:var(--text);">
           <input type="checkbox" value="${p.id}" onchange="_toggleRid(this)"
-                 style="accent-color:#f07900;" />
-          <span style="font-family:monospace;color:#f07900;">${p.code}</span>&nbsp;${p.name}
+                 ${_selectedRids.includes(p.id) ? 'checked' : ''}
+                 class="msg-checkbox" />
+          <span style="font-family:monospace;color:#f07900;">${_msgEsc(p.code)}</span>&nbsp;${_msgEsc(p.name)}
         </label>`).join('')}
       </div>`;
   } else if (type === 'individual') {
@@ -423,11 +465,11 @@ function _renderUserCheckboxes(users) {
            onmouseover="this.style.background='rgba(255,255,255,0.04)'"
            onmouseout="this.style.background='transparent'">
       <input type="checkbox" value="${u.id}" onchange="_toggleRid(this)"
-             style="accent-color:#f07900;flex-shrink:0;"
-             ${_selectedRids.includes(u.id) ? 'checked' : ''} />
-      <span style="flex:1;">${u.full_name || '—'}</span>
+           class="msg-checkbox"
+           ${_selectedRids.includes(u.id) ? 'checked' : ''} />
+      <span style="flex:1;">${_msgEsc(u.full_name) || '—'}</span>
       <span style="color:var(--text-3);font-size:10px;background:var(--surface);
-            padding:2px 6px;border-radius:4px;">${u.role || ''}</span>
+            padding:2px 6px;border-radius:4px;">${_msgEsc(u.role) || ''}</span>
     </label>`).join('');
 }
 
@@ -451,10 +493,31 @@ function _applyMsgTemplate() {
   if (!sel?.value) return;
   const tpl = _msgTemplates.find(t => t.id === sel.value);
   if (!tpl) return;
+  _msgSubjectDraft = tpl.subject || '';
+  _msgBodyDraft    = tpl.body    || '';
   const subj = document.getElementById('msg-subject');
   const body = document.getElementById('msg-body');
-  if (subj) subj.value = tpl.subject || '';
-  if (body) body.value = tpl.body    || '';
+  if (subj) subj.value = _msgSubjectDraft;
+  if (body) body.value = _msgBodyDraft;
+}
+
+function _clearComposeForm() {
+  showConfirm({
+    title: 'Clear Form',
+    message: 'This will reset the subject, message body, and template selection. Recipients will stay as-is.',
+    confirmLabel: 'Clear',
+    variant: 'warning',
+    onConfirm: () => {
+      _msgSubjectDraft = '';
+      _msgBodyDraft    = '';
+      const subj = document.getElementById('msg-subject');
+      const body = document.getElementById('msg-body');
+      const sel  = document.getElementById('msg-tpl-select');
+      if (subj) subj.value = '';
+      if (body) body.value = '';
+      if (sel)  sel.value  = '';
+    }
+  });
 }
 
 async function _sendAnnouncement() {
@@ -466,42 +529,53 @@ async function _sendAnnouncement() {
     toast('Please select at least one recipient.', 'error'); return;
   }
   const tplId = document.getElementById('msg-tpl-select')?.value || null;
-  const { data: insertedData, error } = await db.from('announcements').insert({
-    subject, body,
-    template_id:    tplId || null,
-    sender_id:      _msgProfile.id,
-    recipient_type: _selectedRtype,
-    recipient_ids:  _selectedRids.length ? _selectedRids : null,
-  }).select('id').single();
-  if (error) { toast('Failed to send: ' + error.message, 'error'); return; }
 
-  // Trigger push notifications via Edge Function
+  showLoadingOverlay('Sending announcement…');
   try {
-    const FN_BASE = window.__SUPABASE_URL__
-      ? `${window.__SUPABASE_URL__}/functions/v1`
-      : 'https://dtjsgvajdgqjlindbhxw.supabase.co/functions/v1';
+      const { data: insertedData, error } = await db.from('announcements').insert({
+      subject, body,
+      template_id:    tplId || null,
+      sender_id:      _msgProfile.id,
+      recipient_type: _selectedRtype,
+      recipient_ids:  _selectedRids.length ? _selectedRids : null,
+    }).select('id').single();
+    if (error) { toast('Failed to send: ' + error.message, 'error'); return; }
 
-    const { data: { session } } = await db.auth.getSession();
-    const res = await fetch(`${FN_BASE}/send-announcement`, {
-      method:  'POST',
-      headers: {
-        'Content-Type':  'application/json',
-        'Authorization': `Bearer ${session?.access_token}`,
-      },
-      body: JSON.stringify({ announcement_id: insertedData.id }),
-    });
-    const result = await res.json();
-    if (result.sent > 0) {
-      toast(`Announcement sent! Notified ${result.sent} user(s).`, 'success');
-    } else {
-      toast('Announcement saved. No active push subscriptions found.', 'success');
+    // Trigger push notifications via Edge Function
+    try {
+      if (!window.__SUPABASE_URL__) {
+        throw new Error('window.__SUPABASE_URL__ is not set — cannot reach the push notification function.');
+      }
+      const FN_BASE = `${window.__SUPABASE_URL__}/functions/v1`;
+
+      const token = await getAuthToken();
+      const res = await fetch(`${FN_BASE}/send-announcement`, {
+        method:  'POST',
+        headers: {
+          'Content-Type':  'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ announcement_id: insertedData.id }),
+      });
+      const result = await res.json();
+      if (result.sent > 0) {
+        toast(`Announcement sent! Notified ${result.sent} user(s).`, 'success');
+      } else {
+        toast('Announcement saved. No active push subscriptions found.', 'success');
+      }
+    } catch (pushErr) {
+      console.warn('[EngPro] Push notification failed:', pushErr);
+      toast('Announcement saved, but push notification failed.', 'success');
     }
-  } catch (pushErr) {
-    console.warn('[EngPro] Push notification failed:', pushErr);
-    toast('Announcement saved, but push notification failed.', 'success');
+	
+	_msgSubjectDraft = '';
+    _msgBodyDraft    = '';
+    _selectedRtype   = 'all';
+    _selectedRids    = [];
+    closeMessageModal();
+  } finally {
+    hideLoadingOverlay();
   }
-
-  closeMessageModal();
 }
 
 // ── TEMPLATES TAB ────────────────────────────────────────────
@@ -565,10 +639,10 @@ function _refreshTplModalList() {
            border-radius:8px;padding:12px 14px;display:flex;
            align-items:flex-start;justify-content:space-between;gap:10px;">
         <div style="flex:1;min-width:0;">
-          <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:2px;">${t.name}</div>
-          <div style="font-size:12px;color:var(--text-3);margin-bottom:3px;">${t.subject}</div>
+          <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:2px;">${_msgEsc(t.name)}</div>
+          <div style="font-size:12px;color:var(--text-3);margin-bottom:3px;">${_msgEsc(t.subject)}</div>
           <div style="font-size:11px;color:var(--text-4);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
-            ${t.body?.slice(0, 90)}${(t.body?.length || 0) > 90 ? '…' : ''}
+            ${_msgEsc(t.body?.slice(0, 90))}${(t.body?.length || 0) > 90 ? '…' : ''}
           </div>
         </div>
         <div style="display:flex;gap:5px;flex-shrink:0;">
@@ -647,12 +721,20 @@ async function _saveTemplate() {
 }
 
 async function _deleteTemplate(id) {
-  if (!confirm('Delete this template?')) return;
-  const { error } = await db.from('message_templates').delete().eq('id', id);
-  if (error) { toast('Failed to delete.', 'error'); return; }
-  _msgTemplates = _msgTemplates.filter(t => t.id !== id);
-  _refreshTplModalList();
-  toast('Template deleted.', 'success');
+  const tpl = _msgTemplates.find(t => t.id === id);
+  showConfirm({
+    title: 'Delete Template',
+    message: `Delete "${tpl?.name || 'this template'}"? This cannot be recovered.`,
+    confirmLabel: 'Delete',
+    variant: 'danger',
+    onConfirm: async () => {
+      const { error } = await db.from('message_templates').delete().eq('id', id);
+      if (error) { toast('Failed to delete.', 'error'); return; }
+      _msgTemplates = _msgTemplates.filter(t => t.id !== id);
+      _refreshTplModalList();
+      toast('Template deleted.', 'success');
+    }
+  });
 }
 
 function _useTemplate(id) {
@@ -699,7 +781,7 @@ async function _renderLogs(body) {
     </div>
     <div style="display:flex;flex-direction:column;gap:8px;">
       ${logs.map(l => {
-        const dt = new Date(l.created_at).toLocaleString('en-PH', {
+        const dt = new Date(l.created_at).toLocaleString('en-US', {
           month:'short', day:'numeric', year:'numeric',
           hour:'2-digit', minute:'2-digit'
         });
@@ -712,14 +794,14 @@ async function _renderLogs(body) {
         <div style="background:var(--surface-2);border:1px solid var(--border-2);
              border-radius:8px;padding:12px 14px;">
           <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
-            <div style="font-size:13px;font-weight:600;color:var(--text);">${l.subject}</div>
+            <div style="font-size:13px;font-weight:600;color:var(--text);">${_msgEsc(l.subject)}</div>
             <div style="font-size:10px;color:var(--text-4);white-space:nowrap;">${dt}</div>
           </div>
           <div style="font-size:12px;color:var(--text-3);margin:4px 0;">
-            ${l.body?.slice(0,120)}${(l.body?.length||0) > 120 ? '…' : ''}
+            ${_msgEsc(l.body?.slice(0,120))}${(l.body?.length||0) > 120 ? '…' : ''}
           </div>
           <div style="display:flex;gap:12px;margin-top:6px;">
-            <span style="font-size:10px;color:var(--text-4);">By: ${l.users?.full_name || '—'}</span>
+            <span style="font-size:10px;color:var(--text-4);">By: ${_msgEsc(l.users?.full_name) || '—'}</span>
             <span style="font-size:10px;color:var(--text-4);">To: ${rtype}</span>
           </div>
         </div>`;
@@ -729,11 +811,18 @@ async function _renderLogs(body) {
 }
 
 async function _clearLogs() {
-  if (!confirm('Delete all announcement logs? This cannot be undone.')) return;
-  const { error } = await db.from('announcements').delete().neq('id', '00000000-0000-0000-0000-000000000000');
-  if (error) { toast('Failed to clear logs.', 'error'); return; }
-  toast('Logs cleared.', 'success');
-  _renderLogs(document.getElementById('msg-modal-body'));
+  showConfirm({
+    title: 'Clear All Logs',
+    message: 'This will permanently delete all announcement logs. This cannot be undone.',
+    confirmLabel: 'Clear All',
+    variant: 'danger',
+    onConfirm: async () => {
+      const { error } = await db.from('announcements').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+      if (error) { toast('Failed to clear logs.', 'error'); return; }
+      toast('Logs cleared.', 'success');
+      _renderLogs(document.getElementById('msg-modal-body'));
+    }
+  });
 }
 
 // ── ANNOUNCEMENT RECEIVER MODAL ──────────────────────────────
@@ -753,7 +842,7 @@ function _showAnnouncementModal(title, body, sender) {
   const existing = document.getElementById('msg-announce-modal');
   if (existing) existing.remove();
 
-  const now = new Date().toLocaleString('en-PH', {
+  const now = new Date().toLocaleString('en-US', {
     month:'short', day:'numeric', year:'numeric',
     hour:'2-digit', minute:'2-digit'
   });
@@ -796,16 +885,16 @@ function _showAnnouncementModal(title, body, sender) {
       <div style="padding:20px 22px;">
         <div style="font-size:16px;font-weight:700;color:var(--text);margin-bottom:12px;
              line-height:1.3;">
-          ${title || 'Announcement'}
+          ${_msgEsc(title) || 'Announcement'}
         </div>
         <div style="font-size:13px;color:var(--text-3);line-height:1.7;
              white-space:pre-wrap;word-break:break-word;margin-bottom:16px;">
-          ${body || ''}
+          ${_msgEsc(body)}
         </div>
         <div style="display:flex;justify-content:space-between;align-items:center;
              padding-top:12px;border-top:1px solid var(--border-2);">
           <div style="font-size:11px;color:var(--text-4);">
-            <span style="color:var(--text-3);font-weight:500;">By: ${sender || '—'}</span>
+            <span style="color:var(--text-3);font-weight:500;">By: ${_msgEsc(sender) || '—'}</span>
           </div>
           <div style="font-size:11px;color:var(--text-4);">${now}</div>
         </div>

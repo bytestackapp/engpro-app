@@ -3,10 +3,39 @@
 // ============================================================
 const SUPABASE_URL    = 'https://dtjsgvajdgqjlindbhxw.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR0anNndmFqZGdxamxpbmRiaHh3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA0NDMzNjQsImV4cCI6MjA5NjAxOTM2NH0.tCNEjswwgKONyiEcdfgZ_TJczofQZcvmPIh7uNS7D_U';
+window.__SUPABASE_URL__ = SUPABASE_URL;
 
 // The CDN (jsdelivr) already occupies the name "supabase" as a module object.
 // We use "db" as our client instance name throughout the app.
-const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+// Custom auth storage: writes to localStorage (persists across browser restarts)
+// if "Remember me" was checked, otherwise sessionStorage (cleared on tab/browser close).
+// The preference itself lives in localStorage since it's just a flag, not the session.
+const _authStorage = {
+  getItem: (key) => localStorage.getItem(key) ?? sessionStorage.getItem(key),
+  setItem: (key, value) => {
+    const remember = localStorage.getItem('engpro_remember') === '1';
+    if (remember) {
+      localStorage.setItem(key, value);
+      sessionStorage.removeItem(key);
+    } else {
+      sessionStorage.setItem(key, value);
+      localStorage.removeItem(key);
+    }
+  },
+  removeItem: (key) => {
+    localStorage.removeItem(key);
+    sessionStorage.removeItem(key);
+  },
+};
+
+const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+  auth: { storage: _authStorage, persistSession: true, autoRefreshToken: true },
+});
+
+// Called by the login page right before signIn(), based on the checkbox state.
+function setRememberPreference(remember) {
+  localStorage.setItem('engpro_remember', remember ? '1' : '0');
+}
 
 // ============================================================
 // CURRENT USER STATE
@@ -59,10 +88,30 @@ async function loadProfile() {
 function getProfile() { return currentProfile; }
 function getUser()    { return currentUser; }
 
+// ── Look up email for a given username ───────────────────────
+// Supabase Auth only signs in by email, so username-based login
+// resolves the email first via a SECURITY DEFINER RPC function
+// (see get_email_by_username in the SQL setup notes). This avoids
+// exposing the full `users` table to anonymous/unauthenticated calls.
+async function getEmailForUsername(username) {
+  const { data, error } = await db.rpc('get_email_by_username', {
+    p_username: username,
+  });
+
+  if (error || !data) {
+    // Deliberately vague — don't reveal whether the username exists
+    throw new Error('Invalid username or password.');
+  }
+
+  return data;
+}
+
 // ── Sign in + active-account check ──────────────────────────
-async function signIn(email, password) {
+async function signIn(username, password) {
+  const email = await getEmailForUsername(username);
+
   const { data, error } = await db.auth.signInWithPassword({ email, password });
-  if (error) throw error;
+  if (error) throw new Error('Invalid username or password.');
 
   currentUser = data.user;
   const profile = await loadProfile();
@@ -105,6 +154,7 @@ async function signOut() {
     console.warn('[EngPro] Failed to remove push subscription on logout:', err);
   }
 
+  invalidateAllCache();
   await db.auth.signOut();
   currentUser    = null;
   currentProfile = null;

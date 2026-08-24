@@ -36,6 +36,16 @@
     }
     .toolbar-right { margin-left: auto; display: flex; gap: 6px; align-items: center; }
 
+    /* import drop zone — same as Targets / Technical Query */
+    .import-drop {
+      border:2px dashed var(--border);border-radius:var(--radius);
+      padding:60px 32px;text-align:center;cursor:pointer;
+      transition:border-color .2s,background .2s;
+    }
+    .import-drop:hover,.import-drop.drag-over {
+      border-color:var(--accent);background:var(--accent-dim);
+    }
+
     /* ── TABLE WRAPPER WITH SCROLL ── */
     .table-wrapper {
       overflow-x: auto;
@@ -81,6 +91,16 @@
       background: var(--bg-4);
       border-bottom: 2px solid var(--border-2);
     }
+	
+	#f-status:disabled {
+      cursor: not-allowed;
+      opacity: 0.6;
+    }
+	
+	.cycle-locked:disabled {
+      cursor: not-allowed;
+      opacity: 0.6;
+    }
 
     /* ── IFA / RESPOND CYCLE BADGES ── */
     .cycle-cell {
@@ -118,12 +138,18 @@
     let currentPage   = 1;
     let filterStatus  = '';
     let filterType    = '';
-    let filterProject = '';
     let searchQ       = '';
     let tableExpanded = false;
     let importData    = [];
     let importConflicts = {};
     const perPage     = 25;
+
+    // Page-level project gate — nothing loads until a project is selected (same pattern as Technical Query)
+    let calcProjectId   = '';
+    let calcProjectCode = '';
+	
+	let currentUserRole = null;
+	const ENG_UP = ['admin','manager','lead','engineer'];
 
     // ── BASE COLUMNS ────────────────────────────────────────
     const BASE_COLS = [
@@ -135,11 +161,13 @@
       { key: 'date_requested', label: 'DATE REQUESTED',  locked: true,  visible: true,  isDefaultView: true,  lockedInDefaultView: true  },
       { key: 'ifa_cycles',     label: 'IFA / RESPOND',   locked: true,  visible: true,  isDefaultView: true,  lockedInDefaultView: true  },
       { key: 'date_ifc',       label: 'DATE IFC',        locked: true,  visible: true,  isDefaultView: true,  lockedInDefaultView: true  },
+	  { key: 'ifc_revision',   label: 'IFC REV',         locked: true,  visible: true,  isDefaultView: true,  lockedInDefaultView: true  },
       { key: 'remarks',        label: 'REMARKS',         locked: false, visible: true,  isDefaultView: true,  lockedInDefaultView: false  },
     ];
 
     let activeCols  = [];
     let pendingCols = [];
+	let columnCatalog = [];
 
     const CALC_TYPES = ['Lifting Plan', 'Connection Design', 'Temporary Structure'];
     let STATUS_LIST = ['Not Started'];
@@ -161,8 +189,10 @@
 
     // ── PAGE INIT ───────────────────────────────────────────
     async function pageInit(profile) {
+	  currentUserRole = profile?.role || null;
+      await loadProjects();
       injectModals();
-      activeCols = JSON.parse(JSON.stringify(BASE_COLS));
+      await loadColumnConfig();
       renderPage();
       await loadWorkflowSteps();
       await loadCalcs();
@@ -182,6 +212,35 @@
       if (filterEl) filterEl.innerHTML = `<option value="">All Statuses</option>` +
         STATUS_LIST.map(s => `<option value="${s}">${s}</option>`).join('');
     }
+	
+	async function loadColumnCatalog() {
+      const { data } = await db.from('custom_column_catalog').select('*').order('sort_order');
+      columnCatalog = data || [];
+    }
+	
+	// ── COLUMN CONFIG (global, single config for all users/views) ──
+    const COL_CONFIG_KEY = 'eng_calc_cols';
+
+    async function loadColumnConfig() {
+      activeCols = JSON.parse(JSON.stringify(BASE_COLS));
+      try {
+        const { data } = await db.from('app_settings').select('value').eq('key', COL_CONFIG_KEY).maybeSingle();
+        if (data?.value) {
+          const saved = JSON.parse(data.value);
+          const savedKeys = new Set(saved.map(c => c.key));
+          // Keep the user's saved order/visibility for columns they already had...
+          activeCols = saved;
+          // ...and append any BASE_COLS entries that didn't exist yet when they last saved.
+          BASE_COLS.forEach(base => {
+            if (!savedKeys.has(base.key)) activeCols.push(JSON.parse(JSON.stringify(base)));
+          });
+        }
+      } catch (e) {}
+    }
+
+    async function saveColumnConfig() {
+      await db.from('app_settings').upsert({ key: COL_CONFIG_KEY, value: JSON.stringify(activeCols) }, { onConflict: 'key' });
+    }
 
     // ── INJECT MODALS ───────────────────────────────────────
     function injectModals() {
@@ -197,11 +256,10 @@
             </div>
             <div class="modal-body">
               <input type="hidden" id="edit-id" />
+
+              <p style="font-size:11px;font-weight:700;letter-spacing:0.5px;color:var(--accent);text-transform:uppercase;margin:0 0 10px;">Basic Information</p>
+
               <div class="form-row">
-                <div class="form-group">
-                  <label class="required">Project Code</label>
-                  <input type="text" id="f-project-code" placeholder="e.g. AGP-OFP-2" />
-                </div>
                 <div class="form-group">
                   <label class="required">Calculation Type</label>
                   <select id="f-calc-type">
@@ -209,47 +267,47 @@
                     ${CALC_TYPES.map(t => `<option value="${t}">${t}</option>`).join('')}
                   </select>
                 </div>
-              </div>
-              <div class="form-row">
                 <div class="form-group">
                   <label class="required">Document Number</label>
                   <input type="text" id="f-doc-number" placeholder="e.g. CALC-001" />
                 </div>
-                <div class="form-group">
-                  <label class="required">Document Description</label>
-                  <input type="text" id="f-doc-desc" placeholder="Brief description" />
-                </div>
               </div>
               <div class="form-row">
                 <div class="form-group">
-                  <label>Status</label>
-                  <select id="f-status"></select>
+                  <label class="required">Document Description</label>
+                  <input type="text" id="f-doc-desc" placeholder="Brief description" />
                 </div>
                 <div class="form-group">
                   <label>Date Requested</label>
                   <input type="date" id="f-date-requested" />
                 </div>
+              </div>
+              <div class="form-row">
                 <div class="form-group">
+                  <label>Remarks</label>
+                  <input type="text" id="f-remarks" placeholder="Any notes or remarks…" />
+                </div>
+                <div class="form-group">
+                  <label>Status</label>
+                  <select id="f-status"></select>
+                </div>
+                <div class="form-group" style="display:none;">
                   <label>Date IFC</label>
                   <input type="date" id="f-date-ifc" />
                 </div>
               </div>
 
-              <!-- IFA / RESPOND CYCLES -->
+              <!-- IFA CYCLE -->
               <hr class="divider" />
               <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
-                <p style="font-size:11px;font-weight:700;letter-spacing:0.5px;color:var(--accent);text-transform:uppercase;margin:0;">IFA / Respond Cycles</p>
-                <button class="btn btn-ghost btn-sm" onclick="addIfaCycle()" style="display:flex;align-items:center;gap:4px;">${IC.plus} Add Cycle</button>
+                <p style="font-size:11px;font-weight:700;letter-spacing:0.5px;color:var(--accent);text-transform:uppercase;margin:0;">IFA Cycle</p>
+                <button class="btn btn-ghost btn-sm" disabled title="Cycles are now created automatically from the workflow log" style="display:flex;align-items:center;gap:4px;opacity:.5;cursor:not-allowed;">${IC.plus} Add Cycle</button>
               </div>
               <div id="ifa-cycles-container" style="display:flex;flex-direction:column;gap:8px;">
                 <!-- cycles injected here -->
               </div>
 
-              <hr class="divider" />
-              <div class="form-group">
-                <label>Remarks</label>
-                <textarea id="f-remarks" rows="3" placeholder="Any notes or remarks…" style="resize:vertical;"></textarea>
-              </div>
+              <div id="extra-fields"></div>
             </div>
             <div class="modal-footer">
               <button class="btn btn-ghost" onclick="closeModal('calc-modal')">Cancel</button>
@@ -261,90 +319,30 @@
         <!-- IMPORT MODAL -->
         <div class="modal" id="import-modal">
           <div class="modal-backdrop" onclick="closeModal('import-modal');resetImportFile();"></div>
-          <div class="modal-box modal-lg" style="max-width:680px;">
+          <div class="modal-box" style="max-width:720px;">
             <div class="modal-header">
               <h3 style="display:flex;align-items:center;gap:8px;">${IC.download} Import from Excel</h3>
-              <button class="modal-close" onclick="closeModal('import-modal')">✕</button>
+              <button class="modal-close" onclick="closeModal('import-modal');resetImportFile();">✕</button>
             </div>
-            <div class="modal-body" style="padding:0;">
-              <div id="import-upload-zone" style="padding:24px;">
-                <label for="import-file" id="import-dropzone" style="
-                  display:flex;flex-direction:column;align-items:center;justify-content:center;
-                  border:2px dashed var(--border-2);border-radius:var(--radius-lg);
-                  padding:48px 24px;cursor:pointer;transition:all var(--speed);
-                  background:var(--bg-4);gap:12px;"
-                  ondragover="event.preventDefault();this.style.borderColor='var(--accent)';this.style.background='var(--accent-dim)';"
-                  ondragleave="this.style.borderColor='var(--border-2)';this.style.background='var(--bg-4)';"
-                  ondrop="event.preventDefault();this.style.borderColor='var(--border-2)';this.style.background='var(--bg-4)';handleImportFileDrop(event.dataTransfer.files[0]);">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-                  <div style="text-align:center;">
-                    <p style="font-size:14px;font-weight:600;color:var(--text-2);margin:0;">Drop Excel file here or click to browse</p>
-                    <p style="font-size:12px;color:var(--text-4);margin:4px 0 0;">.xlsx / .xls files supported</p>
-                  </div>
-                </label>
-                <input type="file" id="import-file" accept=".xlsx,.xls" style="display:none;" />
+            <div class="modal-body">
+              <div class="import-drop" id="eng-import-drop" onclick="document.getElementById('import-file').click()"
+                ondragover="event.preventDefault();this.classList.add('drag-over')"
+                ondragleave="this.classList.remove('drag-over')"
+                ondrop="event.preventDefault();this.classList.remove('drag-over');handleImportFileDrop(event.dataTransfer.files[0]);">
+                <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.75" style="margin-bottom:14px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                <div style="font-size:14px;font-weight:600;color:var(--text);margin-bottom:6px;">Drop Excel file here or click to browse</div>
+                <div style="font-size:12px;color:var(--text-4);">.xlsx / .xls files supported</div>
               </div>
-              <div id="import-details-section" style="display:none;">
-                <div style="padding:20px 24px;border-bottom:1px solid var(--border);">
-                  <p style="font-size:10px;font-weight:700;letter-spacing:1px;color:var(--accent);text-transform:uppercase;margin:0 0 12px;">Import Details</p>
-                  <div style="display:flex;flex-direction:column;gap:8px;">
-                    <div style="display:flex;gap:10px;align-items:center;">
-                      <span style="font-size:11px;color:var(--text-4);width:80px;flex-shrink:0;">File</span>
-                      <span id="import-filename" style="font-size:13px;font-weight:600;color:var(--text-2);"></span>
-                    </div>
-                    <div style="display:flex;gap:10px;align-items:center;">
-                      <span style="font-size:11px;color:var(--text-4);width:80px;flex-shrink:0;">Rows found</span>
-                      <span id="import-rowcount" style="font-size:13px;font-weight:600;color:var(--text-2);"></span>
-                    </div>
-                    <div id="import-remarks-row" style="display:none;align-items:flex-start;gap:10px;">
-                      <span style="font-size:11px;color:var(--text-4);width:80px;flex-shrink:0;padding-top:2px;">Remarks</span>
-                      <span id="import-remarks" style="font-size:12px;line-height:1.5;"></span>
-                    </div>
-                  </div>
-                </div>
-                <div style="padding:20px 24px;">
-                  <p style="font-size:10px;font-weight:700;letter-spacing:1px;color:var(--accent);text-transform:uppercase;margin:0 0 4px;">Column Mapping</p>
-                  <p style="font-size:12px;color:var(--text-3);margin:0 0 16px;">Match your Excel column headers to the system fields below.</p>
-                  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-                    <div class="form-group" style="margin:0;">
-                      <label>Project Code <span style="color:var(--red);">*</span></label>
-                      <input type="text" id="map-project-code" value="project_code" placeholder="e.g. Project Code" />
-                    </div>
-                    <div class="form-group" style="margin:0;">
-                      <label>Calc Type <span style="color:var(--red);">*</span></label>
-                      <input type="text" id="map-calc-type" value="calc_type" placeholder="e.g. Calc Type" />
-                    </div>
-                    <div class="form-group" style="margin:0;">
-                      <label>Document Number <span style="color:var(--red);">*</span></label>
-                      <input type="text" id="map-doc-number" value="doc_number" placeholder="e.g. Doc Number, CALC No." />
-                    </div>
-                    <div class="form-group" style="margin:0;">
-                      <label>Description</label>
-                      <input type="text" id="map-doc-desc" value="doc_description" placeholder="e.g. Description, Title" />
-                    </div>
-                    <div class="form-group" style="margin:0;">
-                      <label>Status</label>
-                      <input type="text" id="map-status" value="status" placeholder="e.g. Status" />
-                    </div>
-                    <div class="form-group" style="margin:0;">
-                      <label>Date Requested</label>
-                      <input type="text" id="map-date-req" value="date_requested" placeholder="e.g. Date Requested" />
-                    </div>
-                    <div class="form-group" style="margin:0;">
-                      <label>Date IFC</label>
-                      <input type="text" id="map-date-ifc" value="date_ifc" placeholder="e.g. Date IFC" />
-                    </div>
-                    <div class="form-group" style="margin:0;">
-                      <label>Remarks</label>
-                      <input type="text" id="map-remarks" value="remarks" placeholder="e.g. Remarks, Notes" />
-                    </div>
-                  </div>
-                </div>
+              <input type="file" id="import-file" accept=".xlsx,.xls" style="display:none" />
+              <div id="eng-import-preview-wrap"></div>
+              <div style="font-size:12px;color:var(--text-3);margin-top:12px;background:var(--bg-4);border:1px solid var(--border);border-radius:var(--radius);padding:10px 12px;">
+                <strong>Required column headers:</strong><br>
+                Project Code, Calc Type, Doc Number, Description
+				<div style="margin-top:6px;color:var(--text-4);">Status, Date IFC and IFA/Respond cycles are controlled by the app and can't be imported.</div>
               </div>
             </div>
             <div class="modal-footer">
               <button class="btn btn-ghost" onclick="closeModal('import-modal');resetImportFile();">Cancel</button>
-              <button class="btn btn-ghost" id="import-back-btn" onclick="resetImportFile()" style="display:none;margin-right:auto;order:-1;">← Back</button>
               <button class="btn btn-primary" id="import-btn" onclick="importCalcs()" disabled>Import</button>
             </div>
           </div>
@@ -361,13 +359,11 @@
             <div class="modal-body">
               <p style="font-size:12px;color:var(--text-3);margin-bottom:6px;">These document numbers already exist. Choose an action for each:</p>
               <div style="font-size:12px;color:var(--text-3);margin-bottom:16px;padding:10px 12px;background:var(--bg-4);border:1px solid var(--border);border-radius:var(--radius);display:flex;flex-direction:column;gap:4px;">
-                <div><strong style="color:var(--text-2);">Skip</strong> — Ignore and keep existing record.</div>
-                <div><strong style="color:var(--text-2);">Update</strong> — Merge changes, preserve history.</div>
-                <div><strong style="color:var(--text-2);">Replace</strong> — Fully overwrite existing record.</div>
+                <div><strong style="color:var(--text-2);">Skip</strong> — Ignore and keep existing record unchanged.</div>
+                <div><strong style="color:var(--text-2);">Replace</strong> — Fully overwrite the existing record.</div>
               </div>
               <div style="display:flex;gap:6px;margin-bottom:12px;">
                 <button id="bulk-skip"    onclick="setAllConflict('skip')"    class="btn btn-ghost btn-sm" style="font-size:11px;">Skip All</button>
-                <button id="bulk-update"  onclick="setAllConflict('update')"  class="btn btn-ghost btn-sm" style="font-size:11px;">Update All</button>
                 <button id="bulk-replace" onclick="setAllConflict('replace')" class="btn btn-ghost btn-sm" style="font-size:11px;">Replace All</button>
               </div>
               <div id="import-conflict-list" style="display:flex;flex-direction:column;gap:6px;max-height:300px;overflow-y:auto;"></div>
@@ -390,7 +386,9 @@
               <p style="font-size:12px;color:var(--text-3);margin-bottom:14px;">Toggle columns or add custom ones for Engineering Calculations.</p>
               <div class="col-manager" id="col-list"></div>
               <div class="col-add-row">
-                <input type="text" id="new-col-name" placeholder="New column name…" />
+                <select id="new-col-select" style="flex:1;">
+                  <option value="">— Select a column to add —</option>
+                </select>
                 <button class="btn btn-primary btn-sm" onclick="addCustomColumn()">+ Add</button>
               </div>
             </div>
@@ -401,9 +399,62 @@
           </div>
         </div>
 
+        <!-- Generic "type to confirm" modal — same pattern as Technical Query -->
+        <div class="modal" id="type-confirm-modal">
+          <div class="modal-backdrop" onclick="closeModal('type-confirm-modal')"></div>
+          <div class="modal-box modal-sm">
+            <div class="modal-header">
+              <h3 style="display:flex;align-items:center;gap:8px;color:var(--red);">${IC.trash} Delete All</h3>
+              <button class="modal-close" onclick="closeModal('type-confirm-modal')">✕</button>
+            </div>
+            <div class="modal-body">
+              <p id="type-confirm-message" style="font-size:13px;color:var(--text-3);margin-bottom:14px;"></p>
+              <div class="form-group">
+                <label>Type <strong id="type-confirm-word-label"></strong> to confirm</label>
+                <input type="text" id="type-confirm-input" oninput="onTypeConfirmInput()" autocomplete="off" />
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button class="btn btn-ghost" onclick="closeModal('type-confirm-modal')">Cancel</button>
+              <button class="btn btn-danger" id="type-confirm-btn" onclick="runTypeConfirm()" style="display:flex;align-items:center;gap:5px;"></button>
+            </div>
+          </div>
+        </div>
+
       `);
 
       document.getElementById('import-file').addEventListener('change', handleImportFile);
+    }
+
+    // ── TYPE-TO-CONFIRM (used by Delete All) ─────────────────
+    let typeConfirmCallback = null;
+    let typeConfirmWord     = '';
+
+    function openTypeConfirm(message, word, btnLabel, callback) {
+      typeConfirmCallback = callback;
+      typeConfirmWord = word;
+      document.getElementById('type-confirm-message').textContent = message;
+      document.getElementById('type-confirm-word-label').textContent = word;
+      document.getElementById('type-confirm-input').placeholder = word;
+      document.getElementById('type-confirm-input').value = '';
+      document.getElementById('type-confirm-btn').innerHTML = `${IC.trash} ${btnLabel}`;
+      openModal('type-confirm-modal');
+    }
+
+    function onTypeConfirmInput() {
+      // validation happens on click, in runTypeConfirm()
+    }
+
+    function runTypeConfirm() {
+      const val = document.getElementById('type-confirm-input').value.trim();
+      if (val !== typeConfirmWord) {
+        toast(`Incorrect. Please type "${typeConfirmWord}" exactly to confirm.`, 'error');
+        return;
+      }
+      closeModal('type-confirm-modal');
+      const cb = typeConfirmCallback;
+      typeConfirmCallback = null;
+      if (typeof cb === 'function') cb();
     }
 
     // ── RENDER PAGE ─────────────────────────────────────────
@@ -412,16 +463,21 @@
       content.innerHTML = `
         <div class="page-header" style="margin-bottom:14px;">
           <h1 style="display:flex;align-items:center;gap:10px;">
-            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2"/><line x1="8" y1="6" x2="16" y2="6"/><line x1="8" y1="10" x2="16" y2="10"/><line x1="8" y1="14" x2="12" y2="14"/></svg>
             Engineering Calculations
           </h1>
           <p>Manage and track engineering calculation documents and review status.</p>
         </div>
 
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;flex-wrap:nowrap;">
+          <div style="font-size:12px;color:var(--text-3);font-weight:500;">Project:</div>
+          <select id="calc-project-select" onchange="onProjectChange()" style="font-size:12px;padding:5px 8px;min-width:160px;max-width:320px;width:fit-content;">
+            <option value="">— Select a project —</option>
+            ${projectsData.map(p => `<option value="${p.id}">${p.code} — ${p.name}</option>`).join('')}
+          </select>
           <div style="margin-left:auto;display:flex;gap:8px;flex-wrap:nowrap;flex-shrink:0;">
-            <button class="btn btn-ghost btn-sm" onclick="openColManager()" style="display:flex;align-items:center;gap:5px;">${IC.settings} Columns</button>
-            <button class="btn btn-ghost btn-sm" onclick="openModal('import-modal')" style="display:flex;align-items:center;gap:5px;">${IC.download} Import Excel</button>
+            ${ENG_UP.includes(currentUserRole) ? `<button class="btn btn-ghost btn-sm" onclick="openColManager()" style="display:flex;align-items:center;gap:5px;">${IC.settings} Columns</button>` : ''}
+            <button class="btn btn-ghost btn-sm" onclick="openImportModal()" style="display:flex;align-items:center;gap:5px;">${IC.download} Import Excel</button>
             <button class="btn btn-ghost btn-sm" onclick="exportCalcs()" style="display:flex;align-items:center;gap:5px;">${IC.upload} Export</button>
             <button class="btn btn-primary btn-sm" onclick="openAddModal()" style="display:flex;align-items:center;gap:5px;">${IC.plus} Add Calculation</button>
             <button class="btn btn-danger btn-sm" onclick="deleteAllCalcs()" style="display:flex;align-items:center;gap:5px;">${IC.trash} Delete All</button>
@@ -494,11 +550,18 @@
     // ── LOAD CALCS ──────────────────────────────────────────
     async function loadCalcs() {
       const tbody = document.getElementById('calc-tbody');
-      if (tbody) tbody.innerHTML = `<tr><td colspan="20" style="text-align:center;padding:30px;color:var(--text-4);"><div style="display:flex;align-items:center;justify-content:center;gap:8px;"><div class="spinner"></div> Loading…</div></td></tr>`;
+      if (!calcProjectId) {
+        if (tbody) tbody.innerHTML = `<tr><td colspan="13" style="text-align:center;padding:40px;color:var(--text-4);">Select a project above to view its engineering calculations.</td></tr>`;
+        document.getElementById('calc-pagination').innerHTML = '';
+        return;
+      }
+      if (tbody) tbody.innerHTML = `<tr><td colspan="13" style="text-align:center;padding:30px;color:var(--text-4);"><div style="display:flex;align-items:center;justify-content:center;gap:8px;"><div class="spinner"></div> Loading…</div></td></tr>`;
 
       let q = db.from('eng_calculations')
         .select('*', { count: 'exact' })
-        .order('created_at', { ascending: false });
+        .eq('project_id', calcProjectId)
+        .order('doc_number', { ascending: true })
+        .order('id', { ascending: true });
 
       if (filterType)    q = q.eq('calc_type', filterType);
       if (filterStatus)  q = q.eq('status', filterStatus);
@@ -528,13 +591,13 @@
       }
 
       tbody.innerHTML = calcs.map(d => {
-        const safeD = JSON.stringify(d).replace(/"/g, '&quot;');
+        const safeD = encodeURIComponent(JSON.stringify(d));
         const cycles = Array.isArray(d.ifa_cycles) ? d.ifa_cycles : (d.ifa_cycles ? JSON.parse(d.ifa_cycles) : []);
 
         const cells = visCols.map(col => {
           const cs = col.key === 'doc_description'
-            ? 'style="text-align:left;white-space:nowrap;"'
-            : 'style="text-align:center;white-space:nowrap;"';
+			? 'style="text-align:left;white-space:nowrap;vertical-align:top;"'
+			: 'style="text-align:center;white-space:nowrap;vertical-align:top;"';
 
           switch(col.key) {
             case 'project_code':
@@ -544,14 +607,14 @@
             case 'doc_number':
               return `<td ${cs} style="text-align:center;white-space:nowrap;font-family:monospace;font-size:12px;color:var(--text-2);">${d.doc_number||'—'}</td>`;
             case 'doc_description':
-              return `<td ${cs}>${d.doc_description||'—'}</td>`;
+              return `<td ${cs}>${esc(d.doc_description)||'—'}</td>`;
             case 'status':
               return `<td ${cs}>${statusBadge(d.status)}</td>`;
             case 'date_requested':
-              return `<td ${cs} style="text-align:center;white-space:nowrap;font-size:12px;color:var(--text-3);">${formatDate(d.date_requested)||'—'}</td>`;
+              return `<td ${cs} style="text-align:center;white-space:nowrap;font-size:12px;color:var(--text-3);vertical-align:top;">${formatDate(d.date_requested)||'—'}</td>`;
             case 'ifa_cycles': {
               // Render two cells: IFA dates | Respond dates
-              if (!cycles.length) return `<td style="text-align:center;color:var(--text-4);font-size:12px;">—</td><td style="text-align:center;color:var(--text-4);font-size:12px;">—</td>`;
+              if (!cycles.length) return `<td style="text-align:left;color:var(--text-4);font-size:12px;vertical-align:top;">—</td><td style="text-align:left;color:var(--text-4);font-size:12px;vertical-align:top;">—</td><td style="text-align:center;color:var(--text-4);font-size:12px;vertical-align:top;">—</td>`;
               const ifaDates  = cycles.map((c, i) =>
                 `<div class="cycle-item"><span class="cycle-dot ifa"></span><span>${formatDate(c.date_ifa)||'—'}</span></div>`).join('');
               const respDates = cycles.map((c, i) =>
@@ -561,20 +624,22 @@
               return `<td style="text-align:left;vertical-align:top;"><div class="cycle-cell">${ifaDates}</div></td><td style="text-align:left;vertical-align:top;"><div class="cycle-cell">${respDates}</div></td><td style="text-align:center;vertical-align:top;"><div class="cycle-cell" style="align-items:center;">${revItems}</div></td>`;
             }
             case 'date_ifc':
-              return `<td ${cs} style="text-align:center;white-space:nowrap;font-size:12px;color:var(--text-3);">${formatDate(d.date_ifc)||'—'}</td>`;
-            case 'remarks':
-              return `<td style="text-align:left;font-size:12px;color:var(--text-3);max-width:180px;white-space:normal;">${d.remarks||'—'}</td>`;
+              return `<td ${cs} style="text-align:center;white-space:nowrap;font-size:12px;color:var(--text-3);vertical-align:top;">${formatDate(d.date_ifc)||'—'}</td>`;
+            case 'ifc_revision':
+              return `<td ${cs} style="text-align:center;white-space:nowrap;font-size:12px;color:var(--text-3);vertical-align:top;">${(d.ifc_revision === null || d.ifc_revision === undefined) ? '—' : d.ifc_revision}</td>`;
+			  case 'remarks':
+              return `<td style="text-align:left;font-size:12px;color:var(--text-3);max-width:180px;white-space:normal;vertical-align:top;">${esc(d.remarks)||'—'}</td>`;
             default: {
               const meta = d.metadata || {};
-              return `<td ${cs} style="font-size:12px;color:var(--text-2);">${meta[col.key]||'—'}</td>`;
+              return `<td ${cs} style="font-size:12px;color:var(--text-2);">${esc(meta[col.key])||'—'}</td>`;
             }
           }
         }).join('');
 
         return `<tr>
           ${cells}
-          <td style="text-align:center;"><div class="table-actions">
-            <button class="btn btn-icon edit" onclick='openEditModal(${safeD})' title="Edit">${IC.edit}</button>
+          <td style="text-align:center;vertical-align:top;"><div class="table-actions">
+            <button class="btn btn-icon edit" onclick="openEditModal(JSON.parse(decodeURIComponent('${safeD}')))" title="Edit">${IC.edit}</button>
             <button class="btn btn-icon delete" onclick="deleteCalc('${d.id}')" title="Delete">${IC.trash}</button>
           </div></td>
         </tr>`;
@@ -585,13 +650,24 @@
 
     // ── BADGES ──────────────────────────────────────────────
     function statusBadge(s) {
-      const m = {
-        'Completed':'badge-green', 'IFC':'badge-green',
-        'IFA':'badge-orange', 'Responded':'badge-amber',
-        'In Progress':'badge-amber', 'Not Started':'badge-gray',
-        'On Hold':'badge-gray', 'Cancelled':'badge-gray'
+      // Revision-cycle steps aren't a genuine status on their own — collapse
+      // them back to the base status they represent.
+      const REVISION_STEP_DISPLAY = {
+        'Revision':          'Issued for Construction',
+        'Revision Checked':  'Issued for Construction',
+        'Revision Issued':   'Issued for Construction',
       };
-      return `<span class="badge ${m[s]||'badge-gray'}">${s||'Not Started'}</span>`;
+      const display = REVISION_STEP_DISPLAY[s] || s;
+    
+      const m = {
+        'Prepared':                 'badge-gray',
+        'Checked':                  'badge-amber',
+        'Issued for Approval':      'badge-orange',
+        'Issued for Construction':  'badge-green',
+        'Deleted':                  'badge-gray',   // see note below
+        'Not Started':              'badge-gray',
+      };
+      return `<span class="badge ${m[display]||'badge-gray'}">${display||'Not Started'}</span>`;
     }
 
     function calcTypeBadge(t) {
@@ -606,18 +682,24 @@
 
     // ── IFA CYCLES FORM ──────────────────────────────────────
     let ifaCyclesData = [];
+	let projectsData = [];
+
+    async function loadProjects() {
+      const { data } = await db.from('projects').select('id, code, name').order('code');
+      projectsData = data || [];
+    }
 
     function renderIfaCyclesForm() {
       const el = document.getElementById('ifa-cycles-container');
       if (!ifaCyclesData.length) {
-        el.innerHTML = `<p style="font-size:12px;color:var(--text-4);text-align:center;padding:12px;">No cycles added yet. Click "+ Add Cycle" above.</p>`;
+        el.innerHTML = `<p style="font-size:12px;color:var(--text-4);text-align:center;padding:12px;">No cycles yet — this will be populated automatically.</p>`;
         return;
       }
       el.innerHTML = ifaCyclesData.map((c, i) => `
         <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--bg-4);border:1px solid var(--border);border-radius:var(--radius);">
           <div class="form-group" style="margin:0;flex:1;">
             <label style="font-size:11px;">Date IFA</label>
-            <input type="date" value="${c.date_ifa||''}" oninput="ifaCyclesData[${i}].date_ifa=this.value" />
+            <input type="date" value="${c.date_ifa||''}" disabled class="cycle-locked" />
           </div>
           <div class="form-group" style="margin:0;flex:1;">
             <label style="font-size:11px;">Date Respond</label>
@@ -625,82 +707,94 @@
           </div>
           <div class="form-group" style="margin:0;width:80px;flex-shrink:0;">
             <label style="font-size:11px;">Revision</label>
-            <input type="text" value="${c.revision||''}" maxlength="10" placeholder="e.g. A" oninput="ifaCyclesData[${i}].revision=this.value" style="text-align:center;" />
+            <input type="text" value="${c.revision||''}" maxlength="10" placeholder="e.g. A" disabled class="cycle-locked" style="text-align:center;" />
           </div>
-          <button onclick="removeIfaCycle(${i})" style="background:none;border:none;color:var(--red,#f87171);cursor:pointer;font-size:18px;flex-shrink:0;padding:0 4px;" title="Remove cycle">✕</button>
         </div>
       `).join('');
     }
 
-    function addIfaCycle() {
-      ifaCyclesData.push({ date_ifa: '', date_respond: '' });
-      renderIfaCyclesForm();
-    }
-
-    function removeIfaCycle(i) {
-      ifaCyclesData.splice(i, 1);
-      renderIfaCyclesForm();
-    }
-
     // ── ADD / EDIT MODAL ─────────────────────────────────────
     function openAddModal() {
+      if (!calcProjectId) { toast('Select a project first.', 'info'); return; }
       document.getElementById('edit-id').value = '';
-      document.getElementById('calc-modal-title').textContent = 'Add Calculation';
-      document.getElementById('f-project-code').value = '';
+      document.getElementById('calc-modal-title').textContent = `Add Calculation — ${calcProjectCode}`;
       document.getElementById('f-calc-type').value = '';
       document.getElementById('f-doc-number').value = '';
       document.getElementById('f-doc-desc').value = '';
-      document.getElementById('f-status').innerHTML = STATUS_LIST.map(s => `<option value="${s}">${s}</option>`).join('');
+      document.getElementById('f-status').innerHTML = `<option value="Not Started">Not Started</option>`;
 	  document.getElementById('f-status').value = 'Not Started';
+	  document.getElementById('f-status').disabled = true;
       document.getElementById('f-date-requested').value = '';
       document.getElementById('f-date-ifc').value = '';
       document.getElementById('f-remarks').value = '';
       ifaCyclesData = [];
       renderIfaCyclesForm();
+      renderExtraFields({});
       openModal('calc-modal');
-      setTimeout(() => document.getElementById('f-project-code').focus(), 100);
+      setTimeout(() => document.getElementById('f-calc-type').focus(), 100);
     }
 
     function openEditModal(d) {
       document.getElementById('edit-id').value = d.id;
-      document.getElementById('calc-modal-title').textContent = 'Edit Calculation';
-      document.getElementById('f-project-code').value = d.project_code || '';
+      document.getElementById('calc-modal-title').textContent = `Edit Calculation — ${calcProjectCode}`;
       document.getElementById('f-calc-type').value = d.calc_type || '';
       document.getElementById('f-doc-number').value = d.doc_number || '';
       document.getElementById('f-doc-desc').value = d.doc_description || '';
-      document.getElementById('f-status').innerHTML = STATUS_LIST.map(s => `<option value="${s}">${s}</option>`).join('');
+      document.getElementById('f-status').innerHTML = `<option value="${esc(d.status || 'Not Started')}">${esc(d.status || 'Not Started')}</option>`;
 	  document.getElementById('f-status').value = d.status || 'Not Started';
+	  document.getElementById('f-status').disabled = true;
       document.getElementById('f-date-requested').value = d.date_requested ? d.date_requested.split('T')[0] : '';
       document.getElementById('f-date-ifc').value = d.date_ifc ? d.date_ifc.split('T')[0] : '';
       document.getElementById('f-remarks').value = d.remarks || '';
-      ifaCyclesData = Array.isArray(d.ifa_cycles) ? JSON.parse(JSON.stringify(d.ifa_cycles))
+     ifaCyclesData = Array.isArray(d.ifa_cycles) ? JSON.parse(JSON.stringify(d.ifa_cycles))
         : (d.ifa_cycles ? JSON.parse(d.ifa_cycles) : []);
       renderIfaCyclesForm();
+      renderExtraFields(d.metadata || {});
       openModal('calc-modal');
+    }
+	
+	function renderExtraFields(meta) {
+      const customCols = activeCols.filter(c => !BASE_COLS.find(b => b.key === c.key));
+      const el = document.getElementById('extra-fields');
+      if (!customCols.length) { el.innerHTML = ''; return; }
+      el.innerHTML = `<hr class="divider" /><p style="font-size:11px;color:var(--text-4);margin-bottom:10px;">CUSTOM FIELDS</p>` +
+        customCols.map(c => `
+          <div class="form-group">
+            <label>${c.label}</label>
+            <input type="text" id="extra-${c.key}" value="${meta[c.key]||''}" placeholder="${c.label}…" />
+          </div>
+        `).join('');
     }
 
     async function saveCalc() {
+      if (!calcProjectId) { toast('Select a project first.', 'error'); return; }
       const id           = document.getElementById('edit-id').value;
-      const project_code = document.getElementById('f-project-code').value.trim();
       const calc_type    = document.getElementById('f-calc-type').value;
       const doc_number   = document.getElementById('f-doc-number').value.trim();
       const doc_description = document.getElementById('f-doc-desc').value.trim();
-
-      if (!project_code)    { toast('Project code is required.', 'error'); document.getElementById('f-project-code').focus(); return; }
-      if (!calc_type)       { toast('Calculation type is required.', 'error'); return; }
-      if (!doc_number)      { toast('Document number is required.', 'error'); document.getElementById('f-doc-number').focus(); return; }
-      if (!doc_description) { toast('Document description is required.', 'error'); document.getElementById('f-doc-desc').focus(); return; }
-
+    
+      if (!calc_type)        { toast('Calculation type is required.', 'error'); return; }
+      if (!doc_number)       { toast('Document number is required.', 'error'); document.getElementById('f-doc-number').focus(); return; }
+      if (!doc_description)  { toast('Document description is required.', 'error'); document.getElementById('f-doc-desc').focus(); return; }
+    
+      const customCols = activeCols.filter(c => !BASE_COLS.find(b => b.key === c.key));
+      const metadata = {};
+      customCols.forEach(c => {
+        const el = document.getElementById(`extra-${c.key}`);
+        if (el && el.value.trim() !== '') metadata[c.key] = el.value.trim();
+      });
+    
       const payload = {
-        project_code,
+        project_id:     calcProjectId,
+        project_code:   calcProjectCode,
         calc_type,
         doc_number,
         doc_description,
         status:         document.getElementById('f-status').value,
         date_requested: document.getElementById('f-date-requested').value || null,
-        date_ifc:       document.getElementById('f-date-ifc').value || null,
         remarks:        document.getElementById('f-remarks').value.trim() || null,
         ifa_cycles:     ifaCyclesData.length ? ifaCyclesData : null,
+        metadata:       Object.keys(metadata).length ? metadata : null,
       };
 
       const btn = document.querySelector('#calc-modal .btn-primary');
@@ -729,46 +823,44 @@
     }
 
     async function deleteAllCalcs() {
-      const overlay = document.createElement('div');
-      overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:center;justify-content:center;';
-      overlay.innerHTML = `
-        <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:28px;max-width:420px;width:90%;">
-          <h3 style="margin:0 0 8px;color:var(--text);font-size:16px;">Delete All Calculations</h3>
-          <p style="font-size:13px;color:var(--text-3);margin:0 0 16px;">This will permanently delete all engineering calculations matching the current filters. This cannot be undone.</p>
-          <div class="form-group" style="margin-bottom:20px;">
-            <label style="font-size:12px;color:var(--red);font-weight:600;display:block;margin-bottom:6px;">Type <strong>delete all</strong> to confirm:</label>
-            <input type="text" id="del-confirm-input" placeholder="delete all" style="width:100%;box-sizing:border-box;" />
-          </div>
-          <div style="display:flex;gap:8px;justify-content:flex-end;">
-            <button class="btn btn-ghost" id="del-cancel-btn">Cancel</button>
-            <button class="btn btn-danger" id="del-confirm-btn" disabled>Delete</button>
-          </div>
-        </div>
-      `;
-      document.body.appendChild(overlay);
-      document.getElementById('del-cancel-btn').onclick = () => overlay.remove();
-      document.getElementById('del-confirm-input').addEventListener('input', (e) => {
-        document.getElementById('del-confirm-btn').disabled = e.target.value.trim().toLowerCase() !== 'delete all';
-      });
-      document.getElementById('del-confirm-btn').onclick = async () => {
-        overlay.remove();
-        let q = db.from('eng_calculations').delete().neq('id', '00000000-0000-0000-0000-000000000000');
-        if (filterType)   q = q.eq('calc_type', filterType);
-        if (filterStatus) q = q.eq('status', filterStatus);
-        const { error } = await q;
-        if (error) { toast(error.message, 'error'); return; }
-        toast('Calculations deleted.', 'success');
-        currentPage = 1;
-        await loadCalcs();
-      };
+      if (!calcProjectId) { toast('Select a project first.', 'info'); return; }
+      openTypeConfirm(
+        'This will permanently delete all engineering calculations matching the current filters, for this project. This cannot be undone.',
+        'Delete',
+        'Delete All',
+        async () => {
+          let q = db.from('eng_calculations').delete().eq('project_id', calcProjectId);
+          if (filterType)   q = q.eq('calc_type', filterType);
+          if (filterStatus) q = q.eq('status', filterStatus);
+          const { error } = await q;
+          if (error) { toast(error.message, 'error'); return; }
+          toast('Calculations deleted.', 'success');
+          currentPage = 1;
+          await loadCalcs();
+        }
+      );
     }
 
     // ── COLUMN MANAGER ───────────────────────────────────────
     let dragSrcIndex = null;
 
-    function openColManager() {
+    function populateNewColSelect() {
+      const sel = document.getElementById('new-col-select');
+      if (!sel) return;
+      const usedKeys = new Set(pendingCols.map(c => c.key));
+      const available = columnCatalog.filter(c => !usedKeys.has(c.key));
+      sel.innerHTML = available.length
+        ? `<option value="">— Select a column to add —</option>` + available.map(c => `<option value="${c.id}">${esc(c.label)}${c.unit ? ' (' + esc(c.unit) + ')' : ''}</option>`).join('')
+        : `<option value="">No more columns available — ask an Admin</option>`;
+    }
+
+    async function openColManager() {
+	  if (!calcProjectId) { toast('Select a project first.', 'info'); return; }
+	  if (!ENG_UP.includes(currentUserRole)) { toast('You do not have permission to manage columns.', 'error'); return; }	
       pendingCols = JSON.parse(JSON.stringify(activeCols));
+      if (!columnCatalog.length) await loadColumnCatalog();
       renderColList();
+      populateNewColSelect();
       openModal('col-modal');
     }
 
@@ -831,21 +923,23 @@
     function colDragOver(e)    { e.preventDefault(); e.dataTransfer.dropEffect='move'; e.currentTarget.style.borderColor='var(--accent)'; e.currentTarget.style.borderStyle='dashed'; }
     function colDragLeave(e)   { e.currentTarget.style.borderColor=''; e.currentTarget.style.borderStyle=''; }
     function colDrop(e,ti)     { e.preventDefault(); e.currentTarget.style.borderColor=''; e.currentTarget.style.borderStyle=''; if(dragSrcIndex===null||dragSrcIndex===ti)return; const m=pendingCols.splice(dragSrcIndex,1)[0]; pendingCols.splice(ti,0,m); dragSrcIndex=null; renderColList(); }
-    function removeCol(i)      { pendingCols.splice(i,1); renderColList(); }
+    function removeCol(i)      { pendingCols.splice(i,1); renderColList(); populateNewColSelect(); }
 
     function addCustomColumn() {
-      const input = document.getElementById('new-col-name');
-      const name  = input.value.trim();
-      if (!name) { toast('Enter a column name.', 'error'); return; }
-      const key = name.toLowerCase().replace(/\s+/g,'_').replace(/[^a-z0-9_]/g,'');
-      if (pendingCols.find(c=>c.key===key)) { toast('Column already exists.','warning'); return; }
-      pendingCols.push({ key, label: name, locked: false, visible: false, custom: true, isDefaultView: false });
-      input.value = '';
+      const sel = document.getElementById('new-col-select');
+      const catalogId = sel.value;
+      if (!catalogId) { toast('Select a column to add.', 'error'); return; }
+      const entry = columnCatalog.find(c => c.id === catalogId);
+      if (!entry) return;
+      if (pendingCols.find(c => c.key === entry.key)) { toast('Column already added.', 'warning'); return; }
+      pendingCols.push({ key: entry.key, label: entry.label, unit: entry.unit || null, locked: false, visible: false, custom: true });
       renderColList();
+      populateNewColSelect();
     }
 
     async function saveColumns() {
       activeCols = pendingCols;
+      await saveColumnConfig();
       closeModal('col-modal');
       renderTableHeader();
       renderTable(calcs.length);
@@ -854,6 +948,14 @@
 
     // ── SEARCH / FILTER / PAGE ───────────────────────────────
     const onSearch = debounce(async v => { searchQ = v; currentPage = 1; await loadCalcs(); }, 300);
+
+    function onProjectChange() {
+      calcProjectId = document.getElementById('calc-project-select').value;
+      const sel = projectsData.find(p => p.id === calcProjectId);
+      calcProjectCode = sel ? sel.code : '';
+      currentPage = 1;
+      loadCalcs();
+    }
 
     async function onFilter() {
       filterType    = document.getElementById('filter-type').value;
@@ -866,7 +968,8 @@
 
     // ── EXPORT ───────────────────────────────────────────────
     async function exportCalcs() {
-      let q = db.from('eng_calculations').select('*').order('created_at', { ascending: false });
+      if (!calcProjectId) { toast('Select a project first.', 'info'); return; }
+      let q = db.from('eng_calculations').select('*').eq('project_id', calcProjectId).order('created_at', { ascending: false });
       if (filterType)   q = q.eq('calc_type', filterType);
       if (filterStatus) q = q.eq('status', filterStatus);
       if (searchQ)      q = q.or(`doc_number.ilike.%${searchQ}%,doc_description.ilike.%${searchQ}%,project_code.ilike.%${searchQ}%`);
@@ -892,64 +995,102 @@
         return base;
       });
 
-      exportToExcel(rows, `eng_calculations${filterType?'_'+filterType.toLowerCase().replace(/ /g,'_'):''}${filterStatus?'_'+filterStatus.toLowerCase().replace(/ /g,'_'):''}`);
+      exportToExcel(rows, `Eng-Calculations_${calcProjectCode}`);
     }
 
     // ── IMPORT ───────────────────────────────────────────────
     function resetImportFile() {
       importData = []; importConflicts = {};
-      document.getElementById('import-upload-zone').style.display = 'block';
-      document.getElementById('import-details-section').style.display = 'none';
+      document.getElementById('eng-import-preview-wrap').innerHTML = '';
       document.getElementById('import-btn').disabled = true;
-      document.getElementById('import-back-btn').style.display = 'none';
       document.getElementById('import-file').value = '';
+    }
+
+    function openImportModal() {
+      if (!calcProjectId) { toast('Select a project first.', 'info'); return; }
+      resetImportFile();
+      openModal('import-modal');
     }
 
     function handleImportFileDrop(file) { if (file) processImportFile(file); }
     async function handleImportFile(e) { if (e.target.files[0]) processImportFile(e.target.files[0]); }
 
     async function processImportFile(file) {
+      if (!calcProjectId) { toast('Select a project first.', 'error'); return; }
       try {
         const ab = await file.arrayBuffer();
         const wb = XLSX.read(ab, { type: 'array' });
         const ws = wb.Sheets[wb.SheetNames[0]];
-        importData = XLSX.utils.sheet_to_json(ws, { defval: '' });
-        const cols = Object.keys(importData[0] || {});
-        const find = (matchers) => cols.find(c => matchers.some(m => c.toLowerCase().includes(m))) || '';
+        const rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
 
-        document.getElementById('map-project-code').value = find(['project code','project_code','proj']) || 'project_code';
-        document.getElementById('map-calc-type').value    = find(['calc type','calc_type','type']) || 'calc_type';
-        document.getElementById('map-doc-number').value   = find(['doc number','doc_number','document number','calc no']) || 'doc_number';
-        document.getElementById('map-doc-desc').value     = find(['description','desc','title']) || 'doc_description';
-        document.getElementById('map-status').value       = find(['status']) || 'status';
-        document.getElementById('map-date-req').value     = find(['requested','date req']) || 'date_requested';
-        document.getElementById('map-date-ifc').value     = find(['ifc']) || 'date_ifc';
-        document.getElementById('map-remarks').value      = find(['remarks','notes']) || 'remarks';
+        const { parsed, errors, errorReasons, warnings } = parseCalcImportRows(rows);
 
-        const existingNums = new Set(calcs.map(c => c.doc_number));
-        const numCol = document.getElementById('map-doc-number').value;
-        const incoming = importData.map(r => (r[numCol]||'').toString().trim()).filter(Boolean);
-        const dups = incoming.filter(n => existingNums.has(n));
-
-        document.getElementById('import-filename').textContent = file.name;
-        document.getElementById('import-rowcount').textContent = `${importData.length} rows`;
-
-        if (dups.length) {
-          importConflicts = {};
-          dups.forEach(n => importConflicts[n] = 'skip');
-          document.getElementById('import-remarks').innerHTML = `<span style="color:var(--yellow);">⚠ ${dups.length} duplicate${dups.length>1?'s':''} found.</span> <a href="#" style="color:var(--accent);text-decoration:underline;font-size:12px;" onclick="event.preventDefault();openConflictModal()">Click to review</a>`;
-          document.getElementById('import-remarks-row').style.display = 'flex';
-        } else {
-          document.getElementById('import-remarks').innerHTML = `<span style="color:var(--green);">✓ No issues found. Ready to import.</span>`;
-          document.getElementById('import-remarks-row').style.display = 'flex';
-          importConflicts = {};
+        if (warnings.length) {
+          toast(warnings.slice(0, 3).join(' | ') + (warnings.length > 3 ? ` (+${warnings.length-3} more)` : ''), 'warning');
         }
 
-        document.getElementById('import-upload-zone').style.display = 'none';
-        document.getElementById('import-details-section').style.display = 'block';
+        if (!parsed.length) {
+          toast(`No records imported. ${[...errorReasons].join(', ') || 'Check the file and try again.'}`, 'error');
+          document.getElementById('eng-import-preview-wrap').innerHTML = '';
+          document.getElementById('import-btn').disabled = true;
+          return;
+        }
+
+        importData = parsed;
+
+        const existingNums = new Set(calcs.map(c => c.doc_number));
+        const dups = parsed.map(r => r.doc_number).filter(n => existingNums.has(n));
+        importConflicts = {};
+        dups.forEach(n => importConflicts[n] = 'skip');
+
+        let html = `
+          <div style="margin:14px 0 8px;font-size:12px;color:var(--text-3);">
+            <strong style="color:var(--text);">${parsed.length} record${parsed.length!==1?'s':''}</strong> ready to import.
+            ${errors.length ? `<span style="color:var(--red);margin-left:8px;">${errors.length} row${errors.length!==1?'s':''} skipped. ${[...errorReasons].join(', ')}.</span>` : ''}
+          </div>`;
+        if (dups.length) {
+          html += `<div style="font-size:12px;color:var(--yellow);">${dups.length} duplicate${dups.length>1?'s':''} found.
+            <a href="#" style="color:var(--accent);text-decoration:underline;" onclick="event.preventDefault();openConflictModal()">Click to review</a></div>`;
+        }
+        document.getElementById('eng-import-preview-wrap').innerHTML = html;
         document.getElementById('import-btn').disabled = false;
-        document.getElementById('import-back-btn').style.display = 'inline-flex';
       } catch(err) { toast('Error reading file: ' + err.message, 'error'); }
+    }
+
+    function parseCalcImportRows(rows) {
+      const parsed = [];
+      const errors = [];
+      const errorReasons = new Set();
+      const warnings = [];
+
+      const typeSet = new Set(CALC_TYPES.map(t => t.toLowerCase()));
+
+      rows.forEach((row, i) => {
+        const projectCodeRaw = String(row['Project Code'] || '').trim();
+        const calcTypeRaw    = String(row['Calc Type']     || '').trim();
+        const docNumber      = String(row['Doc Number']    || '').trim();
+
+        if (!docNumber) { errors.push(`Row ${i+2}: missing Doc Number`); errorReasons.add('Missing Doc Number'); return; }
+
+        if (!projectCodeRaw || projectCodeRaw.toLowerCase() !== calcProjectCode.toLowerCase()) {
+          errors.push(`Row ${i+2}: "${projectCodeRaw}" does not match the selected project (${calcProjectCode})`); errorReasons.add(`Project Code mismatch.`); return;
+        }
+        if (!calcTypeRaw || !typeSet.has(calcTypeRaw.toLowerCase())) {
+          errors.push(`Row ${i+2}: unknown calc type "${calcTypeRaw}"`); errorReasons.add('Calc Type does not match'); return;
+        }
+
+        parsed.push({
+          doc_number:      docNumber,
+          project_id:      calcProjectId,
+          project_code:    calcProjectCode,
+          calc_type:       calcTypeRaw,
+          doc_description: String(row['Description'] || '').trim() || null,
+          date_requested:  String(row['Date Requested'] || '').trim() || null,
+          remarks:         String(row['Remarks'] || '').trim() || null,
+        });
+      });
+
+      return { parsed, errors, errorReasons, warnings };
     }
 
     async function importCalcs() {
@@ -957,49 +1098,22 @@
       const btn = document.getElementById('import-btn');
       btn.textContent = 'Importing…'; btn.disabled = true;
 
-      const projCol   = document.getElementById('map-project-code').value.trim();
-      const typeCol   = document.getElementById('map-calc-type').value.trim();
-      const numCol    = document.getElementById('map-doc-number').value.trim();
-      const descCol   = document.getElementById('map-doc-desc').value.trim();
-      const statCol   = document.getElementById('map-status').value.trim();
-      const reqCol    = document.getElementById('map-date-req').value.trim();
-      const ifcCol    = document.getElementById('map-date-ifc').value.trim();
-      const remCol    = document.getElementById('map-remarks').value.trim();
+      const toInsert = [], toReplace = [];
 
-      if (!numCol) { toast('Document Number column is required.', 'error'); btn.textContent='Import'; btn.disabled=false; return; }
-
-      const toInsert = [], toUpdate = [], toReplace = [];
-
-      importData.forEach(r => {
-        const doc_number = (r[numCol]||'').toString().trim();
-        if (!doc_number) return;
-        const ca = importConflicts[doc_number];
+      importData.forEach(row => {
+        const ca = importConflicts[row.doc_number];
         if (ca === 'skip') return;
-
-        const base = {
-          doc_number,
-          project_code:    (r[projCol]||'').toString().trim() || null,
-          calc_type:       (r[typeCol]||'').toString().trim() || null,
-          doc_description: (r[descCol]||'').toString().trim() || null,
-          status:          (r[statCol]||'').toString().trim() || 'Not Started',
-          date_requested:  (r[reqCol]||'').toString().trim() || null,
-          date_ifc:        (r[ifcCol]||'').toString().trim() || null,
-          remarks:         (r[remCol]||'').toString().trim() || null,
-        };
-
-        if (!ca)              toInsert.push(base);
-        else if (ca==='update') toUpdate.push(base);
-        else if (ca==='replace') toReplace.push(base);
+        if (!ca)                    toInsert.push(row);
+        else if (ca === 'replace')  toReplace.push(row);
       });
 
       let hasError = false;
-      if (toInsert.length)  { const { error } = await db.from('eng_calculations').insert(toInsert); if (error) { toast('Insert error: '+error.message,'error'); hasError=true; } }
-      if (toUpdate.length)  { for (const row of toUpdate) { const { doc_number, ...fields } = row; const { error } = await db.from('eng_calculations').update(fields).eq('doc_number', doc_number); if (error) { toast(`Update error (${doc_number}): `+error.message,'error'); hasError=true; } } }
-      if (toReplace.length) { const { error } = await db.from('eng_calculations').upsert(toReplace, { onConflict: 'doc_number' }); if (error) { toast('Replace error: '+error.message,'error'); hasError=true; } }
+      if (toInsert.length)  { const { error } = await db.from('eng_calculations').insert(toInsert);  if (error) { toast('Insert error: '+error.message,'error'); hasError=true; } }
+      if (toReplace.length) { const { error } = await db.from('eng_calculations').upsert(toReplace, { onConflict:'doc_number' }); if (error) { toast('Replace error: '+error.message,'error'); hasError=true; } }
 
       btn.textContent='Import'; btn.disabled=false;
       if (!hasError) {
-        const total = toInsert.length + toUpdate.length + toReplace.length;
+        const total = toInsert.length + toReplace.length;
         toast(`Imported ${total} record${total!==1?'s':''} successfully.`, 'success');
         closeModal('import-modal');
         resetImportFile();
@@ -1017,7 +1131,6 @@
         return `<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--bg-4);border:1px solid var(--border);border-radius:var(--radius);">
           <span style="flex:1;font-size:12px;font-family:monospace;color:var(--text-2);">${n}</span>
           <button onclick="setConflict('${n}','skip')"    class="btn btn-ghost btn-sm" style="font-size:10px;padding:2px 8px;${hi('skip')}">Skip</button>
-          <button onclick="setConflict('${n}','update')"  class="btn btn-ghost btn-sm" style="font-size:10px;padding:2px 8px;${hi('update')}">Update</button>
           <button onclick="setConflict('${n}','replace')" class="btn btn-ghost btn-sm" style="font-size:10px;padding:2px 8px;${hi('replace')}">Replace</button>
         </div>`;
       }).join('');
@@ -1025,7 +1138,7 @@
 
     function openConflictModal() {
       renderConflictList(Object.keys(importConflicts));
-      ['skip','update','replace'].forEach(a => { const b = document.getElementById(`bulk-${a}`); if(b) b.style.cssText='font-size:11px;'; });
+      ['skip','replace'].forEach(a => { const b = document.getElementById(`bulk-${a}`); if(b) b.style.cssText='font-size:11px;'; });
       openModal('conflict-modal');
     }
 
@@ -1037,7 +1150,7 @@
     function setAllConflict(action) {
       Object.keys(importConflicts).forEach(k => importConflicts[k] = action);
       renderConflictList(Object.keys(importConflicts));
-      ['skip','update','replace'].forEach(a => {
+      ['skip','replace'].forEach(a => {
         const b = document.getElementById(`bulk-${a}`);
         if (b) b.style.cssText = a===action
           ? 'font-size:11px;border-color:var(--accent);color:var(--accent);background:var(--accent-dim);'

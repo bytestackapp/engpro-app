@@ -85,10 +85,17 @@
     .import-drop:hover,.import-drop.drag-over {
       border-color:var(--accent);background:var(--accent-dim);color:var(--text);
     }
-    .import-preview { overflow-x:auto;max-height:320px;margin-top:14px; }
-    .import-preview table { font-size:11px;border-collapse:collapse;width:100%; }
-    .import-preview th { background:var(--bg-3);padding:5px 8px;border:1px solid var(--border);font-weight:600;text-align:center; }
-    .import-preview td { padding:4px 8px;border:1px solid var(--border);text-align:right; }
+    .import-preview {
+      overflow-x:auto;max-height:320px;margin-top:14px;
+      border:1px solid var(--border);border-radius:var(--radius);
+    }
+    /* border-collapse:collapse + sticky thead causes a hairline gap where row
+       content bleeds through under the sticky header on scroll (Chrome/Safari
+       rendering quirk). Using border-collapse:separate + inset box-shadow grid
+       lines (instead of real borders) avoids the gap without doubling lines. */
+    .import-preview table { font-size:11px;border-collapse:separate;border-spacing:0;width:100%; }
+    .import-preview th { background:var(--bg-3);padding:5px 8px;font-weight:600;text-align:center;box-shadow:inset -1px -1px 0 0 var(--border); }
+    .import-preview td { padding:4px 8px;text-align:right;box-shadow:inset -1px -1px 0 0 var(--border); }
     .import-preview td:first-child { text-align:left;font-weight:500; }
     .import-preview tr:nth-child(even) td { background:var(--bg-2); }
   </style>
@@ -103,15 +110,20 @@
   <script>
     const SVG_SM = (p) => `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
     const IC = {
-      edit:   SVG_SM('<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>'),
-      trash:  SVG_SM('<polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>'),
-      plus:   SVG_SM('<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>'),
-      save:   SVG_SM('<path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/>'),
-      target: SVG_SM('<circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/>'),
-      upload: SVG_SM('<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>'),
+      edit:     SVG_SM('<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>'),
+      trash:    SVG_SM('<polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>'),
+      plus:     SVG_SM('<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>'),
+      save:     SVG_SM('<path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/>'),
+      target:   `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8.5 12.2l2.2 2.2 4.8-5"/></svg>`,
+      upload:   SVG_SM('<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>'),
       download: SVG_SM('<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>'),
+	  refresh:  SVG_SM('<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M3 21v-5h5"/>'),
+      back:     `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M5 12l14 0" /><path d="M5 12l6 6" /><path d="M5 12l6 -6" /></svg>`,
     };
 
+	let typeConfirmCallback = null;
+	let typeConfirmWord     = '';
+	
     let targetsData     = [];
     let rolesData       = [];
     let disciplinesData = [];
@@ -132,6 +144,34 @@
     let histoDirty      = {};   // { target_id: { 'YYYY-MM': true } }
     let histoSaving     = false;
     let histoAutoSave   = null;
+	
+	// ─── Generic "type CLEAR to confirm" modal ─────────────
+	function openTypeConfirm(message, word, btnLabel, callback) {
+      typeConfirmCallback = callback;
+      typeConfirmWord = word;
+      document.getElementById('type-confirm-message').textContent = message;
+      document.getElementById('type-confirm-word-label').textContent = word;
+      document.getElementById('type-confirm-input').placeholder = word;
+      document.getElementById('type-confirm-input').value = '';
+      document.getElementById('type-confirm-btn').innerHTML = `${IC.trash} ${btnLabel}`;
+      openModal('type-confirm-modal');
+    }
+    
+    function onTypeConfirmInput() {
+      // validation now happens on click, in runTypeConfirm()
+    }
+    
+    function runTypeConfirm() {
+      const val = document.getElementById('type-confirm-input').value.trim();
+      if (val !== typeConfirmWord) {
+        toast(`Incorrect. Please type "${typeConfirmWord}" exactly to confirm.`, 'error');
+        return;
+      }
+      closeModal('type-confirm-modal');
+      const cb = typeConfirmCallback;
+      typeConfirmCallback = null;
+      if (typeof cb === 'function') cb();
+    }
 
     // ─── MODALS ───────────────────────────────────────────────────────────────
     function injectModals() {
@@ -182,7 +222,7 @@
           <div class="modal-backdrop" onclick="closeModal('pos-import-modal')"></div>
           <div class="modal-box" style="max-width:720px;">
             <div class="modal-header">
-              <h3 style="display:flex;align-items:center;gap:8px;">${IC.upload} Import Position from Excel</h3>
+              <h3 style="display:flex;align-items:center;gap:8px;">${IC.download} Import Position from Excel</h3>
               <button class="modal-close" onclick="closeModal('pos-import-modal')">✕</button>
             </div>
             <div class="modal-body">
@@ -198,12 +238,12 @@
               <input type="file" id="pos-import-file" accept=".xlsx,.xls" style="display:none" onchange="handlePosImportFile(this)" />
               <div id="pos-import-preview-wrap"></div>
 			  <div style="font-size:12px;color:var(--text-3);margin-top:12px;background:var(--bg-4);border:1px solid var(--border);border-radius:var(--radius);padding:10px 12px;">
-                <strong>Expected columns headers:</strong>
-                Position, Project Code, Role Name, Discipline Name and Allotted Manhours.<br>
-                Role Name, Discipline Name and Project Code must match existing app coding.
+                <strong>Expected columns headers:</strong><br>
+                Position, Role, Discipline, Project, Allotted Manhours
               </div>
             </div>
             <div class="modal-footer">
+              <button class="btn btn-ghost" id="pos-import-back-btn" onclick="backPosImport()" style="display:none;align-items:center;gap:5px;margin-right:auto;">${IC.back} Back</button>
               <button class="btn btn-ghost" onclick="closeModal('pos-import-modal')">Cancel</button>
               <button class="btn btn-primary" id="pos-import-confirm-btn" onclick="confirmPosImport()" style="display:none;align-items:center;gap:5px;">${IC.save} Import</button>
             </div>
@@ -215,7 +255,7 @@
           <div class="modal-backdrop" onclick="closeModal('import-modal')"></div>
           <div class="modal-box" style="max-width:720px;">
             <div class="modal-header">
-              <h3 style="display:flex;align-items:center;gap:8px;">${IC.upload} Import Histogram from Excel</h3>
+              <h3 style="display:flex;align-items:center;gap:8px;">${IC.download} Import Histogram from Excel</h3>
               <button class="modal-close" onclick="closeModal('import-modal')">✕</button>
             </div>
             <div class="modal-body">
@@ -237,6 +277,7 @@
               </div>			  
             </div>
             <div class="modal-footer">
+              <button class="btn btn-ghost" id="import-back-btn" onclick="backImport()" style="display:none;align-items:center;gap:5px;margin-right:auto;">${IC.back} Back</button>
               <button class="btn btn-ghost" onclick="closeModal('import-modal')">Cancel</button>
               <button class="btn btn-primary" id="import-confirm-btn" onclick="confirmImport()" style="display:none;align-items:center;gap:5px;">${IC.save} Import Data</button>
             </div>
@@ -248,7 +289,7 @@
           <div class="modal-backdrop" onclick="closeModal('prog-import-modal')"></div>
           <div class="modal-box" style="max-width:600px;">
             <div class="modal-header">
-              <h3 style="display:flex;align-items:center;gap:8px;">${IC.upload} Import Planned Progress</h3>
+              <h3 style="display:flex;align-items:center;gap:8px;">${IC.download} Import Planned Progress</h3>
               <button class="modal-close" onclick="closeModal('prog-import-modal')">✕</button>
             </div>
             <div class="modal-body">
@@ -270,6 +311,7 @@
               </div>
             </div>
             <div class="modal-footer">
+              <button class="btn btn-ghost" id="prog-import-back-btn" onclick="backProgImport()" style="display:none;align-items:center;gap:5px;margin-right:auto;">${IC.back} Back</button>
               <button class="btn btn-ghost" onclick="closeModal('prog-import-modal')">Cancel</button>
               <button class="btn btn-primary" id="prog-import-confirm-btn" onclick="confirmProgImport()" style="display:none;align-items:center;gap:5px;">${IC.save} Import</button>
             </div>
@@ -320,7 +362,8 @@
                 </div>
                 <div class="form-group" style="margin-bottom:0;">
                   <label id="kpi-value-label">Target Value</label>
-                  <input type="number" id="kpi-value" min="0" step="0.01" placeholder="0.00" />
+                  <input type="text" id="kpi-value" placeholder="0.00 or N" />
+                  <div style="font-size:11px;color:var(--text-4);margin-top:4px;">Enter a numeric target, or type <strong>N</strong> if this item is not tracked.</div>
                 </div>
               </div>
 
@@ -334,7 +377,7 @@
                   <div style="text-align:center;padding:20px;color:var(--text-4);font-size:12px;">Loading areas…</div>
                 </div>
                 <input type="hidden" id="kpi-estimated-output" />
-                <div style="font-size:11px;color:var(--text-4);margin-top:6px;">Auto-summed from area inputs. Can be filled in later.</div>
+				<div id="kpi-area-hint" style="font-size:11px;color:var(--text-4);margin-top:6px;">Auto-summed from area inputs. Can be filled in later.</div>
               </div>
 
             </div>
@@ -350,7 +393,7 @@
           <div class="modal-backdrop" onclick="closeModal('kpi-import-modal')"></div>
           <div class="modal-box" style="max-width:720px;">
             <div class="modal-header">
-              <h3 style="display:flex;align-items:center;gap:8px;">${IC.upload} Import Target KPI from Excel</h3>
+              <h3 style="display:flex;align-items:center;gap:8px;">${IC.download} Import Target KPI from Excel</h3>
               <button class="modal-close" onclick="closeModal('kpi-import-modal')">✕</button>
             </div>
             <div class="modal-body">
@@ -366,15 +409,70 @@
               <input type="file" id="kpi-import-file" accept=".xlsx,.xls" style="display:none" onchange="handleKpiImportFile(this)" />
               <div id="kpi-import-preview-wrap"></div>
               <div style="font-size:12px;color:var(--text-3);margin-top:12px;background:var(--bg-4);border:1px solid var(--border);border-radius:var(--radius);padding:10px 12px;">
-                <strong>Expected column headers:</strong>
-                Discipline, Doc Code, Workflow Step, Target Value, Estimated Output.<br>
-                Discipline, Doc Code and Workflow Step must match existing app coding. Activity Type and Doc Type are derived automatically from the Doc Code.<br>
-                Optional: add one column per area name (matching the Area Breakdown table) to import per-area estimated output — these override the Estimated Output column when present.
+                <strong>Expected column headers:</strong><br>
+                Project Code, Discipline, Doc Code, Workflow Step, Target Value, Estimated Output
               </div>
             </div>
             <div class="modal-footer">
+              <button class="btn btn-ghost" id="kpi-import-back-btn" onclick="backKpiImport()" style="display:none;align-items:center;gap:5px;margin-right:auto;">${IC.back} Back</button>
               <button class="btn btn-ghost" onclick="closeModal('kpi-import-modal')">Cancel</button>
               <button class="btn btn-primary" id="kpi-import-confirm-btn" onclick="confirmKpiImport()" style="display:none;align-items:center;gap:5px;">${IC.save} Import</button>
+            </div>
+          </div>
+        </div>
+		
+		<!-- Generic "type to confirm" modal -->
+        <div class="modal" id="type-confirm-modal">
+          <div class="modal-backdrop" onclick="closeModal('type-confirm-modal')"></div>
+          <div class="modal-box modal-sm">
+            <div class="modal-header">
+              <h3 style="display:flex;align-items:center;gap:8px;color:var(--red);">${IC.trash} Confirm</h3>
+              <button class="modal-close" onclick="closeModal('type-confirm-modal')">✕</button>
+            </div>
+            <div class="modal-body">
+              <p id="type-confirm-message" style="font-size:13px;color:var(--text-2);margin-bottom:14px;"></p>
+              <div class="form-group">
+                <label>Type <strong id="type-confirm-word-label"></strong> to confirm</label>
+                <input type="text" id="type-confirm-input" oninput="onTypeConfirmInput()" autocomplete="off" />
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button class="btn btn-ghost" onclick="closeModal('type-confirm-modal')">Cancel</button>
+              <button class="btn btn-danger" id="type-confirm-btn" onclick="runTypeConfirm()" style="display:flex;align-items:center;gap:5px;"></button>
+            </div>
+          </div>
+        </div>
+		
+		<!-- Rules of Credit Import Modal -->
+        <div class="modal" id="roc-import-modal">
+          <div class="modal-backdrop" onclick="closeModal('roc-import-modal')"></div>
+          <div class="modal-box" style="max-width:720px;">
+            <div class="modal-header">
+              <h3 style="display:flex;align-items:center;gap:8px;">${IC.download} Import Rules of Credit from Excel</h3>
+              <button class="modal-close" onclick="closeModal('roc-import-modal')">✕</button>
+            </div>
+            <div class="modal-body">
+              <div class="import-drop" id="roc-import-drop" onclick="document.getElementById('roc-import-file').click()"
+                ondragover="event.preventDefault();this.classList.add('drag-over')"
+                ondragleave="this.classList.remove('drag-over')"
+                ondrop="handleRocImportDrop(event)"
+                style="border:2px dashed var(--border);border-radius:var(--radius);padding:60px 32px;text-align:center;cursor:pointer;transition:border-color .2s,background .2s;">
+                <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.75" style="margin-bottom:14px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                <div style="font-size:14px;font-weight:600;color:var(--text);margin-bottom:6px;">Drop Excel file here or click to browse</div>
+                <div style="font-size:12px;color:var(--text-4);">.xlsx / .xls files supported</div>
+              </div>
+              <input type="file" id="roc-import-file" accept=".xlsx,.xls" style="display:none" onchange="handleRocImportFile(this)" />
+              <div id="roc-import-preview-wrap"></div>
+              <div style="font-size:12px;color:var(--text-3);margin-top:12px;background:var(--bg-4);border:1px solid var(--border);border-radius:var(--radius);padding:10px 12px;">
+                <strong>File must contain 3 sheets:</strong> "Disciplines", "Doc Codes", "Steps" —
+                matching the layout produced by Export Excel. Discipline names and Doc Codes
+                must match existing app coding. Importing overwrites current weights for this project.
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button class="btn btn-ghost" id="roc-import-back-btn" onclick="backRocImport()" style="display:none;align-items:center;gap:5px;margin-right:auto;">${IC.back} Back</button>
+              <button class="btn btn-ghost" onclick="closeModal('roc-import-modal')">Cancel</button>
+              <button class="btn btn-primary" id="roc-import-confirm-btn" onclick="confirmRocImport()" style="display:none;align-items:center;gap:5px;">${IC.save} Import</button>
             </div>
           </div>
         </div>
@@ -397,19 +495,20 @@
 
         <div class="tabs">
           <button class="tab-btn active" onclick="switchTab('positions', this)">
-            ${IC.target} Positions
+            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8.5 12.2l2.2 2.2 4.8-5"/></svg>
+            Positions
           </button>
           <button class="tab-btn" onclick="switchTab('histogram', this)">
             <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="4" height="18"/><rect x="9" y="8" width="4" height="13"/><rect x="16" y="13" width="4" height="8"/></svg>
             Histogram
           </button>
-          <button class="tab-btn" onclick="switchTab('progress', this)">
-            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-            Progress
-          </button>
 		  <button class="tab-btn" onclick="switchTab('roc', this)">
             <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
             Rules of Credit
+          </button>		  
+          <button class="tab-btn" onclick="switchTab('progress', this)">
+            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+            Progress
           </button>
 		  <button class="tab-btn" onclick="switchTab('kpi', this)">
             <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20V10"/><path d="M18 20V4"/><path d="M6 20v-4"/></svg>
@@ -423,9 +522,10 @@
             <div class="card-header">
               <span class="card-title">Positions &amp; Manhour Targets</span>
               <div style="display:flex;align-items:center;gap:8px;">
-                <button class="btn btn-ghost btn-sm" onclick="openPositionImportModal()" style="display:flex;align-items:center;gap:5px;">${IC.upload} Import Excel</button>
+                <button class="btn btn-ghost btn-sm" onclick="openPositionImportModal()" style="display:flex;align-items:center;gap:5px;">${IC.download} Import Excel</button>
+                <button class="btn btn-ghost btn-sm" onclick="exportPosExcel()" style="display:flex;align-items:center;gap:5px;">${IC.upload} Export Excel</button>
                 <button class="btn btn-primary btn-sm" onclick="openAddTarget()" style="display:flex;align-items:center;gap:5px;">${IC.plus} Add Position</button>
-				<button class="btn btn-danger btn-sm" onclick="deleteAllTargets()" style="display:flex;align-items:center;gap:5px;">${IC.trash} Delete All</button>
+                <button class="btn btn-danger btn-sm" onclick="deleteAllTargets()" style="display:flex;align-items:center;gap:5px;">${IC.trash} Delete All</button>
               </div>
             </div>
             <div class="card-body">
@@ -450,10 +550,10 @@
             <div class="card-header">
               <span class="card-title">Manhour Histogram</span>
               <div style="display:flex;align-items:center;gap:8px;">
-                <span class="save-dot" id="histo-dirty-dot" title="Unsaved changes"></span>
-                <button class="btn btn-ghost btn-sm" onclick="openImportModal()" style="display:flex;align-items:center;gap:5px;">${IC.upload} Import Excel</button>
-                <button class="btn btn-primary btn-sm" id="histo-save-btn" onclick="saveHistogram()" style="display:flex;align-items:center;gap:5px;" title="Save now (auto-saves after 3s)">${IC.save} Save</button>
-				<button class="btn btn-danger btn-sm" onclick="clearAllHistogram()" style="display:flex;align-items:center;gap:5px;">${IC.trash} Clear All</button>
+                <button class="btn btn-ghost btn-sm" onclick="openImportModal()" style="display:flex;align-items:center;gap:5px;">${IC.download} Import Excel</button>                
+				<button class="btn btn-ghost btn-sm" onclick="exportHistoExcel()" style="display:flex;align-items:center;gap:5px;">${IC.upload} Export Excel</button>
+                <button class="btn btn-ghost btn-sm" id="histo-save-btn" onclick="saveHistogram(true)" style="display:flex;align-items:center;gap:5px;" title="Save now (auto-saves after 3s)">${IC.save} Save</button>
+                <button class="btn btn-danger btn-sm" onclick="clearAllHistogram()" style="display:flex;align-items:center;gap:5px;">${IC.trash} Clear All</button>
               </div>
             </div>
             <div class="card-body">
@@ -480,9 +580,9 @@
               <span class="card-title">Planned Progress</span>
               <div style="display:flex;align-items:center;gap:8px;">
                 <span class="save-dot" id="prog-dirty-dot" title="Unsaved changes"></span>
-                <button class="btn btn-ghost btn-sm" onclick="exportProgExcel()" style="display:flex;align-items:center;gap:5px;">${IC.upload} Export Excel</button>
                 <button class="btn btn-ghost btn-sm" onclick="openProgImportModal()" style="display:flex;align-items:center;gap:5px;">${IC.download} Import Excel</button>
-                <button class="btn btn-primary btn-sm" id="prog-save-btn" onclick="saveProgress(true)" style="display:flex;align-items:center;gap:5px;">${IC.save} Save</button>
+                <button class="btn btn-ghost btn-sm" onclick="exportProgExcel()" style="display:flex;align-items:center;gap:5px;">${IC.upload} Export Excel</button>
+                <button class="btn btn-ghost btn-sm" id="prog-save-btn" onclick="saveProgress(true)" style="display:flex;align-items:center;gap:5px;">${IC.save} Save</button>
                 <button class="btn btn-danger btn-sm" onclick="clearAllProgress()" style="display:flex;align-items:center;gap:5px;">${IC.trash} Clear All</button>
               </div>
             </div>
@@ -509,8 +609,11 @@
             <div class="card-header">
               <span class="card-title">Rules of Credit (ROC)</span>
               <div style="display:flex;align-items:center;gap:8px;">
-                <span class="save-dot" id="roc-dirty-dot" title="Unsaved changes"></span>
-                <button class="btn btn-primary btn-sm" id="roc-save-btn" onclick="saveRoc()" style="display:flex;align-items:center;gap:5px;">${IC.save} Save</button>
+                <button class="btn btn-ghost btn-sm" onclick="openRocImportModal()" style="display:flex;align-items:center;gap:5px;">${IC.download} Import Excel</button>
+                <button class="btn btn-ghost btn-sm" onclick="exportRocExcel()" style="display:flex;align-items:center;gap:5px;">${IC.upload} Export Excel</button>
+                <button class="btn btn-ghost btn-sm" onclick="collapseAllRoc()" style="display:flex;align-items:center;gap:5px;">${IC.refresh} Refresh</button>
+                <button class="btn btn-ghost btn-sm" id="roc-save-btn" onclick="saveRoc()" style="display:flex;align-items:center;gap:5px;">${IC.save} Save</button>
+                <button class="btn btn-danger btn-sm" onclick="clearAllRoc()" style="display:flex;align-items:center;gap:5px;">${IC.trash} Clear</button>
               </div>
             </div>
             <div class="card-body">
@@ -533,10 +636,9 @@
             <div class="card-header">
               <span class="card-title">Target KPI</span>
               <div style="display:flex;align-items:center;gap:8px;">
-                <button class="btn btn-ghost btn-sm" onclick="exportKpiExcel()" style="display:flex;align-items:center;gap:5px;">${IC.upload} Export Excel</button>
                 <button class="btn btn-ghost btn-sm" onclick="openKpiImportModal()" style="display:flex;align-items:center;gap:5px;">${IC.download} Import Excel</button>
-                <button class="btn btn-primary btn-sm" onclick="openAddKpi()" style="display:flex;align-items:center;gap:5px;">${IC.plus} Add KPI</button>
-                <button class="btn btn-danger btn-sm" onclick="deleteAllKpi()" style="display:flex;align-items:center;gap:5px;">${IC.trash} Delete All</button>
+			  <button class="btn btn-ghost btn-sm" onclick="exportKpiExcel()" style="display:flex;align-items:center;gap:5px;">${IC.upload} Export Excel</button>
+                <button class="btn btn-danger btn-sm" onclick="deleteAllKpi()" style="display:flex;align-items:center;gap:5px;">${IC.trash} Clear All</button>
               </div>
             </div>
             <div class="card-body">
@@ -565,7 +667,7 @@
       const [{ data: roles }, { data: discs }, { data: projects }] = await Promise.all([
         db.from('roles').select('*').order('name'),
         db.from('disciplines').select('*').order('name'),
-        db.from('projects').select('id,name,code,start_date,end_date').order('name'),
+        db.from('projects').select('id,name,code,start_date,end_date,week_start_day').order('name'),
       ]);
       rolesData       = roles || [];
       disciplinesData = discs || [];
@@ -665,14 +767,14 @@
       tbody.innerHTML = list.map((t, i) => {
         const roleColor = t.roles?.badge_color || '#546E7A';
         return `<tr>
-          <td style="font-weight:600;color:var(--text);">${t.position || '—'}</td>
+          <td style="font-weight:600;color:var(--text);">${esc(t.position) || '—'}</td>
           <td style="text-align:center;">${t.projects ? `<span class="badge badge-gray" style="font-family:monospace;">${t.projects.code}</span>` : '<span style="color:var(--text-4);">—</span>'}</td>
           <td style="text-align:center;">${t.roles ? `<span class="badge" style="background-color:${roleColor}22;color:${roleColor};border-color:${roleColor}55;">${t.roles.name}</span>` : '<span style="color:var(--text-4);">—</span>'}</td>
           <td style="text-align:center;">${t.disciplines ? `<span class="badge badge-gray">${t.disciplines.name}</span>` : '<span style="color:var(--text-4);">—</span>'}</td>
           <td style="text-align:center;font-weight:600;color:var(--accent);font-variant-numeric:tabular-nums;">${Number(t.allotted_manhours || 0).toLocaleString()} hrs</td>
           <td style="text-align:center;">
 			<div class="table-actions" style="justify-content:center;">
-              <button class="btn btn-icon edit"   onclick="openEditTarget(${i})" title="Edit">${IC.edit}</button>
+              <button class="btn btn-icon edit"   onclick="openEditTarget('${t.id}')" title="Edit">${IC.edit}</button>
               <button class="btn btn-icon delete" onclick="deleteTarget('${t.id}')" title="Delete">${IC.trash}</button>
             </div>
           </td>
@@ -710,8 +812,9 @@
     }
 
     function openAddTarget() {
+      if (!posProjectId) { toast('No project selected.', 'info'); return; }
       document.getElementById('t-id').value = '';
-      document.getElementById('t-project').value = localStorage.getItem('activeProjectId') || '';
+      document.getElementById('t-project').value = posProjectId;
       document.getElementById('t-role').value = '';
       document.getElementById('t-discipline').value = '';
       document.getElementById('t-position').value = '';
@@ -722,8 +825,8 @@
       setTimeout(() => document.getElementById('t-role').focus(), 100);
     }
 
-    function openEditTarget(index) {
-      const t = targetsData[index];
+    function openEditTarget(id) {
+	  const t = targetsData.find(t => t.id === id);
       if (!t) return;
       document.getElementById('t-id').value         = t.id;
       document.getElementById('t-project').value    = t.project_id || '';
@@ -760,7 +863,24 @@
     }
 
     async function deleteTarget(id) {
+      const t = targetsData.find(x => x.id === id);
+      if (!t) return;
+    
       confirmDialog('Delete this position target?', async () => {
+        if (t.discipline_id) {
+          const stillUsed = targetsData.some(x => x.id !== t.id && x.project_id === t.project_id && x.discipline_id === t.discipline_id);
+          if (!stillUsed && await disciplineHasRocOrKpiData(t.project_id, t.discipline_id)) {
+            toast(`Can't delete — "${t.disciplines?.name || 'this discipline'}" already has Rules of Credit or Target KPI values for this project. Clear those first.`, 'error');
+            return;
+          }
+        }
+    
+        const { error: schedErr } = await db.from('target_schedule').delete().eq('target_id', id);
+        if (schedErr) { toast('Error clearing histogram data: ' + schedErr.message, 'error'); return; }
+    
+        const { error: logErr } = await db.from('other_activity_logs').delete().eq('target_id', id);
+        if (logErr) { toast('Error clearing activity logs: ' + logErr.message, 'error'); return; }
+    
         const { error } = await db.from('targets').delete().eq('id', id);
         if (error) { toast('Error: ' + error.message, 'error'); return; }
         toast('Position deleted.', 'success');
@@ -768,19 +888,149 @@
       });
     }
 	
+	async function disciplineHasRocOrKpiData(projectId, disciplineId) {
+      const { data: rocDisc } = await db.from('project_discipline_roc').select('roc').eq('project_id', projectId).eq('discipline_id', disciplineId).maybeSingle();
+      if (rocDisc && parseFloat(rocDisc.roc) > 0) return true;
+    
+      const { data: rocItemRows } = await db.from('roc_items').select('weight').eq('project_id', projectId).eq('discipline_id', disciplineId);
+      if ((rocItemRows || []).some(r => parseFloat(r.weight) > 0)) return true;
+    
+      const { data: kpiRows } = await db.from('target_kpi').select('id, target_value').eq('project_id', projectId).eq('discipline_id', disciplineId);
+	  if ((kpiRows || []).length > 0) return true;
+    
+      return false;
+    }
+	
 	async function deleteAllTargets() {
-      if (!targetsData.length) { toast('No positions to delete.', 'info'); return; }
-      confirmDialog(`Delete all ${targetsData.length} position(s)? This cannot be undone.`, async () => {
-        const ids = targetsData.map(t => t.id);
-        const { error } = await db.from('targets').delete().in('id', ids);
-        if (error) { toast('Error: ' + error.message, 'error'); return; }
-        toast('All positions deleted.', 'success');
-        await loadTargets();
+      if (!posProjectId) { toast('Select a project first.', 'info'); return; }
+      const projTargets = targetsData.filter(t => t.project_id === posProjectId);
+      if (!projTargets.length) { toast('No positions to delete for this project.', 'info'); return; }
+    
+      // Every position for this project is being removed, so every discipline they
+      // carry would become orphaned — check all of them before proceeding.
+      const discIds = [...new Set(projTargets.map(t => t.discipline_id).filter(Boolean))];
+      const blocked = [];
+      for (const discId of discIds) {
+        if (await disciplineHasRocOrKpiData(posProjectId, discId)) {
+          blocked.push(disciplinesData.find(d => d.id === discId)?.name || discId);
+        }
+      }
+      if (blocked.length) {
+        toast(`Delete All failed — These disciplines contain ROC or KPI data: ${blocked.join(', ')}. Clear them first.`, 'error');
+        return;
+      }
+    
+      openTypeConfirm(
+        `This will permanently delete all ${projTargets.length} position(s) for this project, along with their histogram schedule and activity log entries. This cannot be undone.`,
+        'Delete',
+        'Delete All',
+        async () => {
+          const ids = projTargets.map(t => t.id);
+    
+          // Clean up child rows first — targets is referenced by target_schedule
+          // (histogram) and other_activity_logs. Delete those before the parent rows,
+          // or the delete on "targets" will fail with a foreign key violation.
+          const { error: schedErr } = await db.from('target_schedule').delete().in('target_id', ids);
+          if (schedErr) { toast('Error clearing histogram data: ' + schedErr.message, 'error'); return; }
+    
+          const { error: logErr } = await db.from('other_activity_logs').delete().in('target_id', ids);
+          if (logErr) { toast('Error clearing activity logs: ' + logErr.message, 'error'); return; }
+    
+          const { error } = await db.from('targets').delete().in('id', ids);
+          if (error) { toast('Error: ' + error.message, 'error'); return; }
+    
+          toast(`${ids.length} position(s) deleted.`, 'success');
+          await loadTargets();
+        }
+      );
+    }
+	
+	function exportPosExcel() {
+      if (!posProjectId) { toast('No project selected.', 'info'); return; }
+      const rows = targetsData.filter(t => t.project_id === posProjectId);
+      if (!rows.length) { toast('No data to import for this project.', 'info'); return; }
+    
+      const proj = projectsData.find(p => p.id === posProjectId);
+      const data = [['Position', 'Role', 'Discipline', 'Project', 'Allotted Manhours']];
+      rows.forEach(t => {
+        const roleName = t.roles?.name || rolesData.find(r => r.key === t.role_key)?.name || t.role_key || '';
+        const discName = t.disciplines?.name || '';
+        data.push([t.position, roleName, discName, proj?.code || '', t.allotted_manhours || 0]);
       });
+    
+      const ws = XLSX.utils.aoa_to_sheet(data);
+      ws['!cols'] = [{ wch: 28 }, { wch: 16 }, { wch: 16 }, { wch: 12 }, { wch: 16 }];
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Positions');
+    
+      const fileName = `Positions_${proj?.code || 'export'}_${new Date().toISOString().substring(0,10)}.xlsx`;
+      XLSX.writeFile(wb, fileName);
+      toast('Exported successfully.', 'success');
+    }
+	
+	function exportHistoExcel() {
+      if (!histoProjectId || !histoMonths.length) { toast('No project selected.', 'info'); return; }
+      const proj = projectsData.find(p => p.id === histoProjectId);
+      const projectTargets = targetsData.filter(t => t.project_id === histoProjectId);
+      if (!projectTargets.length) { toast('No data to export for this project.', 'info'); return; }
+    
+      // IMPORTANT: this label format ("Jun-26") must match the regex in
+      // parseHistogramExcel() exactly — do not reuse fmtMonth(), which prints "Jun 26"
+      // (space instead of dash) and would fail to re-import.
+      const monthLabel = d => d.toLocaleString('en', { month: 'short' }) + '-' + String(d.getFullYear()).slice(2);
+    
+      const header = ['Position', 'Discipline', 'Project Code', ...histoMonths.map(monthLabel)];
+      const rows = [header];
+      
+      projectTargets.forEach(t => {
+        const discName = t.disciplines?.name || '';
+        const sched = histoSchedule[t.id] || {};
+        const mpRow = [t.position, discName, proj?.code || ''];
+        const mhRow = ['', '', ''];
+        histoMonths.forEach(m => {
+          const key = periodKey(m);
+          const entry = sched[key] || {};
+          mpRow.push(entry.headcount || 0);
+          mhRow.push(entry.manhours || 0);
+        });
+        rows.push(mpRow, mhRow);
+      });
+    
+      const ws = XLSX.utils.aoa_to_sheet(rows);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Histogram');
+    
+      const fileName = `Histogram_${proj?.code || 'export'}_${new Date().toISOString().substring(0,10)}.xlsx`;
+      XLSX.writeFile(wb, fileName);
+      toast('Exported successfully.', 'success');
     }
 
     // ─── HISTOGRAM TAB ────────────────────────────────────────────────────────
     async function onHistoProjectChange(projId) {
+      // If there are unsaved edits, ask before discarding them
+      if (Object.keys(histoDirty).length > 0) {
+        const proceed = await new Promise(resolve => {
+          confirmDialog(
+            'You have unsaved histogram changes. Switch project and discard them?',
+            () => resolve(true)
+          );
+          // confirmDialog calls onConfirm on OK, but has no onCancel callback
+          // so we use a flag: if the modal is dismissed without confirming, resolve false
+          // We handle this by patching the cancel button below
+          const cancelBtn = document.querySelector('#confirm-modal-dynamic .btn-ghost');
+          if (cancelBtn) {
+            const orig = cancelBtn.onclick;
+            cancelBtn.onclick = () => { if (orig) orig(); resolve(false); };
+          }
+        });
+        if (!proceed) {
+          // Revert the dropdown back to current project
+          const sel = document.getElementById('histo-proj-select');
+          if (sel) sel.value = histoProjectId || '';
+          return;
+        }
+      }
+    
       histoProjectId = projId || null;
       histoProject   = projectsData.find(p => p.id === projId) || null;
       histoSchedule  = {};
@@ -1067,41 +1317,53 @@
     }
 
     function markDirty(isDirty) {
-      const dot = document.getElementById('histo-dirty-dot');
-      if (dot) dot.classList.toggle('dirty', isDirty);
+      const btn = document.getElementById('histo-save-btn');
+      if (btn) { btn.classList.toggle('btn-ghost', !isDirty); btn.classList.toggle('btn-primary', isDirty); }
     }
 	
 	async function clearAllHistogram() {
       if (!histoProjectId) { toast('No project selected.', 'info'); return; }
       const projectTargets = targetsData.filter(t => t.project_id === histoProjectId);
-      if (!projectTargets.length) { toast('No positions in this project.', 'info'); return; }
+      if (!projectTargets.length) { toast('No data to delete for this project.', 'info'); return; }
     
-      confirmDialog('Clear all histogram data for this project? This cannot be undone.', async () => {
-        const ids = projectTargets.map(t => t.id);
-        const { error } = await db.from('target_schedule').delete().in('target_id', ids);
-        if (error) { toast('Error: ' + error.message, 'error'); return; }
+      openTypeConfirm(
+        'This will permanently clear all histogram data (MP and MH values) for this project. This cannot be undone.',
+        'Clear',
+        'Clear All Data',
+        async () => {
+          const ids = projectTargets.map(t => t.id);
+          const { error } = await db.from('target_schedule').delete().in('target_id', ids);
+          if (error) { toast('Error: ' + error.message, 'error'); return; }
     
-        // Reset local state
-        histoSchedule = {};
-        histoDirty    = {};
-        markDirty(false);
+          // Reset local state
+          histoSchedule = {};
+          histoDirty    = {};
+          markDirty(false);
     
-        toast('Histogram cleared.', 'success');
-        await onHistoProjectChange(histoProjectId);
-      });
+          toast('Histogram cleared.', 'success');
+          await onHistoProjectChange(histoProjectId);
+        }
+      );
     }
 
     async function saveHistogram(isManual = false) {
       if (histoSaving) return;
+      if (isManual && !histoProjectId) { toast('No project selected.', 'info'); return; }
       const dirtyTargets = Object.keys(histoDirty);
-      if (!dirtyTargets.length) return;
+      if (!dirtyTargets.length) {
+        if (isManual) toast('No data to save for this project.', 'info');
+        return;
+      }
       histoSaving = true;
       const btn = document.getElementById('histo-save-btn');
       if (btn) { btn.textContent = 'Saving…'; btn.disabled = true; }
     
+      // Snapshot exactly which keys are being saved right now
+      const savedKeys = [];
       const upserts = [];
       dirtyTargets.forEach(tid => {
         Object.keys(histoDirty[tid]).forEach(period => {
+          savedKeys.push({ tid, period });
           const entry = histoSchedule[tid]?.[period] || {};
           upserts.push({
             target_id: tid,
@@ -1119,8 +1381,16 @@
       if (btn) { btn.innerHTML = `${IC.save} Save`; btn.disabled = false; }
       if (error) { toast('Error saving: ' + error.message, 'error'); return; }
     
-      histoDirty = {};
-      markDirty(false);
+      // Only clear the keys that were part of THIS save — not anything edited since
+      savedKeys.forEach(({ tid, period }) => {
+        if (histoDirty[tid]) {
+          delete histoDirty[tid][period];
+          if (Object.keys(histoDirty[tid]).length === 0) delete histoDirty[tid];
+        }
+      });
+    
+      // Recompute dirty state from what's actually left
+      markDirty(Object.keys(histoDirty).length > 0);
       toast(isManual ? 'Histogram saved.' : 'Histogram auto-saved.', 'success');
     }
 
@@ -1128,12 +1398,23 @@
     let importParsedData = null;
 
     function openImportModal() {
-      if (!histoProjectId) { toast('Select a project first.', 'error'); return; }
+      if (!histoProjectId) { toast('No project selected.', 'info'); return; }
       document.getElementById('import-preview-wrap').innerHTML = '';
       document.getElementById('import-confirm-btn').style.display = 'none';
+      document.getElementById('import-back-btn').style.display = 'none';
       document.getElementById('import-file').value = '';
       importParsedData = null;
+      document.getElementById('import-drop').style.display = '';
       openModal('import-modal');
+    }
+
+    function backImport() {
+      document.getElementById('import-preview-wrap').innerHTML = '';
+      document.getElementById('import-confirm-btn').style.display = 'none';
+      document.getElementById('import-back-btn').style.display = 'none';
+      document.getElementById('import-file').value = '';
+      importParsedData = null;
+      document.getElementById('import-drop').style.display = '';
     }
 
     function handleImportDrop(e) {
@@ -1165,6 +1446,7 @@
     }
 
 function parseHistogramExcel(rows) {
+  if (!histoProjectId) { toast('No project selected.', 'info'); return; }
   if (!rows.length) { toast('No data found in file.', 'error'); return; }
 
   // Row 0 is the header — find month columns from date values
@@ -1172,7 +1454,7 @@ function parseHistogramExcel(rows) {
   const monthCols = [];
 
   headerRow.forEach((cell, ci) => {
-    if (ci < 2) return; // skip Position and Discipline columns
+    if (ci < 3) return; // skip Position, Discipline and Project Code columns
     let date = null;
 
     if (cell instanceof Date) {
@@ -1206,7 +1488,9 @@ function parseHistogramExcel(rows) {
   }
 
   // Parse paired MP/MH rows starting from row 1
+  const currentProj = projectsData.find(p => p.id === histoProjectId);
   const parsed = [];
+  let mismatched = 0;
   let i = 1;
   while (i < rows.length) {
     const rowA = rows[i];
@@ -1215,8 +1499,15 @@ function parseHistogramExcel(rows) {
 
     const posName  = String(rowA[0] || '').trim();
     const discCode = String(rowA[1] || '').trim();
+    const projCode = String(rowA[2] || '').trim();
 
     if (!posName) { i++; continue; }
+
+    if (projCode && currentProj && projCode.toLowerCase() !== currentProj.code.toLowerCase()) {
+      mismatched++;
+      i += 2;
+      continue;
+    }
 
     const mpVals = {}, mhVals = {};
     monthCols.forEach(mc => {
@@ -1234,12 +1525,14 @@ function parseHistogramExcel(rows) {
   }
 
   if (!parsed.length) {
-    toast('No data rows found in the file.', 'error');
+    toast(mismatched
+      ? `No items imported. Project Code mismatch "${currentProj?.code || 'selected project'}".`
+      : 'No data rows found in the file.', 'error');
     return;
   }
 
   importParsedData = { parsed, monthCols };
-  renderImportPreview(parsed, monthCols);
+  renderImportPreview(parsed, monthCols, mismatched);
 }
 
     function parseMonthLabel(label) {
@@ -1252,15 +1545,13 @@ function parseHistogramExcel(rows) {
       return new Date(y, m, 1);
     }
 
-    function renderImportPreview(parsed, monthCols) {
+    function renderImportPreview(parsed, monthCols, mismatched = 0) {
       const displayMonths = monthCols.slice(0, 12); // show first 12 months in preview
       const more = monthCols.length > 12 ? ` +${monthCols.length - 12} more` : '';
 
       let html = `
         <div style="margin-top:14px;margin-bottom:8px;font-size:12px;color:var(--text-3);">
-          <strong style="color:var(--text);">${parsed.length} positions</strong> found across
-          <strong style="color:var(--text);">${monthCols.length} months</strong>${more}.
-          Review below and confirm import.
+          <strong style="color:var(--text);">${parsed.length} rows</strong> matched the Project Code. ${mismatched ? `<span style="color:var(--red);margin-left:8px;">${mismatched} rows skipped. Project Code mismatch.</span>` : ''}
         </div>
         <div class="import-preview"><table>
           <thead><tr>
@@ -1285,12 +1576,13 @@ function parseHistogramExcel(rows) {
 
       html += `</tbody></table></div>
         <div style="margin-top:10px;font-size:11px;color:var(--text-4);">
-          Positions are matched by name against existing entries for this project. Unmatched positions are skipped.
-          Existing schedule data for matched positions will be overwritten.
+          Only entries with matching existing positions will be imported. Unmatched entries are skipped, and schedule data for matched positions is overwritten.
         </div>`;
 
       document.getElementById('import-preview-wrap').innerHTML = html;
       document.getElementById('import-confirm-btn').style.display = 'flex';
+      document.getElementById('import-back-btn').style.display = 'flex';
+      document.getElementById('import-drop').style.display = 'none';
     }
 	
 	function switchTab(name, btn) {
@@ -1305,11 +1597,23 @@ function parseHistogramExcel(rows) {
     let posImportParsed = null;
     
     function openPositionImportModal() {
+      if (!posProjectId) { toast('No project selected.', 'info'); return; }
       document.getElementById('pos-import-preview-wrap').innerHTML = '';
       document.getElementById('pos-import-confirm-btn').style.display = 'none';
+      document.getElementById('pos-import-back-btn').style.display = 'none';
       document.getElementById('pos-import-file').value = '';
       posImportParsed = null;
+      document.getElementById('pos-import-drop').style.display = '';
       openModal('pos-import-modal');
+    }
+
+    function backPosImport() {
+      document.getElementById('pos-import-preview-wrap').innerHTML = '';
+      document.getElementById('pos-import-confirm-btn').style.display = 'none';
+      document.getElementById('pos-import-back-btn').style.display = 'none';
+      document.getElementById('pos-import-file').value = '';
+      posImportParsed = null;
+      document.getElementById('pos-import-drop').style.display = '';
     }
     
     function handlePosImportDrop(e) {
@@ -1341,6 +1645,7 @@ function parseHistogramExcel(rows) {
     }
     
     function parsePosImportRows(rows) {
+      if (!posProjectId) { toast('No project selected.', 'info'); return; }
       if (!rows.length) { toast('No data found in file.', 'error'); return; }
 	  
 	 // Normalize keys — strip whitespace and BOM from all header keys
@@ -1352,6 +1657,8 @@ function parseHistogramExcel(rows) {
     
       const parsed = [];
       const errors = [];
+	  const errorReasons = new Set();
+	  const warnings = [];
     
       rows.forEach((row, i) => {
         const position  = String(row['Position'] || '').trim();
@@ -1360,33 +1667,39 @@ function parseHistogramExcel(rows) {
         const projRaw   = String(row['Project'] || '').trim();
         const manhours  = parseFloat(row['Allotted Manhours']) || 0;
     
-        if (!position) { errors.push(`Row ${i+2}: missing Position`); return; }
-        if (!roleRaw)  { errors.push(`Row ${i+2}: missing Role`); return; }
+        if (!position) { errors.push(`Row ${i+2}: missing Position`); errorReasons.add('Missing Position'); return; }
+        if (!roleRaw)  { errors.push(`Row ${i+2}: missing Role`); errorReasons.add('Missing Role'); return; }
     
         // Match role by name or key
         const role = rolesData.find(r =>
           r.name.toLowerCase() === roleRaw.toLowerCase() ||
           r.key.toLowerCase()  === roleRaw.toLowerCase()
         );
-        if (!role) { errors.push(`Row ${i+2}: unknown role "${roleRaw}"`); return; }
+        if (!role) { errors.push(`Row ${i+2}: unknown role "${roleRaw}"`); errorReasons.add('Role mismatch'); return; }
     
-        // Match discipline (optional)
+        // Match discipline (optional) — flag a mismatch instead of failing silently
         const disc = discRaw ? disciplinesData.find(d =>
           d.name.toLowerCase() === discRaw.toLowerCase()
         ) : null;
+        if (discRaw && !disc) warnings.push(`Row ${i+2}: unknown discipline "${discRaw}" — will import with blank Discipline`);
     
-        // Match project (optional) by name or code
-        const proj = projRaw ? projectsData.find(p =>
-          p.name.toLowerCase() === projRaw.toLowerCase() ||
-          p.code.toLowerCase() === projRaw.toLowerCase()
-        ) : null;
+        // Match project by name or code — a value that doesn't match is a typo,
+        // not "no project", so skip the row like an unmatched Role.
+        let proj = null;
+        if (projRaw) {
+          proj = projectsData.find(p =>
+            p.name.toLowerCase() === projRaw.toLowerCase() ||
+            p.code.toLowerCase() === projRaw.toLowerCase()
+          );
+          if (!proj) { errors.push(`Row ${i+2}: unknown project "${projRaw}"`); errorReasons.add('Project Code mismatch'); return; }
+        }
     
         parsed.push({ position, role_key: role.key, roleName: role.name, discipline_id: disc?.id || null, discName: disc?.name || '—', project_id: proj?.id || null, projCode: proj?.code || '—', allotted_manhours: manhours });
       });
     
-      if (errors.length) {
-        toast(errors.slice(0, 3).join(' | ') + (errors.length > 3 ? ` (+${errors.length-3} more)` : ''), 'error');
-        if (!parsed.length) return;
+      if (errors.length && !parsed.length) {
+        toast(`No items imported. ${[...errorReasons].join(', ') || 'Check the file and try again.'}`, 'error');
+        return;
       }
     
       posImportParsed = parsed;
@@ -1395,7 +1708,7 @@ function parseHistogramExcel(rows) {
       let html = `
         <div style="margin:14px 0 8px;font-size:12px;color:var(--text-3);">
           <strong style="color:var(--text);">${parsed.length} positions</strong> ready to import.
-          ${errors.length ? `<span style="color:var(--red);margin-left:8px;">${errors.length} rows skipped.</span>` : ''}
+          ${errors.length ? `<span style="color:var(--red);margin-left:8px;">${errors.length} rows skipped. ${[...errorReasons].join(', ')}.</span>` : ''}
         </div>
         <div class="import-preview"><table>
           <thead><tr>
@@ -1414,6 +1727,8 @@ function parseHistogramExcel(rows) {
       document.getElementById('pos-import-preview-wrap').innerHTML = html;
       const btn = document.getElementById('pos-import-confirm-btn');
       btn.style.display = 'flex';
+      document.getElementById('pos-import-back-btn').style.display = 'flex';
+      document.getElementById('pos-import-drop').style.display = 'none';
     }
     
     async function confirmPosImport() {
@@ -1757,159 +2072,19 @@ function markProgDirty(dirty) {
   const dot = document.getElementById('prog-dirty-dot');
   const btn = document.getElementById('prog-save-btn');
   if (dot) dot.style.display = dirty ? 'inline-block' : 'none';
-  if (btn) btn.style.opacity = dirty ? '1' : '0.6';
+  if (btn) { btn.classList.toggle('btn-ghost', !dirty); btn.classList.toggle('btn-primary', dirty); }
 }
-
-// ── RULES OF CREDIT ───────────────────────────────────────────────
-
-async function onRocProjectChange(projId) {
-  rocProjectId = projId || null;
-  rocDiscs     = [];
-  rocDocCodes  = [];
-  rocWorkflowSteps = {};
-  rocItems     = {};
-  rocDirty     = false;
-  markRocDirty(false);
-
-  const content = document.getElementById('roc-content');
-  if (!projId) {
-    content.innerHTML = `<div style="text-align:center;padding:60px;color:var(--text-4);font-size:13px;">Select a project to configure Rules of Credit.</div>`;
-    return;
-  }
-  content.innerHTML = `<div style="text-align:center;padding:40px;color:var(--text-4);">Loading…</div>`;
-
-  // Load all disciplines that have positions in this project
-  const { data: targRows } = await db.from('targets')
-    .select('discipline_id, disciplines(id,name)')
-    .eq('project_id', projId)
-    .not('discipline_id', 'is', null);
-  const discMap = {};
-  (targRows || []).forEach(r => {
-    if (r.disciplines) discMap[r.disciplines.id] = r.disciplines.name;
-  });
-  rocDiscs = Object.entries(discMap).map(([id,name]) => ({ id, name })).sort((a,b) => a.name.localeCompare(b.name));
-
-  // Load doc codes
-  const { data: codes } = await db.from('document_codes').select('id, type, code, activity_type').order('type');
-  rocDocCodes = codes || [];
-
-  // Load workflow steps per activity type
-  const { data: steps } = await db.from('workflow_steps').select('name, activity_type, sort_order').order('sort_order');
-  rocWorkflowSteps = {};
-  (steps || []).forEach(s => {
-    const t = s.activity_type || 'drawing';
-    if (!rocWorkflowSteps[t]) rocWorkflowSteps[t] = [];
-    rocWorkflowSteps[t].push(s.name);
-  });
-
-  // Load existing ROC items for this project
-  const { data: items } = await db.from('roc_items')
-    .select('id, discipline_id, doc_code_id, weight, roc_step_items(id, step_name, weight)')
-    .eq('project_id', projId);
-
-  rocItems = {};
-  (items || []).forEach(item => {
-    if (!rocItems[item.discipline_id]) rocItems[item.discipline_id] = {};
-    rocItems[item.discipline_id][item.doc_code_id] = {
-      id:     item.id,
-      weight: parseFloat(item.weight) || 0,
-      steps:  {}
-    };
-    (item.roc_step_items || []).forEach(s => {
-      rocItems[item.discipline_id][item.doc_code_id].steps[s.step_name] = {
-        id:     s.id,
-        weight: parseFloat(s.weight) || 0
-      };
-    });
-  });
-
-  // Load existing discipline-level ROC (project_discipline_roc)
-  const { data: discRoc } = await db.from('project_discipline_roc')
-    .select('discipline_id, roc')
-    .eq('project_id', projId);
-  rocDiscs = rocDiscs.map(d => ({
-    ...d,
-    roc: parseFloat((discRoc || []).find(r => r.discipline_id === d.id)?.roc || 0)
-  }));
-
-  renderRocGrid();
-}
-
-function renderRocGrid() {
-  const content = document.getElementById('roc-content');
-  if (!rocDiscs.length) {
-    content.innerHTML = `<div style="text-align:center;padding:60px;color:var(--text-4);font-size:13px;">No disciplines found for this project. Add positions with disciplines first.</div>`;
-    return;
-  }
-
-  const discTotal = rocDiscs.reduce((s, d) => s + (d.roc || 0), 0);
-  const discOk    = Math.abs(discTotal - 100) < 0.01;
-
-  let html = `<div style="display:flex;gap:20px;align-items:flex-start;flex-wrap:wrap;">`;
-
-  // ── Level 1: Discipline weights ──
-  html += `
-  <div style="min-width:260px;flex-shrink:0;">
-    <div style="font-size:11px;font-weight:700;color:var(--text-3);letter-spacing:.06em;margin-bottom:8px;text-transform:uppercase;">① Discipline Weights</div>
-    <table style="width:100%;border-collapse:collapse;font-size:13px;">
-      <thead>
-        <tr style="background:var(--bg-3);">
-          <th style="text-align:left;padding:8px 12px;font-size:11px;font-weight:700;color:var(--text-3);">DISCIPLINE</th>
-          <th style="text-align:center;padding:8px 12px;font-size:11px;font-weight:700;color:var(--text-3);">WEIGHT %</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${rocDiscs.map(d => `
-          <tr style="border-bottom:1px solid var(--border);cursor:pointer;" onclick="selectRocDisc('${d.id}')" id="roc-disc-row-${d.id}">
-            <td style="padding:9px 12px;font-weight:500;">${d.name}</td>
-            <td style="padding:9px 12px;text-align:center;">
-              <div style="display:inline-flex;align-items:center;gap:4px;">
-                <input type="number" min="0" max="100" step="0.1"
-                  data-disc-roc="${d.id}"
-                  value="${d.roc || ''}"
-                  placeholder="0"
-                  onclick="event.stopPropagation()"
-                  onchange="onDiscRocChange(this)"
-                  style="width:60px;text-align:center;background:var(--bg-4);border:1px solid var(--border-2);border-radius:var(--radius);padding:4px 6px;color:var(--text);font-size:12px;outline:none;" />
-                <span style="font-size:11px;color:var(--text-4);">%</span>
-              </div>
-            </td>
-          </tr>
-        `).join('')}
-      </tbody>
-      <tfoot>
-        <tr style="border-top:2px solid var(--border-2);background:var(--bg-3);">
-          <td style="padding:8px 12px;font-size:12px;font-weight:700;color:var(--text-3);">TOTAL</td>
-          <td style="padding:8px 12px;text-align:center;">
-            <span id="roc-disc-total" style="font-size:13px;font-weight:700;color:${discOk ? 'var(--green,#22c55e)' : 'var(--red,#ef4444)'};">${discTotal.toFixed(1)}%</span>
-          </td>
-        </tr>
-      </tfoot>
-    </table>
-  </div>`;
-
-  // ── Level 2 & 3: Doc codes + steps (shown after discipline click) ──
-  html += `
-  <div id="roc-doccode-panel" style="flex:1;min-width:280px;display:none;">
-    <div style="font-size:11px;font-weight:700;color:var(--text-3);letter-spacing:.06em;margin-bottom:8px;text-transform:uppercase;">② Doc Code Weights <span id="roc-disc-label" style="color:var(--accent);font-weight:600;"></span></div>
-    <div id="roc-doccode-content"></div>
-  </div>
-  <div id="roc-step-panel" style="flex:1;min-width:260px;display:none;">
-    <div style="font-size:11px;font-weight:700;color:var(--text-3);letter-spacing:.06em;margin-bottom:8px;text-transform:uppercase;">③ Step Weights <span id="roc-doccode-label" style="color:var(--accent);font-weight:600;"></span></div>
-    <div id="roc-step-content"></div>
-  </div>`;
-
-  html += `</div>`;
-  content.innerHTML = html;
-}
-
 
 // ── Save ──────────────────────────────────────────────────────────
 async function saveProgress(isManual = false) {
   if (progSaving) return;
+  if (isManual && !progProjectId) { toast('No project selected.', 'info'); return; }
   const hasDirtyProgress = Object.keys(progDirty).length > 0;
   const hasDirtyRoc      = Object.keys(progRocDirty).length > 0;
-  if (!hasDirtyProgress && !hasDirtyRoc) return;
+  if (!hasDirtyProgress && !hasDirtyRoc) {
+    if (isManual) toast('No data to save for this project.', 'info');
+    return;
+  }
   progSaving = true;
   const btn = document.getElementById('prog-save-btn');
   if (btn) { btn.textContent = 'Saving…'; btn.disabled = true; }
@@ -2017,9 +2192,9 @@ async function onRocProjectChange(projId) {
   const { data: codes } = await db.from('document_codes').select('id, type, code, activity_type').order('type');
   rocDocCodes = codes || [];
 
-  const { data: steps } = await db.from('workflow_steps').select('name, activity_type, sort_order').order('sort_order');
+  const { data: steps } = await db.from('workflow_steps').select('name, activity_type, sort_order, credit_required').order('sort_order');
   rocWorkflowSteps = {};
-  (steps || []).forEach(s => {
+  (steps || []).filter(s => s.credit_required !== false).forEach(s => {
     const t = s.activity_type || 'drawing';
     if (!rocWorkflowSteps[t]) rocWorkflowSteps[t] = [];
     rocWorkflowSteps[t].push(s.name);
@@ -2081,6 +2256,215 @@ function renderRocGrid() {
   renderRocTreeBody();
 }
 
+let rocImportParsed = null;
+
+function openRocImportModal() {
+  if (!rocProjectId) { toast('No project selected.', 'info'); return; }
+  document.getElementById('roc-import-preview-wrap').innerHTML = '';
+  document.getElementById('roc-import-confirm-btn').style.display = 'none';
+  document.getElementById('roc-import-back-btn').style.display = 'none';
+  document.getElementById('roc-import-file').value = '';
+  rocImportParsed = null;
+  document.getElementById('roc-import-drop').style.display = '';
+  openModal('roc-import-modal');
+}
+
+function backRocImport() {
+  document.getElementById('roc-import-preview-wrap').innerHTML = '';
+  document.getElementById('roc-import-confirm-btn').style.display = 'none';
+  document.getElementById('roc-import-back-btn').style.display = 'none';
+  document.getElementById('roc-import-file').value = '';
+  rocImportParsed = null;
+  document.getElementById('roc-import-drop').style.display = '';
+}
+
+function handleRocImportDrop(e) {
+  e.preventDefault();
+  document.getElementById('roc-import-drop').classList.remove('drag-over');
+  const file = e.dataTransfer?.files?.[0];
+  if (file) processRocImportFile(file);
+}
+
+function handleRocImportFile(input) {
+  const file = input.files?.[0];
+  if (file) processRocImportFile(file);
+}
+
+function processRocImportFile(file) {
+  if (!file.name.match(/\.xlsx?$/i)) { toast('Please upload an .xlsx or .xls file.', 'error'); return; }
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const wb = XLSX.read(e.target.result, { type: 'array' });
+      const discSheet = wb.Sheets['Disciplines'];
+      const codeSheet = wb.Sheets['Doc Codes'];
+      const stepSheet = wb.Sheets['Steps'];
+      if (!discSheet || !codeSheet || !stepSheet) {
+        toast('File must contain "Disciplines", "Doc Codes" and "Steps" sheets — use Export Excel first to get the correct template.', 'error');
+        return;
+      }
+      const discRows = XLSX.utils.sheet_to_json(discSheet, { defval: '' });
+      const codeRows = XLSX.utils.sheet_to_json(codeSheet, { defval: '' });
+      const stepRows = XLSX.utils.sheet_to_json(stepSheet, { defval: '' });
+      parseRocImportRows(discRows, codeRows, stepRows);
+    } catch (err) {
+      toast('Failed to read file: ' + err.message, 'error');
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function parseRocImportRows(discRows, codeRows, stepRows) {
+  if (!rocProjectId) { toast('Select a project first.', 'error'); return; }
+  const currentProj = projectsData.find(p => p.id === rocProjectId);
+  const discByName = {};
+  rocDiscs.forEach(d => { discByName[d.name.toLowerCase()] = d; });
+  const codeByCode = {};
+  rocDocCodes.forEach(c => { codeByCode[c.code.toLowerCase()] = c; });
+
+  const projMismatch = (row) => {
+    const projCode = String(row['Project Code'] || '').trim();
+    return projCode && currentProj && projCode.toLowerCase() !== currentProj.code.toLowerCase();
+  };
+
+  // Numeric, non-negative, rounded to 2 decimals. Blank cell = 0 (explicitly allowed).
+  const parseWeight = (raw) => {
+    if (raw === '' || raw === null || raw === undefined) return { ok: true, value: 0 };
+    const w = parseFloat(raw);
+    if (isNaN(w) || w < 0) return { ok: false, value: null };
+    return { ok: true, value: Math.round(w * 100) / 100 };
+  };
+
+  let discSkipped = 0, codeSkipped = 0, stepSkipped = 0;
+  const discReasons = new Set(), codeReasons = new Set(), stepReasons = new Set();
+
+  const newDiscWeights = {};
+  discRows.forEach((row, i) => {
+    if (projMismatch(row)) { discSkipped++; discReasons.add('Project Code mismatch'); return; }
+    const name = String(row['Discipline'] || '').trim();
+    const d = discByName[name.toLowerCase()];
+    if (!d) { discSkipped++; discReasons.add('Unknown Discipline'); return; }
+    const { ok, value } = parseWeight(row['Weight %']);
+    if (!ok) { discSkipped++; discReasons.add('Invalid Weight %'); return; }
+    newDiscWeights[d.id] = value;
+  });
+
+  const newItems = {};
+  let importedCodeCount = 0;
+  codeRows.forEach((row, i) => {
+    if (projMismatch(row)) { codeSkipped++; codeReasons.add('Project Code mismatch'); return; }
+    const discName = String(row['Discipline'] || '').trim();
+    const codeStr  = String(row['Doc Code'] || '').trim();
+    const d = discByName[discName.toLowerCase()];
+    const c = codeByCode[codeStr.toLowerCase()];
+    if (!d) { codeSkipped++; codeReasons.add('Unknown Discipline'); return; }
+    if (!c) { codeSkipped++; codeReasons.add('Unknown Doc Code'); return; }
+    const { ok, value } = parseWeight(row['Weight %']);
+    if (!ok) { codeSkipped++; codeReasons.add('Invalid Weight %'); return; }
+    if (!newItems[d.id]) newItems[d.id] = {};
+    newItems[d.id][c.id] = { weight: value, steps: {} };
+    importedCodeCount++;
+  });
+
+  let importedStepCount = 0;
+  stepRows.forEach((row, i) => {
+    if (projMismatch(row)) { stepSkipped++; stepReasons.add('Project Code mismatch'); return; }
+    const discName = String(row['Discipline'] || '').trim();
+    const codeStr  = String(row['Doc Code'] || '').trim();
+    const stepName = String(row['Step Name'] || '').trim();
+    const d = discByName[discName.toLowerCase()];
+    const c = codeByCode[codeStr.toLowerCase()];
+    if (!d || !c) { stepSkipped++; stepReasons.add('Unknown Discipline/Doc Code'); return; }
+    const actType = c.activity_type || 'drawing';
+    const validSteps = rocWorkflowSteps[actType] || [];
+    const matchedStep = validSteps.find(sn => sn.toLowerCase() === stepName.toLowerCase());
+    if (!matchedStep) { stepSkipped++; stepReasons.add('Unknown Step'); return; }
+    const { ok, value } = parseWeight(row['Weight %']);
+    if (!ok) { stepSkipped++; stepReasons.add('Invalid Weight %'); return; }
+    if (!newItems[d.id]) newItems[d.id] = {};
+    if (!newItems[d.id][c.id]) newItems[d.id][c.id] = { weight: 0, steps: {} };
+    newItems[d.id][c.id].steps[matchedStep] = { weight: value };
+    importedStepCount++;
+  });
+
+  const totalSkipped = discSkipped + codeSkipped + stepSkipped;
+  const totalRows = discRows.length + codeRows.length + stepRows.length;
+  if (totalSkipped && totalSkipped === totalRows) {
+    const allReasons = new Set([...discReasons, ...codeReasons, ...stepReasons]);
+    toast(`No items imported. ${[...allReasons].join(', ') || 'Check the file and try again.'}`, 'error');
+    return;
+  }
+
+  rocImportParsed = { discWeights: newDiscWeights, items: newItems };
+
+  const skippedParts = [];
+  if (discSkipped) skippedParts.push(`${discSkipped} disciplines`);
+  if (codeSkipped) skippedParts.push(`${codeSkipped} document codes`);
+  if (stepSkipped) skippedParts.push(`${stepSkipped} workflow steps`);
+  const skippedReasons = [...new Set([...discReasons, ...codeReasons, ...stepReasons])].join(', ');
+
+  document.getElementById('roc-import-preview-wrap').innerHTML = `
+    <div style="margin:14px 0 8px;font-size:12px;color:var(--text-3);">
+      <div style="color:var(--text);">Ready to import: <strong>${Object.keys(newDiscWeights).length} disciplines, ${importedCodeCount} document codes, ${importedStepCount} workflow steps</strong>.</div>
+      ${totalSkipped ? `<div style="color:var(--red);margin-top:4px;">Skipped: ${skippedParts.join(', ')} (${skippedReasons}).</div>` : ''}
+      <div style="margin-top:6px;color:var(--accent);">Imported data will overwrite all existing Rules of Credit weights for this project.</div>
+    </div>`;
+  document.getElementById('roc-import-confirm-btn').style.display = 'flex';
+  document.getElementById('roc-import-back-btn').style.display = 'flex';
+  document.getElementById('roc-import-drop').style.display = 'none';
+}
+
+async function confirmRocImport() {
+  if (!rocImportParsed) return;
+  const btn = document.getElementById('roc-import-confirm-btn');
+  btn.textContent = 'Importing…'; btn.disabled = true;
+
+  rocDiscs.forEach(d => { d.roc = rocImportParsed.discWeights[d.id] ?? 0; });
+  rocItems = rocImportParsed.items;
+  rocDirty = true;
+
+  await saveRoc();   // reuses your existing, already-tested save logic
+
+  btn.innerHTML = `${IC.save} Import`; btn.disabled = false;
+  rocImportParsed = null;
+  closeModal('roc-import-modal');
+}
+
+// A group is only flagged if it has real (non-zero) entries that don't sum to exactly 100%.
+// An untouched, all-zero group is left alone — that's "not configured yet", not an error.
+function rocStepGroupHasIssue(discId, codeId) {
+  const c = rocDocCodes.find(x => x.id === codeId);
+  if (!c) return false;
+  const actType = c.activity_type || 'drawing';
+  const steps = rocWorkflowSteps[actType] || [];
+  if (!steps.length) return false;
+  const stepData = rocItems[discId]?.[codeId]?.steps || {};
+  const total = steps.reduce((s, n) => s + (stepData[n]?.weight || 0), 0);
+  return total > 0 && Math.abs(total - 100) >= 0.01;
+}
+
+function rocCodeGroupHasIssue(discId) {
+  const discCodes = rocItems[discId] || {};
+  const total = rocDocCodes.reduce((s, c) => s + (discCodes[c.id]?.weight || 0), 0);
+  return total > 0 && Math.abs(total - 100) >= 0.01;
+}
+
+// Bubbles up: a discipline is flagged if its own doc-code group is off, OR any
+// doc code nested inside it has a step group that's off.
+function rocDiscHasDescendantIssue(discId) {
+  if (rocCodeGroupHasIssue(discId)) return true;
+  return rocDocCodes.some(c => rocStepGroupHasIssue(discId, c.id));
+}
+
+function rocDiscLevelHasIssue() {
+  const total = rocDiscs.reduce((s, d) => s + (d.roc || 0), 0);
+  return total > 0 && Math.abs(total - 100) >= 0.01;
+}
+
+function rocHasAnyIssue() {
+  return rocDiscLevelHasIssue() || rocDiscs.some(d => rocDiscHasDescendantIssue(d.id));
+}
+
 function renderRocTreeBody() {
   const body = document.getElementById('roc-tree-body');
   if (!body) return;
@@ -2091,7 +2475,8 @@ function renderRocTreeBody() {
   let rows = '';
 
   rocDiscs.forEach(d => {
-    const isOpen = rocExpandedDiscs.has(d.id);
+    const isOpen   = rocExpandedDiscs.has(d.id);
+    const discFlag = rocDiscHasDescendantIssue(d.id);
     rows += `
       <tr style="border-bottom:1px solid var(--border);cursor:pointer;" onclick="toggleRocDisc('${d.id}')">
         <td style="padding:9px 12px;font-weight:700;">
@@ -2100,11 +2485,12 @@ function renderRocTreeBody() {
         </td>
         <td style="padding:9px 12px;text-align:center;">
           <div style="display:inline-flex;align-items:center;gap:4px;" onclick="event.stopPropagation()">
-            <input type="number" min="0" max="100" step="0.1"
+            <input type="number" min="0" max="100" step="5"
               data-disc-roc="${d.id}" value="${d.roc || ''}" placeholder="0"
               onchange="onDiscRocChange(this)"
               style="width:60px;text-align:center;background:var(--bg-4);border:1px solid var(--border-2);border-radius:var(--radius);padding:4px 6px;color:var(--text);font-size:12px;outline:none;font-weight:700;" />
             <span style="font-size:11px;color:var(--text-4);">%</span>
+			<span title="${discFlag ? "Sub-items don't sum to 100%" : ''}" style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${discFlag ? 'var(--red,#ef4444)' : 'transparent'};flex-shrink:0;margin-left:3px;"></span>
           </div>
         </td>
       </tr>`;
@@ -2118,6 +2504,7 @@ function renderRocTreeBody() {
         const codeKey   = d.id + '|' + c.id;
         const codeOpen  = rocExpandedCodes.has(codeKey);
         const val       = discCodes[c.id]?.weight || 0;
+        const codeFlag  = rocStepGroupHasIssue(d.id, c.id);
 
         rows += `
           <tr style="border-bottom:1px solid var(--border);cursor:pointer;background:var(--bg-2);" onclick="toggleRocCode('${d.id}','${c.id}')">
@@ -2128,11 +2515,12 @@ function renderRocTreeBody() {
             </td>
             <td style="padding:8px 12px;text-align:center;">
               <div style="display:inline-flex;align-items:center;gap:4px;" onclick="event.stopPropagation()">
-                <input type="number" min="0" max="100" step="0.1"
+                <input type="number" min="0" max="100" step="5"
                   data-code-roc="${c.id}" data-disc="${d.id}" value="${val || ''}" placeholder="0"
                   onchange="onDocCodeRocChange(this)"
                   style="width:60px;text-align:center;background:var(--bg-4);border:1px solid var(--border-2);border-radius:var(--radius);padding:4px 6px;color:var(--text);font-size:12px;outline:none;" />
                 <span style="font-size:11px;color:var(--text-4);">%</span>
+                <span title="${codeFlag ? "Steps don't sum to 100%" : ''}" style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${codeFlag ? 'var(--red,#ef4444)' : 'transparent'};flex-shrink:0;margin-left:3px;"></span>
               </div>
             </td>
           </tr>`;
@@ -2155,7 +2543,7 @@ function renderRocTreeBody() {
                   <td style="padding:7px 12px 7px 60px;color:var(--text-3);">${name}</td>
                   <td style="padding:7px 12px;text-align:center;">
                     <div style="display:inline-flex;align-items:center;gap:4px;">
-                      <input type="number" min="0" max="100" step="0.1"
+                      <input type="number" min="0" max="100" step="5"
                         data-step-roc="${name}" data-disc="${d.id}" data-code="${c.id}" value="${sVal || ''}" placeholder="0"
                         onchange="onStepRocChange(this)"
                         style="width:60px;text-align:center;background:var(--bg-4);border:1px solid var(--border-2);border-radius:var(--radius);padding:4px 6px;color:var(--text);font-size:12px;outline:none;" />
@@ -2197,6 +2585,7 @@ function renderRocTreeBody() {
     </tr>`;
 
   body.innerHTML = rows;
+  updateRocSaveBtnState();
 }
 
 function toggleRocDisc(discId) {
@@ -2210,6 +2599,13 @@ function toggleRocCode(discId, codeId) {
   if (rocExpandedCodes.has(key)) rocExpandedCodes.delete(key);
   else rocExpandedCodes.add(key);
   renderRocTreeBody();
+}
+
+function collapseAllRoc() {
+  rocExpandedDiscs = new Set();
+  rocExpandedCodes = new Set();
+  renderRocTreeBody();
+  toast('Data Refreshed.', 'success');
 }
 
 function onDiscRocChange(input) {
@@ -2249,8 +2645,9 @@ function onStepRocChange(input) {
 }
 
 async function saveRoc() {
-  if (!rocProjectId) { toast('Select a project first.', 'error'); return; }
-  if (!rocDirty)     return;
+  if (!rocProjectId) { toast('No project selected.', 'info'); return; }
+  if (rocHasAnyIssue()) { toast('Save failed. Fix the flagged weight inconsistencies before saving.', 'error'); return; }
+  if (!rocDirty) { toast('No data to save for this project.', 'info'); return; }
   const btn = document.getElementById('roc-save-btn');
   if (btn) { btn.textContent = 'Saving…'; btn.disabled = true; }
 
@@ -2305,35 +2702,96 @@ async function saveRoc() {
   toast('Rules of Credit saved.', 'success');
 }
 
+async function clearAllRoc() {
+  if (!rocProjectId) { toast('No project selected.', 'info'); return; }
+  if (!rocDiscs.length) { toast('No data to delete for this project.', 'info'); return; }
+
+  openTypeConfirm(
+    'This will permanently clear all Rules of Credit weights (disciplines, doc codes, and steps) for this project. This cannot be undone.',
+    'Clear',
+    'Clear All Data',
+    async () => {
+      const { error: e1 } = await db.from('project_discipline_roc').delete().eq('project_id', rocProjectId);
+      if (e1) { toast('Error: ' + e1.message, 'error'); return; }
+
+      const { data: items } = await db.from('roc_items').select('id').eq('project_id', rocProjectId);
+      const itemIds = (items || []).map(i => i.id);
+      if (itemIds.length) {
+        const { error: e2 } = await db.from('roc_step_items').delete().in('roc_item_id', itemIds);
+        if (e2) { toast('Error: ' + e2.message, 'error'); return; }
+      }
+      const { error: e3 } = await db.from('roc_items').delete().eq('project_id', rocProjectId);
+      if (e3) { toast('Error: ' + e3.message, 'error'); return; }
+
+      rocDiscs.forEach(d => { d.roc = 0; });
+      rocItems = {};
+      rocExpandedDiscs = new Set();
+      rocExpandedCodes = new Set();
+      rocDirty = false;
+      markRocDirty(false);
+
+      toast('Rules of Credit cleared.', 'success');
+      await onRocProjectChange(rocProjectId);
+    }
+  );
+}
+
 function markRocDirty(dirty) {
-  const dot = document.getElementById('roc-dirty-dot');
+  rocDirty = dirty;
+  updateRocSaveBtnState();
+}
+
+// Grey = nothing to save. Yellow (accent) = unsaved changes, safe to save.
+// Red = unsaved changes, but blocked by a weight mismatch somewhere.
+function updateRocSaveBtnState() {
   const btn = document.getElementById('roc-save-btn');
-  if (dot) dot.classList.toggle('dirty', dirty);
-  if (btn) btn.style.opacity = dirty ? '1' : '0.6';
+  if (!btn) return;
+  btn.classList.remove('btn-ghost', 'btn-primary', 'btn-danger');
+  if (rocHasAnyIssue())   btn.classList.add('btn-danger');
+  else if (rocDirty)      btn.classList.add('btn-primary');
+  else                    btn.classList.add('btn-ghost');
 }
 
 
 // ── Clear All ─────────────────────────────────────────────────────
 async function clearAllProgress() {
   if (!progProjectId) { toast('No project selected.', 'info'); return; }
-  confirmDialog('Clear all planned progress for this project? ROC values will be kept.', async () => {
-    const { error } = await db.from('planned_progress').delete().eq('project_id', progProjectId);
-    if (error) { toast('Error: ' + error.message, 'error'); return; }
-    progSchedule = {};
-    progDirty    = {};
-    markProgDirty(false);
-    toast('Planned progress cleared.', 'success');
-    renderProgGrid();
-  });
+  if (!progDiscs.length) { toast('No data to delete for this project.', 'info'); return; }
+  openTypeConfirm(
+    'This will permanently clear all planned progress for this project. ROC values will be kept. This cannot be undone.',
+    'Clear',
+    'Clear All Data',
+    async () => {
+      const { error } = await db.from('planned_progress').delete().eq('project_id', progProjectId);
+      if (error) { toast('Error: ' + error.message, 'error'); return; }
+      progSchedule = {};
+      progDirty    = {};
+      markProgDirty(false);
+      toast('Planned progress cleared.', 'success');
+      renderProgGrid();
+    }
+  );
 }
 
 // ── Import ────────────────────────────────────────────────────────
 function openProgImportModal() {
+  if (!progProjectId) { toast('No project selected.', 'info'); return; }
   document.getElementById('prog-import-preview-wrap').innerHTML = '';
   document.getElementById('prog-import-confirm-btn').style.display = 'none';
+  document.getElementById('prog-import-back-btn').style.display = 'none';
   document.getElementById('prog-import-file').value = '';
   progImportData = null;
+  document.getElementById('prog-import-drop').style.display = '';
   openModal('prog-import-modal');
+}
+
+function backProgImport() {
+  document.getElementById('prog-import-preview-wrap').innerHTML = '';
+  document.getElementById('prog-import-confirm-btn').style.display = 'none';
+  document.getElementById('prog-import-back-btn').style.display = 'none';
+  document.getElementById('prog-import-file').value = '';
+  progImportData = null;
+  document.getElementById('prog-import-drop').style.display = '';
 }
 
 function handleProgImportDrop(e) {
@@ -2365,18 +2823,28 @@ function processProgImportFile(file) {
 }
 
 function parseProgImportRows(rows) {
+  if (!progProjectId) { toast('Please select a project first.', 'error'); return; }
   if (!rows.length) { toast('No data found in file.', 'error'); return; }
 
+  const currentProj = projectsData.find(p => p.id === progProjectId);
   const parsed = [];
   const errors = [];
+  const errorReasons = new Set();
 
   rows.forEach((row, i) => {
     const discRaw   = String(row['Discipline'] || '').trim();
+    const projCode  = String(row['Project Code'] || '').trim();
     const rawPeriod = String(row['Week Start'] || row['Period'] || '').trim();
     const pct       = parseFloat(row['Planned %'] ?? row['Planned'] ?? '');
 
+    if (projCode && currentProj && projCode.toLowerCase() !== currentProj.code.toLowerCase()) {
+      errors.push(`Row ${i+2}: project code "${projCode}" mismatch "${currentProj.code}"`);
+      errorReasons.add('Project Code mismatch');
+      return;
+    }
+
     const disc = progDiscs.find(d => d.name.toLowerCase() === discRaw.toLowerCase());
-    if (!disc) { errors.push(`Row ${i+2}: discipline "${discRaw}" not found`); return; }
+    if (!disc) { errors.push(`Row ${i+2}: discipline "${discRaw}" not found`); errorReasons.add('Discipline mismatch'); return; }
 
     let week = '';
     const d1 = new Date(rawPeriod);
@@ -2386,23 +2854,24 @@ function parseProgImportRows(rows) {
       week = getWeekStart(rawPeriod, progProject?.week_start_day ?? 1);
     }
 
-    if (!week) { errors.push(`Row ${i+2}: invalid date "${rawPeriod}"`); return; }
-    if (isNaN(pct)) { errors.push(`Row ${i+2}: invalid Planned %`); return; }
+    if (!week) { errors.push(`Row ${i+2}: invalid date "${rawPeriod}"`); errorReasons.add('Invalid Week Start'); return; }
+    if (isNaN(pct)) { errors.push(`Row ${i+2}: invalid Planned %`); errorReasons.add('Invalid Planned %'); return; }
 
     parsed.push({ discId: disc.id, discName: disc.name, week, pct: Math.min(100, Math.max(0, pct)) });
   });
 
-  if (errors.length) {
-    toast(errors.slice(0, 3).join(' | ') + (errors.length > 3 ? ` (+${errors.length-3} more)` : ''), 'error');
-    if (!parsed.length) return;
+  if (!parsed.length) {
+    toast(`No items imported. ${[...errorReasons].join(', ') || 'Check the file and try again.'}`, 'error');
+    return;
   }
 
   progImportData = parsed;
 
+  // Render preview
   let html = `
     <div style="margin:14px 0 8px;font-size:12px;color:var(--text-3);">
       <strong style="color:var(--text);">${parsed.length} rows</strong> ready to import.
-      ${errors.length ? `<span style="color:var(--red);margin-left:8px;">${errors.length} rows skipped.</span>` : ''}
+      ${errors.length ? `<span style="color:var(--red);margin-left:8px;">${errors.length} rows skipped. ${[...errorReasons].join(', ')}.</span>` : ''}
     </div>
     <div class="import-preview"><table>
       <thead><tr><th>Discipline</th><th>Week</th><th>Planned %</th></tr></thead>
@@ -2417,18 +2886,19 @@ function parseProgImportRows(rows) {
 
   document.getElementById('prog-import-preview-wrap').innerHTML = html;
   document.getElementById('prog-import-confirm-btn').style.display = 'flex';
+  document.getElementById('prog-import-back-btn').style.display = 'flex';
+  document.getElementById('prog-import-drop').style.display = 'none';
 }
 
 function exportProgExcel() {
-  if (!progProjectId || !progWeeks.length || !progDiscs.length) {
-    toast('No progress data to export. Select a project first.', 'info');
-    return;
-  }
+  if (!progProjectId) { toast('No project selected.', 'info'); return; }
+  if (!progDiscs.length) { toast('No data to export for this project.', 'info'); return; }
 
   const rows = [];
+  const proj = projectsData.find(p => p.id === progProjectId);
 
   // Header row
-  rows.push(['Discipline', 'Week Start', 'Week Range', 'Planned %']);
+  rows.push(['Discipline', 'Project Code', 'Week Start', 'Week Range', 'Planned %']);
 
   // Data rows — one row per discipline per week
   progDiscs.forEach(d => {
@@ -2436,6 +2906,7 @@ function exportProgExcel() {
       const val = (progSchedule[d.id] || {})[w];
       rows.push([
         d.name,
+        proj?.code || '',
         w,
         fmtWeekRange(w),
         val != null ? val : '',
@@ -2448,6 +2919,7 @@ function exportProgExcel() {
   // Column widths
   ws['!cols'] = [
     { wch: 20 },  // Discipline
+    { wch: 14 },  // Project Code
     { wch: 12 },  // Week Start
     { wch: 22 },  // Week Range
     { wch: 12 },  // Planned %
@@ -2456,8 +2928,42 @@ function exportProgExcel() {
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Planned Progress');
 
-  const proj = projectsData.find(p => p.id === progProjectId);
-  const fileName = `PlannedProgress_${proj?.code || 'export'}_${new Date().toISOString().substring(0,10)}.xlsx`;
+  const fileName = `Progress_${proj?.code || 'export'}_${new Date().toISOString().substring(0,10)}.xlsx`;
+  XLSX.writeFile(wb, fileName);
+  toast('Exported successfully.', 'success');
+}
+
+function exportRocExcel() {
+  if (!rocProjectId) { toast('No project selected.', 'info'); return; }
+  if (!rocDiscs.length) { toast('No data to export for this project.', 'info'); return; }
+  const proj = projectsData.find(p => p.id === rocProjectId);
+
+  const discRows = [['Discipline', 'Project Code', 'Weight %']];
+  rocDiscs.forEach(d => discRows.push([d.name, proj?.code || '', d.roc || 0]));
+
+  const codeRows = [['Discipline', 'Doc Code', 'Doc Type', 'Project Code', 'Weight %']];
+  const stepRows = [['Discipline', 'Doc Code', 'Step Name', 'Project Code', 'Weight %']];
+  rocDiscs.forEach(d => {
+    const discCodes = rocItems[d.id] || {};
+    rocDocCodes.forEach(c => {
+      const item = discCodes[c.id];
+      codeRows.push([d.name, c.code, c.type, proj?.code || '', item?.weight || 0]);
+
+      const actType = c.activity_type || 'drawing';
+      const relevantSteps = rocWorkflowSteps[actType] || [];
+      relevantSteps.forEach(stepName => {
+        const sData = item?.steps?.[stepName];
+        stepRows.push([d.name, c.code, stepName, proj?.code || '', sData?.weight || 0]);
+      });
+    });
+  });
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(discRows), 'Disciplines');
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(codeRows), 'Doc Codes');
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(stepRows), 'Steps');
+
+  const fileName = `RulesOfCredit_${proj?.code || 'export'}_${new Date().toISOString().substring(0,10)}.xlsx`;
   XLSX.writeFile(wb, fileName);
   toast('Exported successfully.', 'success');
 }
@@ -2513,17 +3019,22 @@ function recalcKpiAreaTotal() {
   const inputs = document.querySelectorAll('.kpi-area-input');
   const total  = Array.from(inputs).reduce((s, inp) => s + (parseFloat(inp.value) || 0), 0);
   const totalEl = document.getElementById('kpi-area-total');
-  if (totalEl) totalEl.textContent = total.toLocaleString();
+  if (totalEl) {
+    totalEl.textContent = total.toLocaleString();
+    totalEl.style.color = 'var(--accent)';
+  }
   const hidden = document.getElementById('kpi-estimated-output');
   if (hidden) hidden.value = total;
+  const hintEl = document.getElementById('kpi-area-hint');
+  if (hintEl) hintEl.textContent = 'Auto-summed from area inputs. Can be filled in later.';
 }
 
 const KPI_UNITS = {
-  model:        'MH / %',
-  drawing:      'MH / Sheet',
-  test_package: 'MH / Package',
-  materials:    'MH / Item',
-  calculations: 'MH / Calc',
+  model:        'MH / TON',
+  drawing:      'MH / SHT',
+  test_package: 'MH / PKG',
+  materials:    'MH / MTO',
+  calculations: 'MH / CAL',
 };
 
 function onKpiProjectChange(projId) {
@@ -2550,9 +3061,12 @@ async function loadKpi() {
       .from('structure_items')
       .select('id, area_system_module, priority_shipment')
       .eq('project_code', proj.code)
-      .order('priority_shipment')
-      .order('area_system_module');
-    kpiAreaItems = structData || [];
+      .order('priority_shipment');
+    kpiAreaItems = (structData || []).sort((a, b) => {
+      const pDiff = (a.priority_shipment ?? 0) - (b.priority_shipment ?? 0);
+      if (pDiff !== 0) return pDiff;
+      return (a.area_system_module || '').localeCompare(b.area_system_module || '', undefined, { numeric: true, sensitivity: 'base' });
+    });
   } else {
     kpiAreaItems = [];
   }
@@ -2560,21 +3074,18 @@ async function loadKpi() {
   // ── 2. Now render the shell (header uses kpiAreaItems) ──
   container.innerHTML = `
     <div class="toolbar">
-      <div class="search-box">
+      <div class="search-box" style="flex:0 1 320px;">
         <input type="text" id="kpi-search" placeholder="Search by discipline, doc code, or step…" oninput="filterKpi(this.value)" />
       </div>
       <select class="filter-select" id="kpi-disc-filter" onchange="filterKpi(document.getElementById('kpi-search').value)" style="min-width:160px;">
         <option value="">All Disciplines</option>
         ${disciplinesData.map(d => `<option value="${d.id}">${d.name}</option>`).join('')}
       </select>
-      <select class="filter-select" id="kpi-activity-filter" onchange="filterKpi(document.getElementById('kpi-search').value)" style="min-width:160px;">
-        <option value="">All Activity Types</option>
-        <option value="model">3D Model</option>
-        <option value="drawing">Drawings</option>
-        <option value="test_package">Test Package</option>
-        <option value="materials">Materials</option>
-        <option value="calculations">Calculations</option>
+      <select class="filter-select" id="kpi-doccode-filter" onchange="filterKpi(document.getElementById('kpi-search').value)" style="min-width:160px;">
+        <option value="">All Doc Codes</option>
+        ${[...docCodesData].sort((a, b) => a.code.localeCompare(b.code)).map(c => `<option value="${c.id}">${c.code} — ${c.type}</option>`).join('')}
       </select>
+      <button class="btn btn-ghost btn-sm" style="margin-left:auto;" onclick="clearKpiFilters()">Clear Filter</button>
     </div>
     <div class="table-wrapper">
       <table>
@@ -2598,14 +3109,18 @@ async function loadKpi() {
       </table>
     </div>`;
 
-  // ── 3. Load KPI rows, steps, doc codes ──
+  // ── 3. Load positions (discipline catalog), KPI rows, steps, doc codes ──
   const [
+    { data: targRows },
+    { data: rocItemRows },
     { data: kpiRows },
     { data: steps },
     { data: docCodes },
   ] = await Promise.all([
+    db.from('targets').select('discipline_id, disciplines(id,name)').eq('project_id', kpiProjectId).not('discipline_id', 'is', null),
+    db.from('roc_items').select('discipline_id, doc_code_id, weight, roc_step_items(step_name, weight)').eq('project_id', kpiProjectId),
     db.from('target_kpi').select(`
-      id, target_value, estimated_output,
+      id, target_value, estimated_output, discipline_id, doc_code_id, step_id,
       projects(id, code, name),
       disciplines(id, name),
       document_codes(id, code, type, activity_type),
@@ -2615,35 +3130,115 @@ async function loadKpi() {
     db.from('document_codes').select('*').order('code'),
   ]);
 
+  stepsData    = steps    || [];
+  docCodesData = docCodes || [];
+
+  // Doc Code filter options depend on docCodesData, which wasn't loaded yet
+  // when the toolbar shell was rendered in step 2 — populate it now.
+  const docCodeFilterEl = document.getElementById('kpi-doccode-filter');
+  if (docCodeFilterEl) {
+    const currentVal = docCodeFilterEl.value;
+    docCodeFilterEl.innerHTML = `<option value="">All Doc Codes</option>` +
+      [...docCodesData].sort((a, b) => a.code.localeCompare(b.code)).map(c => `<option value="${c.id}">${c.code} — ${c.type}</option>`).join('');
+    docCodeFilterEl.value = currentVal;
+  }
+
   // ── 4. Load area breakdowns for all KPIs ──
   const kpiIds = (kpiRows || []).map(k => k.id);
   let kpiAreaMap = {};
   if (kpiIds.length) {
-    const { data: areaBreakdown } = await db
-      .from('target_kpi_areas')
-      .select('kpi_id, structure_item_id, estimated_output')
-      .in('kpi_id', kpiIds);
-    (areaBreakdown || []).forEach(r => {
+    let allAreaRows = [];
+    const PAGE_SIZE = 1000;
+    let from = 0;
+    while (true) {
+      const { data: page, error: pageErr } = await db
+        .from('target_kpi_areas')
+        .select('kpi_id, structure_item_id, estimated_output')
+        .in('kpi_id', kpiIds)
+        .range(from, from + PAGE_SIZE - 1);
+      if (pageErr || !page || page.length === 0) break;
+      allAreaRows = allAreaRows.concat(page);
+      if (page.length < PAGE_SIZE) break;
+      from += PAGE_SIZE;
+    }
+    allAreaRows.forEach(r => {
       if (!kpiAreaMap[r.kpi_id]) kpiAreaMap[r.kpi_id] = {};
       kpiAreaMap[r.kpi_id][r.structure_item_id] = r.estimated_output;
     });
   }
 
-  kpiData      = (kpiRows || []).map(k => ({ ...k, _areas: kpiAreaMap[k.id] || {} }));
-  stepsData    = steps    || [];
-  docCodesData = docCodes || [];
+  // ── 5. Build the full catalog — same source data ROC uses (Positions →
+  // disciplines, Admin → Deliverables, Admin → Workflow Steps), so this list
+  // always matches ROC with no separate "sync" step. Existing target_kpi rows
+  // are layered on top; combinations with no saved row yet get id: null and
+  // blank values, ready to be filled in via Edit.
+  const discMap = {};
+  (targRows || []).forEach(r => { if (r.disciplines) discMap[r.disciplines.id] = r.disciplines; });
+  const catalogDiscs = Object.values(discMap).sort((a, b) => a.name.localeCompare(b.name));
 
+  // ROC weights gate the catalog: a doc code with 0 weight for a discipline is
+  // "not applicable" and produces no KPI rows; same for an individual step's
+  // weight within an included doc code.
+  const rocDocWeight  = {};   // "discId|codeId" -> weight
+  const rocStepWeight = {};   // "discId|codeId|stepNameLower" -> weight
+  (rocItemRows || []).forEach(item => {
+    rocDocWeight[`${item.discipline_id}|${item.doc_code_id}`] = parseFloat(item.weight) || 0;
+    (item.roc_step_items || []).forEach(s => {
+      rocStepWeight[`${item.discipline_id}|${item.doc_code_id}|${(s.step_name || '').toLowerCase()}`] = parseFloat(s.weight) || 0;
+    });
+  });
+
+  const existingByKey = {};
+  (kpiRows || []).forEach(k => { existingByKey[`${k.discipline_id}|${k.doc_code_id}|${k.step_id}`] = k; });
+
+  const catalog = [];
+  catalogDiscs.forEach(disc => {
+    docCodesData.forEach(code => {
+      const rocApplicableDoc = (rocDocWeight[`${disc.id}|${code.id}`] || 0) > 0;
+
+      const actType = code.activity_type || 'drawing';
+      stepsData
+        .filter(s => (s.activity_type || 'drawing') === actType && s.credit_required !== false)
+        .forEach(step => {
+          const key = `${disc.id}|${code.id}|${step.id}`;
+          const existing = existingByKey[key];
+          const rocApplicableStep = rocApplicableDoc &&
+            (rocStepWeight[`${disc.id}|${code.id}|${step.name.toLowerCase()}`] || 0) > 0;
+
+          // Always show a row that already has real saved data, even if ROC
+          // currently says "not applicable" (weight is 0/unset) — ROC and
+          // Target KPI are edited independently, and ROC changes shouldn't
+          // hide previously-imported/entered targets. Only use the ROC gate
+          // to decide whether to offer a *blank* row for entry.
+          if (!existing && !rocApplicableStep) return;
+
+          catalog.push(existing ? { ...existing, _areas: kpiAreaMap[existing.id] || {} } : {
+            id: null, project_id: kpiProjectId,
+            discipline_id: disc.id, doc_code_id: code.id, step_id: step.id,
+            target_value: null, estimated_output: 0,
+            projects: null, disciplines: disc, document_codes: code, workflow_steps: step,
+            _areas: {},
+          });
+        });
+    });
+  });
+
+  kpiData = catalog;
   filterKpi('');
 }
 
+function kpiRowKey(k) {
+  return `${k.discipline_id}|${k.doc_code_id}|${k.step_id}`;
+}
+
 function filterKpi(search) {
-  const disc     = document.getElementById('kpi-disc-filter')?.value  || '';
-  const activity = document.getElementById('kpi-activity-filter')?.value || '';
-  const q        = (search || '').toLowerCase();
+  const disc    = document.getElementById('kpi-disc-filter')?.value    || '';
+  const docCode = document.getElementById('kpi-doccode-filter')?.value || '';
+  const q       = (search || '').toLowerCase();
 
   kpiFiltered = kpiData.filter(k => {
-    if (disc     && k.disciplines?.id !== disc) return false;
-    if (activity && k.document_codes?.activity_type !== activity) return false;
+    if (disc    && k.disciplines?.id !== disc) return false;
+    if (docCode && k.document_codes?.id !== docCode) return false;
     if (q) {
       const hay = [
         k.disciplines?.name,
@@ -2659,12 +3254,29 @@ function filterKpi(search) {
   renderKpi();
 }
 
+function clearKpiFilters() {
+  document.getElementById('kpi-search').value = '';
+  document.getElementById('kpi-disc-filter').value = '';
+  document.getElementById('kpi-doccode-filter').value = '';
+  filterKpi('');
+}
+
+function kpiTargetValueCell(k) {
+  if (k.id && k.target_value == null) {
+    return '<span style="color:var(--text-4);font-style:italic;" title="Not tracked">NA</span>';
+  }
+  if (k.target_value != null) {
+    return `<span style="color:var(--accent);">${Number(k.target_value).toLocaleString()}</span>`;
+  }
+  return '<span style="color:var(--text-4);">—</span>';
+}
+
 function renderKpi() {
   const tbody = document.getElementById('kpi-tbody');
   if (!tbody) return;
 
   if (!kpiFiltered.length) {
-    tbody.innerHTML = `<tr><td colspan="${9 + kpiAreaItems.length}" style="text-align:center;padding:40px;color:var(--text-4);">No KPI records found. Click "+ Add KPI" to get started.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="${9 + kpiAreaItems.length}" style="text-align:center;padding:40px;color:var(--text-4);">No matching rows. If this project has no rows at all, add positions with disciplines in the Positions tab first.</td></tr>`;
     return;
   }
 
@@ -2690,7 +3302,7 @@ function renderKpi() {
       </td>
       <td style="text-align:center;">${actBadge}</td>
       <td>${k.workflow_steps?.name || '—'}</td>
-      <td style="text-align:center;font-weight:600;color:var(--accent);font-variant-numeric:tabular-nums;">${Number(k.target_value).toLocaleString()}</td>
+      <td style="text-align:center;font-weight:600;font-variant-numeric:tabular-nums;">${kpiTargetValueCell(k)}</td>
       <td style="text-align:center;font-weight:600;color:var(--text);font-variant-numeric:tabular-nums;">
         ${k.estimated_output != null && k.estimated_output > 0 ? Number(k.estimated_output).toLocaleString() : '—'}
       </td>
@@ -2703,8 +3315,8 @@ function renderKpi() {
       }).join('')}
       <td style="text-align:center;">
         <div class="table-actions" style="justify-content:center;">
-          <button class="btn btn-icon edit"   onclick="openEditKpi('${k.id}')" title="Edit">${IC.edit}</button>
-          <button class="btn btn-icon delete" onclick="deleteKpi('${k.id}')"   title="Delete">${IC.trash}</button>
+          <button class="btn btn-icon edit" onclick="openEditKpi('${kpiRowKey(k)}')" title="${k.id ? 'Edit' : 'Enter values'}">${IC.edit}</button>
+          ${k.id ? `<button class="btn btn-icon delete" onclick="clearKpiValue('${k.id}')" title="Clear values">${IC.trash}</button>` : ''}
         </div>
       </td>
     </tr>`;
@@ -2717,6 +3329,7 @@ function onKpiActivityChange() {
   populateKpiSteps(actType);
   document.getElementById('kpi-value-label').textContent =
     `Target Value (${KPI_UNITS[actType] || ''})`;
+  recalcKpiAreaTotal();
 }
 
 function populateKpiDocCodes(actType) {
@@ -2753,10 +3366,13 @@ async function renderKpiAreaBreakdown(kpiId) {
     .from('structure_items')
     .select('id, area_system_module, priority_shipment')
     .eq('project_code', proj.code)
-    .order('priority_shipment')
-    .order('area_system_module');
+    .order('priority_shipment');
 
-  kpiAreaItems = structItems || [];
+  kpiAreaItems = (structItems || []).sort((a, b) => {
+    const pDiff = (a.priority_shipment ?? 0) - (b.priority_shipment ?? 0);
+    if (pDiff !== 0) return pDiff;
+    return (a.area_system_module || '').localeCompare(b.area_system_module || '', undefined, { numeric: true, sensitivity: 'base' });
+  });
 
   if (!kpiAreaItems.length) {
     wrap.innerHTML = `<div style="text-align:center;padding:20px;color:var(--text-4);font-size:12px;">No areas found for this project. Add them in the Structure page.</div>`;
@@ -2779,7 +3395,7 @@ async function renderKpiAreaBreakdown(kpiId) {
     return `
       <div style="display:flex;align-items:center;justify-content:space-between;padding:5px 0;gap:10px;">
         <span style="font-size:12px;color:var(--text);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${item.area_system_module}">${item.area_system_module}</span>
-        <input type="number" class="kpi-area-input cell-input" min="0" step="1" placeholder="0"
+        <input type="number" class="kpi-area-input cell-input" min="0" step="0.01" placeholder="0"
           data-structure-id="${item.id}"
           value="${val}"
           oninput="recalcKpiAreaTotal()"
@@ -2792,14 +3408,13 @@ async function renderKpiAreaBreakdown(kpiId) {
 
 // ─── KPI EXPORT / IMPORT EXCEL ─────────────────────────────────────────────
 function exportKpiExcel() {
-  if (!kpiProjectId || !kpiData.length) {
-    toast('No KPI data to export. Select a project first.', 'info');
-    return;
-  }
+  if (!kpiProjectId) { toast('No project selected.', 'info'); return; }
+  if (!kpiData.length) { toast('No data to export for this project.', 'info'); return; }
 
+  const exportProj = projectsData.find(p => p.id === kpiProjectId);
   const header = [
     'Discipline', 'Doc Code', 'Doc Type', 'Activity Type', 'Workflow Step',
-    'Target Value', 'Estimated Output',
+    'Project Code', 'Target Value', 'Estimated Output',
     ...kpiAreaItems.map(a => a.area_system_module),
   ];
   const rows = [header];
@@ -2813,7 +3428,8 @@ function exportKpiExcel() {
       k.document_codes?.type || '',
       actLabel,
       k.workflow_steps?.name || '',
-      k.target_value ?? '',
+      exportProj?.code || '',
+      (k.id && k.target_value == null) ? 'N' : (k.target_value ?? ''),
       k.estimated_output ?? '',
     ];
     kpiAreaItems.forEach(a => row.push(k._areas?.[a.id] ?? ''));
@@ -2836,12 +3452,23 @@ function exportKpiExcel() {
 }
 
 function openKpiImportModal() {
-  if (!kpiProjectId) { toast('Select a project first.', 'error'); return; }
+  if (!kpiProjectId) { toast('No project selected.', 'info'); return; }
   document.getElementById('kpi-import-preview-wrap').innerHTML = '';
   document.getElementById('kpi-import-confirm-btn').style.display = 'none';
+  document.getElementById('kpi-import-back-btn').style.display = 'none';
   document.getElementById('kpi-import-file').value = '';
   kpiImportParsed = null;
+  document.getElementById('kpi-import-drop').style.display = '';
   openModal('kpi-import-modal');
+}
+
+function backKpiImport() {
+  document.getElementById('kpi-import-preview-wrap').innerHTML = '';
+  document.getElementById('kpi-import-confirm-btn').style.display = 'none';
+  document.getElementById('kpi-import-back-btn').style.display = 'none';
+  document.getElementById('kpi-import-file').value = '';
+  kpiImportParsed = null;
+  document.getElementById('kpi-import-drop').style.display = '';
 }
 
 function handleKpiImportDrop(e) {
@@ -2873,6 +3500,7 @@ function processKpiImportFile(file) {
 }
 
 function parseKpiImportRows(rows) {
+  if (!kpiProjectId) { toast('No project selected.', 'info'); return; }
   if (!rows.length) { toast('No data found in file.', 'error'); return; }
 
   // Normalize header keys — strip whitespace / BOM from all header keys
@@ -2887,30 +3515,44 @@ function parseKpiImportRows(rows) {
 
   const parsed = [];
   const errors = [];
+  const errorReasons = new Set();
+  const currentProj = projectsData.find(p => p.id === kpiProjectId);
 
   rows.forEach((row, i) => {
     const discRaw = String(row['Discipline']    || '').trim();
     const codeRaw = String(row['Doc Code']      || '').trim();
     const stepRaw = String(row['Workflow Step'] || '').trim();
-    const targetV = parseFloat(row['Target Value']);
+    const targetVRaw = String(row['Target Value'] ?? '').trim();
+    let targetV;
+    if (['N', 'NA', 'N/A'].includes(targetVRaw.toUpperCase())) {
+      targetV = null; // explicit "not tracked"
+    } else {
+      targetV = parseFloat(targetVRaw);
+    }
+	const projCode = String(row['Project Code'] || '').trim();
+    if (projCode && currentProj && projCode.toLowerCase() !== currentProj.code.toLowerCase()) {
+      errors.push(`Row ${i+2}: project code "${projCode}" does not match "${currentProj.code}"`);
+      errorReasons.add('Project Code does not match');
+      return;
+    }
 
-    if (!discRaw)        { errors.push(`Row ${i+2}: missing Discipline`); return; }
-    if (!codeRaw)        { errors.push(`Row ${i+2}: missing Doc Code`); return; }
-    if (!stepRaw)        { errors.push(`Row ${i+2}: missing Workflow Step`); return; }
-    if (isNaN(targetV))  { errors.push(`Row ${i+2}: invalid Target Value`); return; }
+    if (!discRaw)        { errors.push(`Row ${i+2}: missing Discipline`); errorReasons.add('Missing Discipline'); return; }
+    if (!codeRaw)        { errors.push(`Row ${i+2}: missing Doc Code`); errorReasons.add('Missing Doc Code'); return; }
+    if (!stepRaw)        { errors.push(`Row ${i+2}: missing Workflow Step`); errorReasons.add('Missing Workflow Step'); return; }
+    if (targetV !== null && isNaN(targetV)) { errors.push(`Row ${i+2}: invalid Target Value (use a number or "N")`); errorReasons.add('Invalid Target Value'); return; }
 
     const disc = disciplinesData.find(d => d.name.toLowerCase() === discRaw.toLowerCase());
-    if (!disc) { errors.push(`Row ${i+2}: discipline "${discRaw}" not found`); return; }
+    if (!disc) { errors.push(`Row ${i+2}: discipline "${discRaw}" not found`); errorReasons.add('Discipline mismatch'); return; }
 
     const docCode = docCodesData.find(d => d.code.toLowerCase() === codeRaw.toLowerCase());
-    if (!docCode) { errors.push(`Row ${i+2}: doc code "${codeRaw}" not found`); return; }
+    if (!docCode) { errors.push(`Row ${i+2}: doc code "${codeRaw}" not found`); errorReasons.add('Doc Code mismatch'); return; }
 
     const actType = docCode.activity_type || 'drawing';
     const step = stepsData.find(s =>
       s.name.toLowerCase() === stepRaw.toLowerCase() &&
       (s.activity_type || 'drawing') === actType
     );
-    if (!step) { errors.push(`Row ${i+2}: workflow step "${stepRaw}" not found for activity type "${KPI_ACT_LABELS[actType] || actType}"`); return; }
+    if (!step) { errors.push(`Row ${i+2}: workflow step "${stepRaw}" not found for activity type "${KPI_ACT_LABELS[actType] || actType}"`); errorReasons.add('Workflow Step mismatch'); return; }
 
     // Area breakdown — match any extra column headers to area names
     const areas = {};
@@ -2926,6 +3568,15 @@ function parseKpiImportRows(rows) {
 
     const estimated_output = hasAreaCols ? areaSum : (parseFloat(row['Estimated Output']) || 0);
 
+    const dupKey = `${disc.id}|${docCode.id}|${step.id}`;
+    const dupIndex = parsed.findIndex(p => `${p.discipline_id}|${p.doc_code_id}|${p.step_id}` === dupKey);
+    if (dupIndex !== -1) {
+      errors.push(`Row ${i+2}: duplicate of row ${parsed[dupIndex]._rowNum} (same Discipline/Doc Code/Workflow Step: ${discRaw} / ${codeRaw} / ${stepRaw}) — skipped, only the first occurrence is kept`);
+      errorReasons.add('Duplicate row within file');
+      return;
+    }
+
+    const existing = kpiData.find(k => k.discipline_id === disc.id && k.doc_code_id === docCode.id && k.step_id === step.id);
     parsed.push({
       discipline_id: disc.id,    discName: disc.name,
       doc_code_id:   docCode.id, docCode:  docCode.code,
@@ -2934,12 +3585,14 @@ function parseKpiImportRows(rows) {
       target_value:  targetV,
       estimated_output,
       areas,
+      existing_id: existing?.id || null,
+      _rowNum: i + 2,
     });
   });
 
-  if (errors.length) {
-    toast(errors.slice(0, 3).join(' | ') + (errors.length > 3 ? ` (+${errors.length-3} more)` : ''), 'error');
-    if (!parsed.length) return;
+  if (errors.length && !parsed.length) {
+    toast(`No items imported. ${[...errorReasons].join(', ') || 'Check the file and try again.'}`, 'error');
+    return;
   }
 
   kpiImportParsed = parsed;
@@ -2947,7 +3600,7 @@ function parseKpiImportRows(rows) {
   let html = `
     <div style="margin:14px 0 8px;font-size:12px;color:var(--text-3);">
       <strong style="color:var(--text);">${parsed.length} rows</strong> ready to import.
-      ${errors.length ? `<span style="color:var(--red);margin-left:8px;">${errors.length} rows skipped.</span>` : ''}
+      ${errors.length ? `<span style="color:var(--red);margin-left:8px;">${errors.length} rows skipped. ${[...errorReasons].join(', ')}.</span>` : ''}
     </div>
     <div class="import-preview"><table>
       <thead><tr>
@@ -2959,7 +3612,7 @@ function parseKpiImportRows(rows) {
           <td style="font-family:monospace;">${p.docCode}</td>
           <td>${KPI_ACT_LABELS[p.activityType] || p.activityType}</td>
           <td>${p.stepName}</td>
-          <td style="color:var(--accent);">${Number(p.target_value).toLocaleString()}</td>
+          <td style="color:var(--accent);">${p.target_value != null ? Number(p.target_value).toLocaleString() : '<span style="color:var(--text-4);font-style:italic;">NA</span>'}</td>
           <td>${p.estimated_output ? Number(p.estimated_output).toLocaleString() : '—'}</td>
         </tr>`).join('')}
       </tbody>
@@ -2967,6 +3620,21 @@ function parseKpiImportRows(rows) {
 
   document.getElementById('kpi-import-preview-wrap').innerHTML = html;
   document.getElementById('kpi-import-confirm-btn').style.display = 'flex';
+  document.getElementById('kpi-import-back-btn').style.display = 'flex';
+  document.getElementById('kpi-import-drop').style.display = 'none';
+}
+
+async function withRetry(fn, attempts = 3, delayMs = 400) {
+  let lastError;
+  for (let i = 0; i < attempts; i++) {
+    const result = await fn();
+    if (!result.error) return result;
+    lastError = result.error;
+    // Only retry on transient-looking errors (network/timeout), not constraint violations
+    if (!/timeout|network|fetch|ECONN/i.test(lastError.message || '')) return result;
+    await new Promise(r => setTimeout(r, delayMs * (i + 1)));
+  }
+  return { error: lastError };
 }
 
 async function confirmKpiImport() {
@@ -2986,17 +3654,52 @@ async function confirmKpiImport() {
       target_value:       p.target_value,
       estimated_output:   p.estimated_output,
     };
-    const { data, error } = await db.from('target_kpi').insert(payload).select('id').single();
+
+    let kpiId = p.existing_id;
+    let error;
+
+    if (kpiId) {
+      ({ error } = await withRetry(() => db.from('target_kpi').update(payload).eq('id', kpiId)));
+    } else {
+      const insertResult = await withRetry(() => db.from('target_kpi').insert(payload).select('id').single());
+      error = insertResult.error;
+      if (!error) {
+        kpiId = insertResult.data.id;
+      } else {
+        // Insert failed — a row for this project/discipline/doc-code/step already
+        // exists (possibly more than one, left over from an earlier buggy import).
+        // Fetch all matches instead of assuming exactly one, update the first, and
+        // clean up any extras so duplicates don't linger.
+        const { data: foundRows } = await db.from('target_kpi').select('id')
+          .eq('project_id', kpiProjectId).eq('discipline_id', p.discipline_id)
+          .eq('doc_code_id', p.doc_code_id).eq('step_id', p.step_id);
+        if (foundRows && foundRows.length) {
+          const keepId = foundRows[0].id;
+          const upd = await db.from('target_kpi').update(payload).eq('id', keepId);
+          error = upd.error;
+          if (!error) {
+            kpiId = keepId;
+            const extraIds = foundRows.slice(1).map(r => r.id);
+            if (extraIds.length) {
+              await db.from('target_kpi_areas').delete().in('kpi_id', extraIds);
+              await db.from('target_kpi').delete().in('id', extraIds);
+            }
+          }
+        }
+      }
+    }
+
     if (error) { errors.push(error.message); continue; }
     success++;
 
     const areaEntries = Object.entries(p.areas || {});
     if (areaEntries.length) {
       const areaRows = areaEntries.map(([structure_item_id, val]) => ({
-        kpi_id:            data.id,
+        kpi_id:            kpiId,
         structure_item_id,
         estimated_output:  val,
       }));
+      await db.from('target_kpi_areas').delete().eq('kpi_id', kpiId);
       await db.from('target_kpi_areas').insert(areaRows);
     }
   }
@@ -3015,7 +3718,7 @@ async function confirmKpiImport() {
 }
 
 async function openAddKpi() {
-  if (!kpiProjectId) { toast('Select a project first.', 'error'); return; }
+  if (!kpiProjectId) { toast('No project selected.', 'info'); return; }
   const proj = projectsData.find(p => p.id === kpiProjectId);
   document.getElementById('kpi-id').value               = '';
   document.getElementById('kpi-value').value            = '';
@@ -3030,22 +3733,30 @@ async function openAddKpi() {
   openModal('kpi-modal');
 }
 
-async function openEditKpi(id) {
-  const k = kpiData.find(x => x.id === id);
+async function openEditKpi(key) {
+  const k = kpiData.find(x => kpiRowKey(x) === key);
   if (!k) return;
   const actType = k.document_codes?.activity_type || 'drawing';
+  const proj = projectsData.find(p => p.id === kpiProjectId);
 
-  document.getElementById('kpi-id').value               = k.id;
-  document.getElementById('kpi-value').value            = k.target_value || '';
+  document.getElementById('kpi-id').value               = k.id || '';
+  document.getElementById('kpi-value').value = (k.id && k.target_value == null) ? 'N' : (k.target_value ?? '');
   document.getElementById('kpi-estimated-output').value = k.estimated_output != null ? k.estimated_output : '0';
-  document.getElementById('kpi-project-display').value  = k.projects ? `${k.projects.code} — ${k.projects.name}` : '—';
-  document.getElementById('kpi-discipline').innerHTML =
-    disciplinesData.map(d => `<option value="${d.id}" ${d.id === k.disciplines?.id ? 'selected' : ''}>${d.name}</option>`).join('');
+  document.getElementById('kpi-project-display').value  = proj ? `${proj.code} — ${proj.name}` : '—';
+
+  // Discipline, doc code and step are fixed by the catalog (Positions / Admin →
+  // Deliverables / Admin → Workflow Steps) — locked here, not choosable.
+  document.getElementById('kpi-discipline').innerHTML = `<option value="${k.discipline_id}">${k.disciplines?.name}</option>`;
+  document.getElementById('kpi-discipline').disabled = true;
   document.getElementById('kpi-activity-type').value = actType;
-  onKpiActivityChange();
-  document.getElementById('kpi-doc-code').value = k.document_codes?.id || '';
-  document.getElementById('kpi-step').value     = k.workflow_steps?.id || '';
-  document.getElementById('kpi-modal-title').innerHTML = `${IC.edit} Edit Target KPI`;
+  document.getElementById('kpi-activity-type').disabled = true;
+  document.getElementById('kpi-value-label').textContent = `Target Value (${KPI_UNITS[actType] || ''})`;
+  document.getElementById('kpi-doc-code').innerHTML = `<option value="${k.doc_code_id}">${k.document_codes?.code} — ${k.document_codes?.type}</option>`;
+  document.getElementById('kpi-doc-code').disabled = true;
+  document.getElementById('kpi-step').innerHTML = `<option value="${k.step_id}">${k.workflow_steps?.name}</option>`;
+  document.getElementById('kpi-step').disabled = true;
+
+  document.getElementById('kpi-modal-title').innerHTML = `${IC.edit} ${k.disciplines?.name} — ${k.document_codes?.code} — ${k.workflow_steps?.name}`;
   await renderKpiAreaBreakdown(k.id);
   openModal('kpi-modal');
 }
@@ -3056,13 +3767,20 @@ async function saveKpi() {
   const discipline_id    = document.getElementById('kpi-discipline').value;
   const doc_code_id      = document.getElementById('kpi-doc-code').value;
   const step_id          = document.getElementById('kpi-step').value;
-  const target_value     = parseFloat(document.getElementById('kpi-value').value);
+  const rawValue         = document.getElementById('kpi-value').value.trim();
   const estimated_output = parseFloat(document.getElementById('kpi-estimated-output').value) || 0;
 
   if (!discipline_id)      { toast('Select a discipline.', 'error'); return; }
   if (!doc_code_id)        { toast('Select a doc code.', 'error'); return; }
   if (!step_id)            { toast('Select a workflow step.', 'error'); return; }
-  if (isNaN(target_value)) { toast('Enter a valid target value.', 'error'); return; }
+  
+  let target_value;
+  if (['N', 'NA', 'N/A'].includes(rawValue.toUpperCase())) {
+    target_value = null;
+  } else {
+    target_value = parseFloat(rawValue);
+    if (rawValue === '' || isNaN(target_value)) { toast('Enter a valid target value, or "N"/"NA" if not tracked.', 'error'); return; }
+  }
 
   btn.disabled = true; btn.textContent = 'Saving…';
 
@@ -3102,11 +3820,31 @@ async function saveKpi() {
   await loadKpi();
 }
 
-async function deleteKpi(id) {
-  confirmDialog('Delete this KPI?', async () => {
+async function deleteAllKpi() {
+  if (!kpiProjectId) { toast('No project selected.', 'info'); return; }
+  const ids = kpiData.map(k => k.id).filter(Boolean); // exclude unsaved catalog rows (id: null)
+  if (!ids.length) { toast('No data to delete for this project.', 'info'); return; }
+
+  openTypeConfirm(
+    'This will permanently clear all Target KPI values for this project. This cannot be undone.',
+    'Clear',
+    'Clear All',
+    async () => {
+      await db.from('target_kpi_areas').delete().in('kpi_id', ids);
+      const { error } = await db.from('target_kpi').delete().in('id', ids);
+      if (error) { toast('Error: ' + error.message, 'error'); return; }
+      toast('All KPI values cleared.', 'success');
+      await loadKpi();
+    }
+  );
+}
+
+async function clearKpiValue(id) {
+  confirmDialog('Clear this KPI\'s target value and area breakdown?', async () => {
+    await db.from('target_kpi_areas').delete().eq('kpi_id', id);
     const { error } = await db.from('target_kpi').delete().eq('id', id);
     if (error) { toast('Error: ' + error.message, 'error'); return; }
-    toast('KPI deleted.', 'success');
+    toast('Cleared.', 'success');
     await loadKpi();
   });
 }

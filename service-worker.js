@@ -19,13 +19,14 @@ self.addEventListener('activate', e => {
   );
 });
 
-// ── FETCH (network-first, cache fallback) ───────────────────
-self.addEventListener('fetch', e => {
-  if (e.request.method !== 'GET') return;
-  e.respondWith(
-    fetch(e.request).catch(() => caches.match(e.request))
-  );
-});
+// ── FETCH ─────────────────────────────────────────────────
+// NOTE: intentionally not intercepting fetch requests. This service
+// worker doesn't currently pre-cache any files (no caches.open()/.put()
+// calls anywhere in this file), so intercepting requests here provided
+// no real offline fallback — it only caused every request to be
+// duplicated (once by the page, once by this handler refetching it).
+// If real offline support is wanted later, this is the place to add
+// a proper install-time precache + cache-first strategy.
 
 // ── PUSH NOTIFICATIONS ──────────────────────────────────────
 self.addEventListener('push', e => {

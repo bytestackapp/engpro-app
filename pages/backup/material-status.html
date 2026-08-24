@@ -1,0 +1,1414 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Material Status — EngPro App</title>
+  <link rel="stylesheet" href="../css/main.css" />
+  <style>
+    .table-wrapper { overflow-x:auto; overflow-y:auto; max-height:calc(100vh - 280px); position:relative; }
+    .table-wrapper table { width:max-content; min-width:100%; border-collapse:collapse; }
+    table thead th { position:sticky; top:0; z-index:2; background:var(--bg-3); }
+    table th, table td { text-align:center; padding:8px 10px; white-space:nowrap; }
+    table th:first-child, table td:first-child { text-align:left; }
+	
+	/* ── FROZEN COLUMNS: Project / Discipline / MTO No. / MTO Rev. ── */
+    .table-wrapper table th:nth-child(-n+4),
+    .table-wrapper table td:nth-child(-n+4):not([colspan]) {
+      position: sticky;
+      background: var(--frozen-td-bg, var(--bg-2));
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    
+    /* fixed widths so left offsets never drift */
+    .table-wrapper table th:nth-child(1), .table-wrapper table td:nth-child(1):not([colspan]) { left:0px;   width:90px;  min-width:90px;  max-width:90px; }
+    .table-wrapper table th:nth-child(2), .table-wrapper table td:nth-child(2):not([colspan]) { left:90px;  width:110px; min-width:110px; max-width:110px; }
+    .table-wrapper table th:nth-child(3), .table-wrapper table td:nth-child(3):not([colspan]) { left:200px; width:240px; min-width:240px; max-width:240px; }
+    .table-wrapper table th:nth-child(4), .table-wrapper table td:nth-child(4):not([colspan]) { left:440px; width:90px;  min-width:90px;  max-width:90px; }
+    
+    /* header frozen cells must out-rank both scrolling headers AND frozen body cells */
+    .table-wrapper table thead th:nth-child(-n+4) {
+      z-index: 3;
+      background: var(--bg-3); /* match the existing sticky-header background */
+    }
+    
+    /* frozen body cells sit above normal (non-sticky) body cells */
+    .table-wrapper table tbody td:nth-child(-n+4):not([colspan]) {
+      z-index: 1;
+    }
+    
+    /* boundary shadow — only on the 4th column so it doesn't double up */
+    .table-wrapper table th:nth-child(4),
+    .table-wrapper table td:nth-child(4):not([colspan]) {
+      box-shadow: 4px 0 6px -4px rgba(0,0,0,0.35);
+    }
+
+    /* ── CYCLE CELLS (stacked TBE / PO entries) ── */
+    .cycle-cell { display:flex; flex-direction:column; gap:5px; align-items:center; min-width:80px; }
+    .cycle-item { display:flex; align-items:center; gap:5px; font-size:11px; color:var(--text-3); white-space:nowrap; }
+
+    /* ── CYCLE ACTION CELL ── */
+    .cycle-actions { display:flex; flex-direction:column; gap:4px; align-items:center; }
+    .cycle-action-row { display:flex; gap:3px; }
+
+    /* ── SUB-HEADER ROW ── */
+    .sub-header-row th {
+      font-size:10px; font-weight:600; color:var(--text-3);
+      padding:3px 8px; background:var(--bg-4);
+      border-bottom:2px solid var(--border-2);
+    }
+
+    /* ── SECTION HEADER COLORS ── */
+    .th-tbe { color:var(--blue,#60a5fa) !important; border-bottom:2px solid var(--blue,#60a5fa) !important; }
+    .th-po  { color:var(--green,#4ade80) !important; border-bottom:2px solid var(--green,#4ade80) !important; }
+    .th-pr  { color:var(--accent) !important; border-bottom:2px solid var(--accent) !important; }
+    .th-mto { color:var(--text-4) !important; border-bottom:2px solid var(--text-4) !important; }
+
+    /* toolbar */
+    .table-toolbar { display:flex; align-items:center; gap:8px; margin-bottom:12px; flex-wrap:wrap; }
+    .search-box-sm { position:relative; width:200px; }
+    .search-box-sm input { padding-left:28px; font-size:12px; padding-top:6px; padding-bottom:6px; }
+    .search-box-sm::before { content:''; position:absolute; left:9px; top:50%; transform:translateY(-50%); width:13px; height:13px; background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='13' height='13' viewBox='0 0 24 24' fill='none' stroke='%23555' stroke-width='2'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cpath d='m21 21-4.35-4.35'/%3E%3C/svg%3E") no-repeat center; }
+    .toolbar-right { margin-left:auto; display:flex; gap:6px; align-items:center; }
+
+    /* col manager */
+    .col-manager { display:flex; flex-direction:column; gap:6px; }
+    .col-item { display:flex; align-items:center; gap:10px; padding:8px 10px; background:var(--bg-4); border:1px solid var(--border); border-radius:var(--radius); font-size:13px; color:var(--text-2); }
+    .col-item input[type="checkbox"] { accent-color:var(--accent); width:auto; }
+    .col-add-row { display:flex; gap:8px; margin-top:10px; }
+    .col-add-row input { flex:1; }
+	
+	input:disabled, select:disabled, textarea:disabled { cursor: not-allowed; }
+
+    /* badges */
+    .badge-pr-approved  { background:color-mix(in srgb,var(--green) 15%,transparent); color:var(--green); border:1px solid color-mix(in srgb,var(--green) 30%,transparent); }
+    .badge-pr-pending   { background:color-mix(in srgb,var(--yellow) 15%,transparent); color:var(--yellow); border:1px solid color-mix(in srgb,var(--yellow) 30%,transparent); }
+    .badge-pr-draft     { background:color-mix(in srgb,var(--text-4) 15%,transparent); color:var(--text-3); border:1px solid var(--border); }
+    .badge-pr-cancelled { background:color-mix(in srgb,var(--red) 15%,transparent); color:var(--red); border:1px solid color-mix(in srgb,var(--red) 30%,transparent); }
+
+	.badge-delivery-undelivered { background:color-mix(in srgb,var(--text-4) 15%,transparent); color:var(--text-3); border:1px solid var(--border); }
+	.badge-delivery-partial     { background:color-mix(in srgb,var(--yellow) 15%,transparent); color:var(--yellow); border:1px solid color-mix(in srgb,var(--yellow) 30%,transparent); }
+	.badge-delivery-completed   { background:color-mix(in srgb,var(--green) 15%,transparent); color:var(--green); border:1px solid color-mix(in srgb,var(--green) 30%,transparent); }
+	.badge-delivery-cancelled   { background:color-mix(in srgb,var(--red) 15%,transparent); color:var(--red); border:1px solid color-mix(in srgb,var(--red) 30%,transparent); }
+
+    /* stats */
+    .stat-strip { display:flex; gap:12px; margin-bottom:16px; flex-wrap:wrap; }
+    .stat-chip { display:flex; align-items:center; gap:8px; padding:4px 8px; background:var(--bg-3); border:1px solid var(--border); border-radius:var(--radius-lg); font-size:12px; color:var(--text-3); }
+    .stat-chip strong { font-size:18px; font-weight:800; color:var(--text); }
+    .stat-chip.accent { border-color:var(--accent); background:var(--accent-dim); }
+    .stat-chip.accent strong { color:var(--accent-light); }
+    .stat-chip.blue { border-color:var(--blue,#60a5fa); background:color-mix(in srgb,var(--blue,#60a5fa) 10%,transparent); }
+    .stat-chip.blue strong { color:var(--blue,#60a5fa); }
+    .stat-chip.green { border-color:var(--green); background:color-mix(in srgb,var(--green) 10%,transparent); }
+    .stat-chip.green strong { color:var(--green); }
+    .stat-chip.purple { border-color:var(--purple,#c084fc); background:color-mix(in srgb,var(--purple,#c084fc) 10%,transparent); }
+    .stat-chip.purple strong { color:var(--purple,#c084fc); }
+    .stat-chip.red { border-color:var(--red,#f87171); background:color-mix(in srgb,var(--red,#f87171) 10%,transparent); }
+    .stat-chip.red strong { color:var(--red,#f87171); }
+	.stat-chip.yellow { border-color:var(--yellow); background:color-mix(in srgb,var(--yellow) 10%,transparent); }
+	.stat-chip.yellow strong { color:var(--yellow); }
+    /* Zero override — placed last so it wins the cascade over any color class above,
+       regardless of whether the chip is .blue/.accent/.green/.purple/.red */
+    .stat-chip.zero { border-color:var(--border); background:var(--bg-3); }
+    .stat-chip.zero strong { color:var(--text-4); }
+
+	
+	/* ── AREA MULTI-SELECT DROPDOWN ── */
+    .area-dropdown-wrapper { position: relative; }
+    .area-dropdown-trigger {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 7px 10px; background: var(--bg-4); border: 1px solid var(--border-2);
+      border-radius: var(--radius); cursor: pointer; font-size: 13px; color: var(--text-2);
+      min-height: 36px; gap: 8px; user-select: none;
+    }
+    .area-dropdown-trigger:hover { border-color: var(--accent); }
+    .area-dropdown-trigger .area-trigger-text { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-3); }
+    .area-dropdown-trigger .area-trigger-text.has-value { color: var(--text-2); }
+    .area-dropdown-trigger .area-chevron { flex-shrink: 0; color: var(--text-4); transition: transform 0.15s; }
+    .area-dropdown-trigger.open .area-chevron { transform: rotate(180deg); }
+    .area-dropdown-list {
+      display: none; position: absolute; top: calc(100% + 4px); left: 0; right: 0;
+      background: var(--bg-3); border: 1px solid var(--border-2); border-radius: var(--radius);
+      z-index: 999; max-height: 200px; overflow-y: auto;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+    }
+    .area-dropdown-list.open { display: block; }
+    .area-dropdown-item {
+      display: flex; align-items: center; gap: 10px;
+      padding: 8px 12px; cursor: pointer; font-size: 13px; color: var(--text-2);
+      transition: background 0.1s;
+    }
+    .area-dropdown-item:hover { background: var(--bg-4); }
+    .area-dropdown-item input[type="checkbox"] { accent-color: var(--accent); width: 14px; height: 14px; flex-shrink: 0; cursor: pointer; }
+    .area-dropdown-item.checked { background: var(--accent-dim); color: var(--accent-light); }
+	
+	/* ── IMPORT DROP ZONE — hover + drag-over share the same accent state ── */
+    .import-drop-zone {
+      border: 2px dashed var(--border-2);
+      background: var(--bg-4);
+      transition: border-color .2s, background .2s;
+    }
+    .import-drop-zone:hover,
+    .import-drop-zone.drag-over {
+      border-color: var(--accent);
+      background: var(--accent-dim);
+    }
+  </style>
+</head>
+<body>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="../js/supabase.js"></script>
+  <script src="../js/utils.js"></script>
+  <script src="../js/layout.js"></script>
+  <script src="../js/messaging.js"></script>
+  <script>
+    let items=[], currentPage=1;
+    const perPage=50;
+    let searchQ='', filterDiscipline='', filterPRStatus='';
+
+    // Page-level project gate — nothing loads until a project is selected (same pattern as Eng. Calculations)
+    let matProjectCode = ''; // material_status has no project_id FK in this file; project_code is the natural key already used everywhere
+    let importData=[];
+	let validImportRows    = [];
+    let skippedProjectRows = [];
+    let flaggedImportRows  = [];
+
+    // ── COLUMN DEFINITIONS ──────────────────────────────────
+    const BASE_COLS = [
+	  { key:'project_code',    label:'PROJECT',              locked:true,    visible:true },
+      { key:'discipline_code', label:'DISCIPLINE',           locked:true,    visible:true },
+      { key:'mto_number',      label:'MTO NO.',              locked:true,    visible:true },
+	  { key:'mto_revision',    label:'MTO REV.',             locked:true,    visible:true },
+      { key:'mto_description', label:'MTO DESCRIPTION',      locked:true,    visible:true },
+      { key:'area_system',     label:'AREA / SYSTEM',        locked:false,   visible:true },
+      { key:'pr_description',  label:'PR DESCRIPTION',       locked:true,    visible:true },
+      { key:'pr_entries',      label:'PURCHASE REQUISITION', locked:true,    visible:true },
+      { key:'tbe_entries',     label:'TBE / PO',             locked:true,    visible:true },
+      { key:'remarks',         label:'REMARKS',              locked:false,   visible:true },
+    ];
+
+    // Sub-column definitions for pr_entries — 5 flat cols (no group header)
+    const PR_SUB = [
+      { sub:'pr_no',          label:'PR NO.',         group:'pr' },
+      { sub:'pr_revision',    label:'PR REV.',        group:'pr' },
+      { sub:'date_created',   label:'DATE CREATED',   group:'pr' },
+      { sub:'date_approved',  label:'DATE APPROVED',  group:'pr' },
+      { sub:'pr_status',      label:'STATUS',         group:'pr' },
+    ];
+
+    // Sub-column definitions for tbe_entries — 7 flat cols (no group header)
+    const TBE_SUB = [
+      { sub:'tbe_number',        label:'TBE NO.',       group:'tbe', width:'180px' },
+      { sub:'tbe_revision',      label:'TBE REV.',      group:'tbe', width:'40px'  },
+      { sub:'offer_date',        label:'OFFER DATE',    group:'tbe', width:'80px' },
+      { sub:'returned_date',     label:'RETURNED DATE', group:'tbe', width:'80px' },
+      { sub:'po_number',         label:'PO NO.',        group:'po'  },
+      { sub:'po_approved',       label:'PO APPROVED',   group:'po'  },
+      { sub:'delivery_date',     label:'DELIVERY',      group:'po'  },
+	  { sub:'delivery_status',   label:'DELIVERY STATUS', group:'po'  },
+    ];
+
+    let activeCols=[];
+	let structureItems = [];
+	let tbeEditData = [];   // [{id, tbe_number, tbe_revision, offer_received_date, tbe_returned_date}] — auto-populated from tbe_items, only the two dates are editable here
+    let prEditData  = [];   // [{id, pr_no, pr_revision, date_created, date_approved, pr_status}]        — auto-populated from purchase_requisitions, only date_approved/pr_status are editable here
+    let poData  = [];
+    let poDeletedIds = []; // ids of existing po_items rows to delete on save
+
+    // TBE numbers/revisions are created only via Manhours Input. This page can only
+    // record Offer Received / TBE Returned dates against the TBE items that already exist.
+    function renderTbeForm() {
+      const el = document.getElementById('tbe-list-container');
+      if (!el) return;
+      el.innerHTML = tbeEditData.map((t, i) => `
+        <div style="display:grid;grid-template-columns:1.6fr 0.5fr 140px 140px;gap:10px;align-items:end;margin-bottom:8px;padding:10px 12px;background:color-mix(in srgb,var(--blue) 5%,var(--bg-4));border:1px solid color-mix(in srgb,var(--blue) 20%,transparent);border-radius:var(--radius);">
+          <div class="form-group" style="margin:0;">
+            <label style="font-size:11px;">TBE Number</label>
+            <input type="text" value="${esc(t.tbe_number||'—')}" disabled style="opacity:0.7;" />
+          </div>
+          <div class="form-group" style="margin:0;">
+            <label style="font-size:11px;">TBE Rev</label>
+            <input type="text" value="${esc(t.tbe_revision ?? 0)}" disabled style="opacity:0.7;" />
+          </div>
+          <div class="form-group" style="margin:0;">
+            <label style="font-size:11px;">Offer Received</label>
+            <input type="date" value="${t.offer_received_date||''}" oninput="tbeEditData[${i}].offer_received_date=this.value" />
+          </div>
+          <div class="form-group" style="margin:0;">
+            <label style="font-size:11px;">TBE Returned</label>
+            <input type="date" value="${t.tbe_returned_date||''}" disabled style="opacity:0.7;" />
+          </div>
+        </div>
+      `).join('');
+    }
+
+    // PR No./Revision are created only via Manhours Input. This page can only record
+    // Date Approved and manage business Status (Issued → Approved automatically, or a
+    // manual Cancelled override) against the PR(s) already linked to this MTO.
+    function renderPrForm() {
+      const el = document.getElementById('pr-list-container');
+      if (!el) return;
+      el.innerHTML = prEditData.map((p, i) => `
+        <div style="display:grid;grid-template-columns:1.3fr 0.6fr 140px 140px 1fr;gap:10px;align-items:center;margin-bottom:8px;padding:10px 12px;background:color-mix(in srgb,var(--accent) 5%,var(--bg-4));border:1px solid color-mix(in srgb,var(--accent) 20%,transparent);border-radius:var(--radius);">
+          <div class="form-group" style="margin:0;">
+            <label style="font-size:11px;">PR Number</label>
+            <input type="text" value="${esc(p.pr_no||'—')}" disabled style="opacity:0.7;" />
+          </div>
+          <div class="form-group" style="margin:0;">
+            <label style="font-size:11px;">PR Rev</label>
+            <input type="text" value="${esc(p.pr_revision ?? 0)}" disabled style="opacity:0.7;" />
+          </div>
+          <div class="form-group" style="margin:0;">
+            <label style="font-size:11px;">Date Created</label>
+            <input type="date" value="${p.date_created||''}" disabled style="opacity:0.7;" />
+          </div>
+          <div class="form-group" style="margin:0;">
+            <label style="font-size:11px;">Date Approved</label>
+            <input type="date" value="${p.date_approved||''}" oninput="onPrDateApprovedChange(${i}, this.value)" />
+          </div>
+          <div class="form-group" style="margin:0;">
+            <label style="font-size:11px;">Status</label>
+            <select onchange="prEditData[${i}].pr_status=this.value">
+              <option value="Issued" ${p.pr_status==='Issued'||!p.pr_status?'selected':''}>Issued</option>
+              <option value="Approved" ${p.pr_status==='Approved'?'selected':''}>Approved</option>
+              <option value="Cancelled" ${p.pr_status==='Cancelled'?'selected':''}>Cancelled</option>
+            </select>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    // Date Approved getting a value auto-promotes status to Approved (unless the user has
+    // manually cancelled it); clearing it reverts an auto-Approved status back to Issued.
+    // A manual "Cancelled" selection is left alone either way — there's no logic to auto-undo it.
+    function onPrDateApprovedChange(i, value) {
+      prEditData[i].date_approved = value;
+      if (prEditData[i].pr_status === 'Cancelled') return;
+      prEditData[i].pr_status = value ? 'Approved' : 'Issued';
+      renderPrForm();
+    }
+
+    function renderPoForm() {
+      const el = document.getElementById('po-list-container');
+      if (!el) return;
+      if (!poData.length) {
+        el.innerHTML = `<p style="font-size:12px;color:var(--text-4);text-align:center;padding:8px;">No PO entries yet. Click Add PO to start.</p>`;
+        return;
+      }
+      el.innerHTML = poData.map((p, i) => `
+        <div style="position:relative;display:grid;grid-template-columns:0.9fr 140px 140px 1.2fr;gap:10px;align-items:end;margin-bottom:8px;padding:10px 28px 10px 12px;background:color-mix(in srgb,var(--green) 5%,var(--bg-4));border:1px solid color-mix(in srgb,var(--green) 20%,transparent);border-radius:var(--radius);">
+          <button onclick="removePo(${i})" style="position:absolute;top:6px;right:6px;background:none;border:none;color:var(--red,#f87171);cursor:pointer;font-size:11px;line-height:1;padding:0;" title="Remove PO">✕</button>
+          <div class="form-group" style="margin:0;">
+            <label style="font-size:11px;">PO Number</label>
+            <input type="text" value="${esc(p.po_no)||''}" placeholder="e.g. PO-001" oninput="poData[${i}].po_no=this.value" />
+          </div>
+          <div class="form-group" style="margin:0;">
+            <label style="font-size:11px;">PO Approved</label>
+            <input type="date" value="${p.po_approved_date||''}" oninput="poData[${i}].po_approved_date=this.value" />
+          </div>
+          <div class="form-group" style="margin:0;">
+            <label style="font-size:11px;">Delivery Date</label>
+            <input type="date" value="${p.delivery_date||''}" oninput="poData[${i}].delivery_date=this.value" />
+          </div>
+          <div class="form-group" style="margin:0;">
+            <label style="font-size:11px;">Delivery Status</label>
+            <select onchange="poData[${i}].delivery_status=this.value">
+              <option value="Undelivered" ${(!p.delivery_status||p.delivery_status==='Undelivered')?'selected':''}>Undelivered</option>
+              <option value="Partially Delivered" ${p.delivery_status==='Partially Delivered'?'selected':''}>Partially Delivered</option>
+              <option value="Completed" ${p.delivery_status==='Completed'?'selected':''}>Completed</option>
+              <option value="Cancelled" ${p.delivery_status==='Cancelled'?'selected':''}>Cancelled</option>
+            </select>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function addPo() { poData.push({ po_no:'', po_approved_date:'', delivery_date:'', delivery_status:'Undelivered' }); renderPoForm(); }
+    function removePo(i) { if (poData[i]?.id) poDeletedIds.push(poData[i].id); poData.splice(i, 1); renderPoForm(); }
+
+    const SVG_SM=p=>`<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
+    const IC={
+      columns:  SVG_SM('<path d="M12 3h7a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-7m0-18H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h7m0-18v18"/>'),
+      upload:   SVG_SM('<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>'),
+      download: SVG_SM('<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>'),
+      plus:     SVG_SM('<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>'),
+      edit:     SVG_SM('<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>'),
+      trash:    SVG_SM('<polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6m4-6v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>'),
+      settings: SVG_SM('<circle cx="12" cy="12" r="3"/><path d="M12 2v2m0 16v2M4.22 4.22l1.42 1.42m12.72 12.72 1.42 1.42M2 12h2m16 0h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>'),
+      lock:     SVG_SM('<rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>'),
+    };
+
+    async function pageInit(profile) {
+      injectModals(); activeCols = JSON.parse(JSON.stringify(BASE_COLS)); renderPage();
+      await loadProjects(); await loadDisciplines(); await loadItems();
+    }
+
+    function renderPage() {
+      document.getElementById('page-content').innerHTML = `
+        <div class="page-header" style="margin-bottom:14px;">
+          <h1 style="display:flex;align-items:center;gap:10px;">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M2 7l10-5 10 5-10 5-10-5z"/><path d="M2 7v10l10 5 10-5V7"/><line x1="12" y1="12" x2="12" y2="22"/></svg></svg>
+            Material Status
+          </h1>
+          <p>Track material procurement, delivery status, and inventory per project.</p>
+        </div>
+        <div class="stat-strip">
+          <div class="stat-chip yellow" id="stat-total"><strong id="s-total">—</strong>&nbsp;Total MTO</div>
+		  <div class="stat-chip accent" id="stat-pr"><strong id="s-pr">—</strong>&nbsp;PR Entries</div>
+          <div class="stat-chip blue" id="stat-tbe"><strong id="s-tbe">—</strong>&nbsp;TBE Entries</div>
+          <div class="stat-chip green" id="stat-po"><strong id="s-po">—</strong>&nbsp;PO Approved</div>
+          <div class="stat-chip purple" id="stat-delivered"><strong id="s-delivered">—</strong>&nbsp;Delivered</div>
+          <div class="stat-chip red" id="stat-flagged"><strong id="s-flagged">—</strong>&nbsp;Flagged</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;flex-wrap:nowrap;">
+          <div style="font-size:12px;color:var(--text-3);font-weight:500;">Project:</div>
+          <select id="mat-project-select" onchange="onProjectChange()" style="font-size:12px;padding:5px 8px;min-width:160px;max-width:320px;width:fit-content;">
+            <option value="">— Select a project —</option>
+          </select>
+          <div style="margin-left:auto;display:flex;gap:6px;flex-wrap:nowrap;flex-shrink:0;">
+            <button class="btn btn-ghost btn-sm" onclick="openImportModal()" style="display:flex;align-items:center;gap:5px;">${IC.download} Import Excel</button>
+            <button class="btn btn-ghost btn-sm" onclick="exportItems()" style="display:flex;align-items:center;gap:5px;">${IC.upload} Export</button>
+            <button class="btn btn-primary btn-sm" onclick="openAddModal()" style="display:flex;align-items:center;gap:5px;">${IC.plus} Add MTO</button>
+            <button class="btn btn-danger btn-sm" onclick="deleteAllItems()" style="display:flex;align-items:center;gap:5px;">${IC.trash} Delete All</button>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-body" style="padding-top:14px;padding-bottom:0;padding-left:0;padding-right:0;">
+            <div class="table-toolbar" style="margin:0 16px 12px;">
+              <div class="search-box-sm"><input type="text" id="search-input" placeholder="Search MTO, PR, PO…" oninput="onSearch(this.value)"/></div>
+              <select class="filter-select" id="filter-discipline" onchange="onFilter()" style="font-size:12px;padding:6px 10px;"><option value="">All Disciplines</option></select>
+              <select class="filter-select" id="filter-pr-status" onchange="onFilter()" style="font-size:12px;padding:6px 10px;">
+                <option value="">All PR Statuses</option>
+                <option>Issued</option><option>Approved</option><option>Cancelled</option>
+              </select>
+            </div>
+            <div class="table-wrapper" id="table-wrapper">
+              <table><thead id="material-thead"></thead><tbody id="material-tbody"></tbody></table>
+            </div>
+            <div id="material-pagination"></div>
+          </div>
+        </div>`;
+      renderTableHeader();
+    }
+
+    // ── DATA ──────────────────────────────────────────────────
+    async function loadItems() {
+      const tbody=document.getElementById('material-tbody');
+	  if (!matProjectCode) {
+        if (tbody) tbody.innerHTML = `<tr><td colspan="${totalColSpan()}" style="text-align:center;padding:40px;color:var(--text-4);">Select a project above to view its material status.</td></tr>`;
+        document.getElementById('material-pagination').innerHTML = '';
+		items = []; 
+        updateStats();
+		loadFlaggedCount();
+        return;
+      }
+      if(tbody) tbody.innerHTML=`<tr><td colspan="${totalColSpan()}" style="text-align:center;padding:30px;color:var(--text-4);"><div style="display:flex;align-items:center;justify-content:center;gap:8px;"><div class="spinner"></div> Loading…</div></td></tr>`;
+      let q=db.from('material_status')
+        .select('*, tbe_items(id, tbe_number, tbe_revision, offer_received_date, tbe_returned_date), pr_mto_links(purchase_requisitions(id, pr_no, pr_revision, date_created, date_approved, pr_status, pr_activities(created_at))), po_items(id, po_no, po_approved_date, delivery_date, delivery_status)', {count:'exact'})
+        .eq('project_code', matProjectCode)
+        .order('project_code').order('mto_number');
+      if(filterDiscipline) q=q.eq('discipline_code',filterDiscipline);
+      if(searchQ) q=q.or(`mto_number.ilike.%${searchQ}%,mto_description.ilike.%${searchQ}%,pr_description.ilike.%${searchQ}%`);
+	  
+      const from=(currentPage-1)*perPage;
+      q=q.range(from,from+perPage-1);
+      const{data,count,error}=await q;
+      if(error){ console.error('loadItems:',error); toast('Failed to load material items: '+error.message,'error'); }
+      let mapped=(data||[]).map(it=>({
+        ...it,
+        // PO now lives in its own table too — aliased onto .pos so every existing
+        // renderer/exporter/form that reads item.pos keeps working unchanged.
+        pos:(it.po_items||[]),
+        _prLines:(it.pr_mto_links||[]).map(l=>l.purchase_requisitions).filter(Boolean).map(pr=>{
+          const acts=pr.pr_activities||[];
+          const latest=acts.reduce((max,a)=>(!max||new Date(a.created_at)>new Date(max))?a.created_at:max,null);
+          return { id:pr.id, pr_no:pr.pr_no, pr_revision:pr.pr_revision??0, date_created:(latest||pr.date_created||'').toString().slice(0,10), date_approved:pr.date_approved||'', pr_status:pr.pr_status||'Issued' };
+        }),
+      }));
+      let total=count||0;
+      if(filterPRStatus){
+        mapped=mapped.filter(it=>it._prLines.some(p=>p.pr_status===filterPRStatus));
+        total=mapped.length; // page-local count once a PR-status filter narrows the current page
+      }
+      items=mapped;
+      renderTable(total); updateStats(); loadFlaggedCount();
+    }
+
+    let projectsData = [];
+
+    async function loadProjects() {
+      const{data}=await db.from('projects').select('code,name').eq('status','Active').order('code');
+      projectsData = data || [];
+      const sel=document.getElementById('mat-project-select');
+      if (sel) sel.innerHTML = `<option value="">— Select a project —</option>` + projectsData.map(p=>`<option value="${p.code}">${p.code} — ${p.name}</option>`).join('');
+      const fs=document.getElementById('f-project');
+      if(fs) fs.innerHTML=`<option value="">— Select —</option>`+projectsData.map(p=>`<option value="${p.code}" data-code="${p.code}">${p.code} — ${p.name}</option>`).join('');
+    }
+    
+    function onProjectChange() {
+      matProjectCode = document.getElementById('mat-project-select').value;
+      currentPage = 1;
+      loadItems();
+    }
+
+    async function loadDisciplines() {
+      const{data}=await db.from('disciplines').select('code,name').order('name');
+      const sel=document.getElementById('filter-discipline'); if(!sel) return;
+      const prev=sel.value;
+      sel.innerHTML=`<option value="">All Disciplines</option>`+(data||[]).map(d=>`<option value="${d.code}">${d.code} — ${d.name}</option>`).join('');
+      if(prev) sel.value=prev;
+      const fs=document.getElementById('f-discipline');
+      if(fs) fs.innerHTML=`<option value="">— Select —</option>`+(data||[]).map(d=>`<option value="${d.code}">${d.code} — ${d.name}</option>`).join('');
+    }
+
+    function setStatChip(chipId, valueId, value) {
+      const strongEl = document.getElementById(valueId);
+      if (strongEl) strongEl.textContent = value;
+      const chipEl = document.getElementById(chipId);
+      if (chipEl) chipEl.classList.toggle('zero', Number(value) === 0);
+    }
+
+    function updateStats() {
+      let prCount=0,tbeCount=0,poApproved=0,delivered=0;
+      items.forEach(it=>{
+        (it._prLines||[]).forEach(p=>{ if(p.pr_no) prCount++; });
+        (it.tbe_items||[]).forEach(t=>{ if(t.tbe_number) tbeCount++; });
+        (it.pos||[]).forEach(p=>{ if(p.po_approved_date) poApproved++; if(p.delivery_status==='Completed') delivered++; });
+      });
+      setStatChip('stat-total','s-total', items.length);
+      setStatChip('stat-pr','s-pr', prCount);
+      setStatChip('stat-tbe','s-tbe', tbeCount);
+      setStatChip('stat-po','s-po', poApproved);
+      setStatChip('stat-delivered','s-delivered', delivered);
+    }
+
+    async function loadFlaggedCount() {
+      if (!matProjectCode) { setStatChip('stat-flagged', 's-flagged', 0); return; }
+      let q = db.from('material_status')
+        .select('id', { count:'exact', head:true })
+        .not('import_review_notes', 'is', null)
+        .eq('project_code', matProjectCode);
+      if (filterDiscipline) q = q.eq('discipline_code', filterDiscipline);
+      const { count } = await q;
+      setStatChip('stat-flagged', 's-flagged', count ?? 0);
+    }
+
+    // ── TABLE HEADER ─────────────────────────────────────────
+    // tbe_entries expands to TBE_SUB.length flat cols + 1 actions col (single row, no group header)
+    function colSpan(col) { return col.key==='tbe_entries' ? TBE_SUB.length+1 : col.key==='pr_entries' ? PR_SUB.length : 1; }
+    function totalColSpan() { const n = activeCols.filter(c=>c.visible).reduce((sum,c)=>sum+colSpan(c),0) + 1; return n > 1 ? n : 22; }
+
+    function renderTableHeader() {
+      const thead = document.getElementById('material-thead');
+      if (!thead) return;
+      const visCols = activeCols.filter(c => c.visible);
+    
+      let row = '';
+      visCols.forEach(c => {
+        if (c.key === 'pr_entries') {
+          PR_SUB.forEach(s => {
+            row += `<th style="font-size:10px;font-weight:600;letter-spacing:0.5px;text-align:center;padding:6px 10px;color:var(--accent);">${s.label}</th>`;
+          });
+       } else if (c.key === 'tbe_entries') {
+          TBE_SUB.forEach(s => {
+            const col = s.group === 'tbe' ? 'color:var(--blue,#60a5fa);' : 'color:var(--green,#4ade80);';
+            const w   = s.width ? `width:${s.width};` : '';
+            row += `<th style="font-size:10px;font-weight:600;letter-spacing:0.5px;text-align:center;padding:6px 10px;${col}${w}">${s.label}</th>`;
+          });
+        } else {
+          row += `<th style="font-size:10px;font-weight:700;letter-spacing:0.8px;text-align:${c.key === 'mto_description' || c.key === 'pr_description' || c.key === 'remarks' ? 'left' : 'center'};padding:6px 10px;">${c.label}</th>`;
+        }
+      });
+      row += `<th style="font-size:10px;font-weight:700;letter-spacing:0.8px;text-align:center;padding:6px 10px;">ACTIONS</th>`;
+    
+      thead.innerHTML = `<tr>${row}</tr>`;
+    }
+
+    // ── RENDER TABLE ─────────────────────────────────────────
+    // ONE ROW PER MTO. TBE/PO entries stack as cycle items inside cells.
+    function renderTable(total) {
+      const tbody=document.getElementById('material-tbody'); if(!tbody) return;
+      const visCols = activeCols.filter(c => c.visible);
+
+      if(!items.length) {
+        tbody.innerHTML=`<tr><td colspan="${totalColSpan()}" style="text-align:center;padding:50px;color:var(--text-4);">No material items found.<br><span style="font-size:12px;">Click "+ Add MTO" to get started.</span></td></tr>`;
+        document.getElementById('material-pagination').innerHTML=''; return;
+      }
+
+      tbody.innerHTML=items.map(item=>{
+        const tbes=item.tbe_items||[];
+		const safeItem = encodeURIComponent(JSON.stringify(item));
+
+        const cells=visCols.map(col=>{
+          const k=col.key;
+          switch(k) {
+            case 'project_code':    return `<td style="text-align:center;font-weight:700;color:var(--accent-light);font-size:12px;">${esc(item.project_code)||'—'}</td>`;
+			case 'discipline_code': {
+              const flagged = (item.import_review_notes||'').split(',').includes('discipline_code');
+              return `<td title="${flagged?'Flagged during import — needs review':esc(item.discipline_code)||''}" style="font-size:12px;${flagged?'color:var(--red,#f87171);font-weight:700;':''}">${esc(item.discipline_code)||'—'}</td>`;
+            }
+			case 'mto_number':      return `<td title="${esc(item.mto_number)||''}" style="font-size:12px;font-weight:600;color:var(--text-2);">${esc(item.mto_number)||'—'}</td>`;
+			case 'mto_revision':    return `<td title="${esc(item.mto_revision)||''}" style="font-size:12px;color:${item.mto_revision?'var(--text-2)':'var(--text-3)'};">${esc(item.mto_revision)||'—'}</td>`;
+			case 'mto_description': return `<td style="font-size:12px;text-align:left;min-width:260px;white-space:normal;color:${item.mto_description?'var(--text-2)':'var(--text-3)'};">${esc(item.mto_description)||'—'}</td>`;
+			case 'area_system': {
+              const flagged = (item.import_review_notes||'').split(',').includes('area_system');
+              return `<td style="text-align:left;font-size:12px;color:${flagged?'var(--red,#f87171)':(item.area_system?'var(--text-2)':'var(--text-3)')};${flagged?'font-weight:700;':''}" title="${flagged?'Flagged during import — needs review':''}">${esc(item.area_system)||'—'}</td>`;
+            }
+			case 'pr_description':  return `<td style="font-size:12px;text-align:left;min-width:260px;white-space:normal;color:${item.pr_description?'var(--text-2)':'var(--text-3)'};">${esc(item.pr_description)||'—'}</td>`;
+			case 'remarks':         return `<td style="font-size:12px;color:var(--text-3);text-align:left;max-width:160px;white-space:normal;">${esc(item.remarks)||'—'}</td>`;
+
+            case 'pr_entries': {
+              const prs = item._prLines || [];
+              const prBg = 'color-mix(in srgb,var(--accent) 8%,transparent)';
+              const empty = `<td style="text-align:left;color:var(--text-4);font-size:12px;vertical-align:middle;padding:6px 10px;background:${prBg};">—</td>`;
+              if (!prs.length) return empty.repeat(PR_SUB.length);
+              const cell = (vals) => `<td style="text-align:left;vertical-align:middle;padding:6px 10px;background:${prBg};">
+                <div class="cycle-cell">${vals.map(v=>`
+                  <div class="cycle-item">
+                    <span>${v}</span>
+                  </div>`).join('')}
+                </div>
+              </td>`;
+              const c1 = cell(prs.map(p=>`<span style="font-weight:600;color:var(--text-2);">${esc(p.pr_no)||'—'}</span>`));
+              const c2 = cell(prs.map(p=>`<span style="color:var(--text-3);">${p.pr_revision ?? 0}</span>`));
+              const c3 = cell(prs.map(p=>fmtDate(p.date_created)));
+              const c4 = cell(prs.map(p=>fmtDate(p.date_approved)));
+              const c5 = cell(prs.map(p=>prStatusBadge(p.pr_status)));
+              return c1+c2+c3+c4+c5;
+            }
+
+            case 'tbe_entries': {
+              // ── Flatten all POs with their TBE index ──
+              const allPOs=(item.pos||[]).map((p,pi)=>({p,pi}));
+
+              const tbeBg  = 'color-mix(in srgb,var(--blue) 8%,transparent)';
+              const poBg   = 'color-mix(in srgb,var(--green) 8%,transparent)';
+              const emptyForCol=(width,bg)=>`<td style="text-align:left;color:var(--text-4);font-size:12px;vertical-align:middle;padding:6px 10px;background:${bg};${width?`width:${width};max-width:${width};`:''}">—</td>`;
+
+              if(!tbes.length && !allPOs.length) return TBE_SUB.map(s => emptyForCol(s.width, s.group==='po'?poBg:tbeBg)).join('');
+
+              // Helper: stacked cycle-cell
+              const cell=(items,dotCls,bg,width)=>`<td style="text-align:left;vertical-align:middle;padding:6px 10px;background:${bg};${width?`width:${width};max-width:${width};`:''}">
+                <div class="cycle-cell" style="${width?`width:${width};`:''}">${items.map(v=>`
+                  <div class="cycle-item" style="${width?`max-width:${width};overflow-wrap:break-word;word-break:break-word;`:''}">
+                    <span style="overflow-wrap:break-word;word-break:break-word;">${v}</span>
+                  </div>`).join('')}
+                </div>
+              </td>`;
+
+              // TBE NO.
+              const c1 = !tbes.length
+                ? emptyForCol(TBE_SUB[0].width, tbeBg)
+                : cell(tbes.map(t=>`<span style="font-weight:600;color:var(--text-2);">${esc(t.tbe_number)||'—'}</span>`), 'tbe', tbeBg, TBE_SUB[0].width);
+              // TBE REV.
+              const c2 = !tbes.length
+                ? emptyForCol(TBE_SUB[1].width, tbeBg)
+                : cell(tbes.map(t=>`<span style="color:var(--text-3);">${esc(t.tbe_revision)||'—'}</span>`), 'tbe', tbeBg, TBE_SUB[1].width);
+              // OFFER DATE
+              const c3 = !tbes.length
+                ? emptyForCol(TBE_SUB[2].width, tbeBg)
+                : cell(tbes.map(t=>fmtDate(t.offer_received_date)), 'tbe', tbeBg, TBE_SUB[2].width);
+              // RETURNED DATE
+              const c4 = !tbes.length
+                ? emptyForCol(TBE_SUB[3].width, tbeBg)
+                : cell(tbes.map(t=>fmtDate(t.tbe_returned_date)), 'tbe', tbeBg, TBE_SUB[3].width);
+              // PO NO.
+              const c5 = !allPOs.length
+                ? `<td style="text-align:left;vertical-align:middle;padding:6px 10px;background:${poBg};color:var(--text-4);font-size:11px;">—</td>`
+                : cell(allPOs.map(x=>`<span style="font-weight:600;color:var(--text-2);">${esc(x.p.po_no)||'—'}</span>`), 'po', poBg);
+              // PO APPROVED
+              const c6 = !allPOs.length
+                ? `<td style="text-align:left;vertical-align:middle;padding:6px 10px;background:${poBg};color:var(--text-4);font-size:11px;">—</td>`
+                : cell(allPOs.map(x=>fmtDate(x.p.po_approved_date)), 'po', poBg);
+              // DELIVERY
+              const c7 = !allPOs.length
+                ? `<td style="text-align:left;vertical-align:middle;padding:6px 10px;background:${poBg};color:var(--text-4);font-size:11px;">—</td>`
+                : cell(allPOs.map(x=>fmtDate(x.p.delivery_date)), 'po', poBg);
+              // DELIVERY STATUS
+              const c8 = !allPOs.length
+                ? `<td style="text-align:left;vertical-align:middle;padding:6px 10px;background:${poBg};color:var(--text-4);font-size:11px;">—</td>`
+                : cell(allPOs.map(x=>deliveryStatusBadge(x.p.delivery_status)), 'po', poBg);
+
+              return c1+c2+c3+c4+c5+c6+c7+c8;
+            }
+
+            default: return `<td style="font-size:12px;">${esc(item[k])||'—'}</td>`;
+          }
+        }).join('');
+
+        return `<tr>
+          ${cells}
+          <td style="text-align:center;vertical-align:top;padding:8px;">
+            <div class="table-actions" style="gap:4px;align-items:center;">
+              <button class="btn btn-icon edit" onclick="openEditModal(JSON.parse(decodeURIComponent('${safeItem}')))" title="Edit MTO">${IC.edit}</button>
+              <button class="btn btn-icon delete" onclick="deleteItem('${item.id}')" title="Delete MTO">${IC.trash}</button>
+            </div>
+          </td>
+        </tr>`;
+      }).join('');
+
+      renderPagination('material-pagination',total,currentPage,perPage,'changePage');
+      syncFrozenColumnBg();
+    }
+
+    // ── HELPERS ───────────────────────────────────────────────
+    function prStatusBadge(s){const m={'Approved':'badge badge-pr-approved','Issued':'badge badge-pr-pending','Cancelled':'badge badge-pr-cancelled'};return`<span class="${m[s]||'badge badge-pr-pending'}" style="font-size:11px;font-weight:500;">${s||'Issued'}</span>`;}
+	function deliveryStatusBadge(s){const m={'Undelivered':'badge badge-delivery-undelivered','Partially Delivered':'badge badge-delivery-partial','Completed':'badge badge-delivery-completed','Cancelled':'badge badge-delivery-cancelled'};return`<span class="${m[s]||'badge badge-delivery-undelivered'}" style="font-size:11px;font-weight:500;">${s||'Undelivered'}</span>`;}
+    function fmtDate(d){if(!d)return`<span style="color:var(--text-4);">—</span>`;try{return new Date(d).toLocaleDateString('en-US',{day:'2-digit',month:'short',year:'numeric'});}catch{return d;}}
+
+	function syncFrozenColumnBg() {
+      const wrapper = document.getElementById('table-wrapper');
+      if (!wrapper) return;
+      // Sample an actual unfrozen, non-message cell to read its real rendered background
+      const sample = wrapper.querySelector('tbody tr td:nth-child(n+5):not([colspan])');
+      if (!sample) return;
+      let node = sample, bg = null;
+      while (node && node !== document.documentElement) {
+        const c = getComputedStyle(node).backgroundColor;
+        if (c && c !== 'rgba(0, 0, 0, 0)' && c !== 'transparent') { bg = c; break; }
+        node = node.parentElement;
+      }
+      if (bg) wrapper.style.setProperty('--frozen-td-bg', bg);
+    }
+	
+    // ── MTO MODAL ─────────────────────────────────────────────
+	function openImportModal() {
+      if (!matProjectCode) { toast('Select a project first.', 'info'); return; }
+      resetImportFile();
+      openModal('import-modal');
+    }
+	
+    function openAddModal(){
+      if (!matProjectCode) { toast('Select a project first.', 'info'); return; }
+      ['f-project','f-discipline','f-mto-number','f-mto-desc','f-pr-desc','f-remarks'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
+      document.getElementById('edit-id').value='';
+      document.getElementById('modal-title').textContent=`Add MTO Item — ${matProjectCode}`;
+      document.getElementById('f-project').value = matProjectCode;
+      document.getElementById('f-project').disabled = true;
+      prEditData = []; tbeEditData = []; poData = []; poDeletedIds = [];
+      renderPrForm(); renderTbeForm(); renderPoForm();
+      loadStructureItems(matProjectCode);
+      openModal('item-modal');
+    }
+	
+    async function openEditModal(item){
+      document.getElementById('edit-id').value=item.id||'';
+      document.getElementById('modal-title').textContent='Edit MTO Item';
+      document.getElementById('f-project').value=item.project_code||'';
+	  document.getElementById('f-project').disabled = true;
+      document.getElementById('f-discipline').value=item.discipline_code||'';
+      document.getElementById('f-mto-number').value=item.mto_number||'';
+      document.getElementById('f-mto-desc').value=item.mto_description||'';
+      document.getElementById('f-pr-desc').value=item.pr_description||'';
+      document.getElementById('f-remarks').value=item.remarks||'';
+
+      prEditData  = JSON.parse(JSON.stringify(item._prLines || []));
+      tbeEditData = (item.tbe_items || []).map(t => ({ id:t.id, tbe_number:t.tbe_number, tbe_revision:t.tbe_revision, offer_received_date:t.offer_received_date?t.offer_received_date.substring(0,10):'', tbe_returned_date:t.tbe_returned_date?t.tbe_returned_date.substring(0,10):'' }));
+      poData  = JSON.parse(JSON.stringify(item.pos||[]));
+      poDeletedIds = [];
+      renderPrForm(); renderTbeForm(); renderPoForm();
+      const savedAreas = (item.area_system || '').split(',').map(v => v.trim()).filter(Boolean);
+      await loadStructureItems(item.project_code || '', savedAreas);
+      openModal('item-modal');
+    }
+	
+    async function saveItem(){
+      const id=document.getElementById('edit-id').value;
+      const mto_number=document.getElementById('f-mto-number').value.trim();
+      if(!mto_number){toast('MTO Number is required.','error');return;}
+      // NOTE: mto_revision, PR No./Revision, TBE No./Revision are NOT part of this payload —
+      // they're owned by Manhours Input and must never be overwritten from this page.
+      const payload={
+        project_code:document.getElementById('f-project').value.trim()||null,
+        discipline_code:document.getElementById('f-discipline').value.trim()||null,
+        mto_number,
+        mto_description:document.getElementById('f-mto-desc').value.trim()||null,
+        area_system:(()=>{const el=document.getElementById('f-area');if(!el)return null;if(el.tagName==='SELECT'){const vals=[...el.options].filter(o=>o.selected).map(o=>o.value);return vals.length?vals.join(', '):null;}return el.value.trim()||null;})(),
+        pr_description:document.getElementById('f-pr-desc').value.trim()||null,
+        remarks:document.getElementById('f-remarks').value.trim()||null,
+        import_review_notes:null,
+      };
+      const btn=document.querySelector('#item-modal .btn-primary');btn.textContent='Saving…';btn.disabled=true;
+      let mtoId=id;
+      let error;
+      if(id){
+        ({error}=await db.from('material_status').update(payload).eq('id',id));
+      } else {
+        const res=await db.from('material_status').insert(payload).select('id').single();
+        error=res.error;
+        mtoId=res.data?.id;
+      }
+      if(error){ btn.textContent='Save';btn.disabled=false; toast(error.message,'error');return; }
+
+      // Persist the manual PR (date_approved/pr_status) and TBE (offer/returned date) edits
+      // against the rows they already came from — only touched when editing an existing MTO.
+      if(id){
+        const prErrs=(await Promise.all(prEditData.map(p=>
+          db.from('purchase_requisitions').update({ date_approved: p.date_approved||null, pr_status: p.pr_status||'Issued' }).eq('id', p.id)
+        ))).filter(r=>r.error);
+        const tbeErrs=(await Promise.all(tbeEditData.map(t=>
+          db.from('tbe_items').update({ offer_received_date: t.offer_received_date||null, tbe_returned_date: t.tbe_returned_date||null }).eq('id', t.id)
+        ))).filter(r=>r.error);
+        if(prErrs.length || tbeErrs.length) toast('Some PR/TBE date updates failed to save.','error');
+      }
+
+      // PO now lives in its own table — insert new rows, update existing ones, delete removed ones.
+      if(mtoId){
+        const newPos=poData.filter(p=>!p.id).map(p=>({ mto_id:mtoId, po_no:p.po_no||null, po_approved_date:p.po_approved_date||null, delivery_date:p.delivery_date||null, delivery_status:p.delivery_status||'Undelivered' }));
+        const existingPos=poData.filter(p=>p.id);
+        const poErrs=[];
+        if(newPos.length){ const r=await db.from('po_items').insert(newPos); if(r.error) poErrs.push(r.error); }
+        (await Promise.all(existingPos.map(p=>
+          db.from('po_items').update({ po_no:p.po_no||null, po_approved_date:p.po_approved_date||null, delivery_date:p.delivery_date||null, delivery_status:p.delivery_status||'Undelivered' }).eq('id', p.id)
+        ))).forEach(r=>{ if(r.error) poErrs.push(r.error); });
+        if(poDeletedIds.length){ const r=await db.from('po_items').delete().in('id', poDeletedIds); if(r.error) poErrs.push(r.error); }
+        if(poErrs.length) toast('Some PO updates failed to save.','error');
+      }
+
+      btn.textContent='Save';btn.disabled=false;
+      toast(id?'Item updated.':'Item added.','success');closeModal('item-modal');await loadItems();
+    }
+    async function deleteItem(id){
+      // FIX [H11]: Replaced native confirm() with app confirmDialog() for UI consistency.
+      confirmDialog('Delete this MTO item and all its TBE/PO entries?', async () => {
+        const{error}=await db.from('material_status').delete().eq('id',id);
+        if(error){toast(error.message,'error');return;}
+        toast('Item deleted.','success');await loadItems();
+      });
+    }
+
+    // ── DELETE ALL ────────────────────────────────────────────
+    function deleteAllItems(){
+      if (!matProjectCode) { toast('Select a project first.', 'info'); return; }
+      openTypeConfirm(
+        'This will permanently delete all material items matching the current filters, for this project. This cannot be undone.',
+        'Delete',
+        'Delete All',
+        async () => {
+          let q = db.from('material_status').delete().eq('project_code', matProjectCode);
+          if (filterDiscipline) q = q.eq('discipline_code', filterDiscipline);
+          const { error } = await q;
+          if (error) { toast(error.message, 'error'); return; }
+          toast('Items deleted.', 'success');
+          currentPage = 1;
+          await loadItems();
+        }
+      );
+    }
+
+    // ── IMPORT / EXPORT ───────────────────────────────────────
+    let importConflicts     = {}; // key -> 'skip' | 'replace'
+    let importConflictMeta  = {}; // key -> { id, mto_number, project_code }
+
+    function conflictKey(projectCode, mtoNumber) {
+      return `${(projectCode||'').trim()}||${(mtoNumber||'').trim()}`;
+    }
+
+    function resetImportFile(){
+      importData=[]; importConflicts={}; importConflictMeta={};
+      validImportRows=[]; skippedProjectRows=[]; flaggedImportRows=[];
+      document.getElementById('import-upload-zone').style.display='block';
+      document.getElementById('import-details-section').style.display='none';
+      document.getElementById('import-btn').disabled=true;
+      document.getElementById('import-back-btn').style.display='none';
+      document.getElementById('import-file').value='';
+    }
+	
+    async function handleImportFile(e){const f=e.target.files[0];if(f)await processImportFile(f);}
+    async function handleImportFileDrop(f){if(f)await processImportFile(f);}
+    
+    function parseMtoNumberParts(mtoNumber) {
+      const parts = (mtoNumber || '').split('-');
+      if (parts.length < 4) return null;
+      return { projectSegment: parts[1], disciplineSegment: parts[3] };
+    }
+    
+    async function processImportFile(file){
+      try{
+        const ab=await file.arrayBuffer(),wb=XLSX.read(ab,{type:'array'}),ws=wb.Sheets[wb.SheetNames[0]];
+        importData=XLSX.utils.sheet_to_json(ws,{defval:''});
+        document.getElementById('import-filename').textContent=file.name;
+        document.getElementById('import-rowcount').textContent=`${importData.length} rows`;
+    
+        document.getElementById('import-remarks').innerHTML = `<span style="color:var(--text-4);">Validating…</span>`;
+        document.getElementById('import-remarks-row').style.display='flex';
+        document.getElementById('import-upload-zone').style.display='none';
+        document.getElementById('import-details-section').style.display='block';
+        document.getElementById('import-btn').disabled=true;
+        document.getElementById('import-back-btn').style.display='inline-flex';
+    
+        // ── Reference data for validation, fetched up-front so Status reflects reality immediately ──
+        const [{ data: projectsRef }, { data: disciplinesRef }, { data: existingRows }] = await Promise.all([
+          db.from('projects').select('code').eq('status','Active'),
+          db.from('disciplines').select('code'),
+          db.from('material_status').select('id, project_code, mto_number'),
+        ]);
+        const validProjects    = new Set((projectsRef||[]).map(p=>p.code));
+        const validDisciplines = new Set((disciplinesRef||[]).map(d=>d.code));
+        const existingMap      = new Map((existingRows||[]).map(r => [conflictKey(r.project_code, r.mto_number), r.id]));
+    
+        const rowsFields = importData.map(r=>({
+          project_code:(r['Project Code']||r['project_code']||'').toString().trim()||null,
+          discipline_code:(r['Discipline Code']||r['discipline_code']||'').toString().trim()||null,
+          mto_number:(r['MTO Number']||r['mto_number']||'').toString().trim()||null,
+          mto_description:(r['MTO Description']||r['mto_description']||'').toString().trim()||null,
+          area_system:(r['Area/System']||r['area_system']||'').toString().trim()||null,
+          pr_description:(r['PR Description']||r['pr_description']||'').toString().trim()||null,
+          remarks:(r['Remarks']||r['remarks']||'').toString().trim()||null,
+        })).filter(f=>f.mto_number);
+    
+        const projectCodesInFile = [...new Set(rowsFields.map(f=>f.project_code).filter(pc => pc && validProjects.has(pc)))];
+        let validAreasByProject = new Map();
+        if (projectCodesInFile.length) {
+          const { data: structureRows } = await db.from('structure_items')
+            .select('project_code, area_system_module')
+            .in('project_code', projectCodesInFile);
+          (structureRows||[]).forEach(s => {
+            if (!validAreasByProject.has(s.project_code)) validAreasByProject.set(s.project_code, new Set());
+            validAreasByProject.get(s.project_code).add(s.area_system_module);
+          });
+        }
+    
+        validImportRows    = [];
+        skippedProjectRows = [];
+        flaggedImportRows  = [];
+        importConflicts    = {};
+        importConflictMeta = {};
+    
+        rowsFields.forEach(fields=>{
+          const mtoParts = parseMtoNumberParts(fields.mto_number);
+          const projectKnown      = fields.project_code && validProjects.has(fields.project_code);
+          const projectMatchesMto = !mtoParts || !mtoParts.projectSegment || mtoParts.projectSegment === fields.project_code;
+    
+          if (!projectKnown || !projectMatchesMto) {
+            skippedProjectRows.push({ mto_number: fields.mto_number });
+            return;
+          }
+    
+          const issues = [];
+          if (!fields.discipline_code) {
+            issues.push('discipline_code');
+          } else {
+            const disciplineKnown   = validDisciplines.has(fields.discipline_code);
+            const disciplineMatches = !mtoParts || !mtoParts.disciplineSegment
+              || mtoParts.disciplineSegment === fields.discipline_code;
+            if (!disciplineKnown || !disciplineMatches) issues.push('discipline_code');
+          }
+          if (!fields.area_system) {
+            issues.push('area_system');
+          } else {
+            const validAreas = validAreasByProject.get(fields.project_code) || new Set();
+            const areaParts  = fields.area_system.split(',').map(a=>a.trim()).filter(Boolean);
+            if (areaParts.some(a => !validAreas.has(a))) issues.push('area_system');
+          }
+          if (issues.length) {
+            fields.import_review_notes = issues.join(',');
+            flaggedImportRows.push({
+              mto_number: fields.mto_number,
+              issues: issues.map(i => i === 'discipline_code' ? 'Discipline' : 'Area/System'),
+            });
+          }
+    
+          const key = conflictKey(fields.project_code, fields.mto_number);
+          const existingId = existingMap.get(key);
+          if (existingId) {
+            importConflicts[key]    = 'skip';
+            importConflictMeta[key] = { id: existingId, mto_number: fields.mto_number, project_code: fields.project_code };
+          }
+    
+          validImportRows.push(fields);
+        });
+    
+        renderImportStatus();
+        document.getElementById('import-btn').disabled = validImportRows.length === 0;
+      }catch(err){toast('Error reading file: '+err.message,'error');}
+    }
+    
+    function renderImportStatus() {
+      const dupCount = Object.keys(importConflicts).length;
+      const parts = [];
+    
+      if (skippedProjectRows.length === 0) {
+        parts.push(`<span style="color:var(--green);">${validImportRows.length} item${validImportRows.length!==1?'s':''} found. Ready to import.</span>`);
+      } else if (validImportRows.length === 0) {
+        parts.push(`<span style="color:var(--red);">${skippedProjectRows.length} item${skippedProjectRows.length!==1?'s':''} skipped. Project Code mismatch.</span>`);
+      } else {
+        parts.push(`<span style="color:var(--green);">${validImportRows.length} item${validImportRows.length!==1?'s':''} found.</span> <span style="color:var(--red);">${skippedProjectRows.length} item${skippedProjectRows.length!==1?'s':''} skipped. Project Code mismatch.</span>`);
+      }
+    
+      if (flaggedImportRows.length) {
+        parts.push(`<span style="color:var(--yellow);">${flaggedImportRows.length} items will be imported but need review (Discipline/Area mismatch).</span>`);
+      }
+    
+      if (dupCount) {
+        parts.push(`<span style="color:var(--yellow);">${dupCount} duplicate${dupCount>1?'s':''} found.</span> <a href="#" style="color:var(--accent);text-decoration:underline;font-size:12px;" onclick="event.preventDefault();openConflictModal()">Click here to review</a>`);
+      }
+    
+      document.getElementById('import-remarks').innerHTML = parts.join('<br>');
+    }
+    
+    function renderConflictList(keys) {
+      const list = document.getElementById('import-conflict-list');
+      list.innerHTML = keys.map(k => {
+        const meta  = importConflictMeta[k] || {};
+        const act   = importConflicts[k] || 'skip';
+        const hi    = (a) => act === a ? 'border-color:var(--accent);color:var(--accent);' : '';
+        const label = meta.project_code ? `${meta.mto_number} (${meta.project_code})` : meta.mto_number;
+        return `
+          <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--bg-4);border:1px solid var(--border);border-radius:var(--radius);">
+            <span style="flex:1;font-size:12px;font-family:monospace;color:var(--text-2);">${esc(label)}</span>
+            <button onclick="setConflict('${k}','skip')"    class="btn btn-ghost btn-sm" style="font-size:10px;padding:2px 8px;${hi('skip')}">Skip</button>
+            <button onclick="setConflict('${k}','replace')" class="btn btn-ghost btn-sm" style="font-size:10px;padding:2px 8px;${hi('replace')}">Replace</button>
+          </div>`;
+      }).join('');
+    }
+    
+    function openConflictModal() {
+      renderConflictList(Object.keys(importConflicts));
+      ['skip','replace'].forEach(a => {
+        const btn = document.getElementById(`bulk-${a}`);
+        if (btn) btn.style.cssText = 'font-size:11px;';
+      });
+      openModal('conflict-modal');
+    }
+    
+    function setConflict(key, action) {
+      importConflicts[key] = action;
+      renderConflictList(Object.keys(importConflicts));
+      renderImportStatus();
+    }
+    
+    function setAllConflict(action) {
+      Object.keys(importConflicts).forEach(k => importConflicts[k] = action);
+      renderConflictList(Object.keys(importConflicts));
+      renderImportStatus();
+      ['skip','replace'].forEach(a => {
+        const btn = document.getElementById(`bulk-${a}`);
+        if (btn) btn.style.cssText = a === action
+          ? 'font-size:11px;border-color:var(--accent);color:var(--accent);background:var(--accent-dim);'
+          : 'font-size:11px;';
+      });
+    }
+    
+    async function importItems(){
+      if (!validImportRows.length) { toast('No valid rows to import.', 'info'); return; }
+      const btn=document.getElementById('import-btn'); btn.textContent='Importing…'; btn.disabled=true;
+    
+      const toInsert   = [];
+      const toReplace  = [];
+      const toFlagOnly = [];
+    
+      validImportRows.forEach(fields=>{
+        const key = conflictKey(fields.project_code, fields.mto_number);
+        const conflictAction = importConflicts[key];
+    
+        if (conflictAction === 'skip') {
+          if (fields.import_review_notes && importConflictMeta[key]) {
+            toFlagOnly.push({ id: importConflictMeta[key].id, import_review_notes: fields.import_review_notes });
+          }
+          return;
+        }
+        if (conflictAction === 'replace') {
+          toReplace.push({ id: importConflictMeta[key].id, fields });
+        } else {
+          toInsert.push(fields);
+        }
+      });
+    
+      await executeImport(toInsert, toReplace, toFlagOnly);
+      btn.textContent='Import'; btn.disabled=false;
+    }
+
+    async function executeImport(toInsert, toReplace, toFlagOnly) {
+      let hasError = false;
+
+      if (toInsert.length) {
+        const { error } = await db.from('material_status').insert(toInsert);
+        if (error) { toast('Import error: '+error.message,'error'); hasError = true; }
+      }
+
+      if (toReplace.length) {
+        for (const row of toReplace) {
+          const { error } = await db.from('material_status').update(row.fields).eq('id', row.id);
+          if (error) { toast('Replace error: '+error.message,'error'); hasError = true; }
+        }
+      }
+
+      if (toFlagOnly && toFlagOnly.length) {
+        for (const row of toFlagOnly) {
+          const { error } = await db.from('material_status').update({ import_review_notes: row.import_review_notes }).eq('id', row.id);
+          if (error) { toast('Flag update error: '+error.message,'error'); hasError = true; }
+        }
+      }
+
+      if (!hasError) {
+        const total = toInsert.length + toReplace.length + (toFlagOnly ? toFlagOnly.length : 0);
+        toast(`Imported ${total} item(s).`,'success');
+        closeModal('import-modal'); resetImportFile(); await loadItems();
+      }
+    }
+	
+    async function exportItems() {
+      if (!matProjectCode) { toast('Select a project first.', 'info'); return; }
+    
+      let q = db.from('material_status')
+        .select('*, tbe_items(tbe_number, tbe_revision, offer_received_date, tbe_returned_date), pr_mto_links(purchase_requisitions(pr_no, pr_revision, date_created, date_approved, pr_status, pr_activities(created_at))), po_items(po_no, po_approved_date, delivery_date, delivery_status)')
+        .eq('project_code', matProjectCode)
+        .order('project_code')
+        .order('mto_number');
+    
+      if (filterDiscipline) q = q.eq('discipline_code', filterDiscipline);
+      if (searchQ)          q = q.or(`mto_number.ilike.%${searchQ}%,mto_description.ilike.%${searchQ}%,pr_description.ilike.%${searchQ}%`);
+    
+      const { data, error } = await q;
+      if (error) { toast('Export failed: ' + error.message, 'error'); return; }
+      if (!data?.length) { toast('No items to export.', 'info'); return; }
+    
+      const rows = [];
+      data.forEach(item => {
+        const tbes = item.tbe_items || [];
+        const pos  = item.po_items || [];
+        const prs  = (item.pr_mto_links || []).map(l => l.purchase_requisitions).filter(Boolean).map(pr => {
+          const acts = pr.pr_activities || [];
+          const latest = acts.reduce((max, a) => (!max || new Date(a.created_at) > new Date(max)) ? a.created_at : max, null);
+          return { pr_no: pr.pr_no, pr_revision: pr.pr_revision ?? 0, date_created: (latest || pr.date_created || '').toString().slice(0, 10), date_approved: pr.date_approved || '', pr_status: pr.pr_status || 'Issued' };
+        });
+        if (filterPRStatus && !prs.some(p => p.pr_status === filterPRStatus)) return;
+    
+        const base = {
+          'Project Code':    item.project_code    || '',
+          'Discipline Code': item.discipline_code || '',
+          'MTO Number':      item.mto_number      || '',
+          'MTO Revision':    item.mto_revision    || '',
+          'MTO Description': item.mto_description || '',
+          'Area/System':     item.area_system     || '',
+          'PR Description':  item.pr_description  || '',
+        };
+    
+        // Positionally align PR / TBE / PO lines (each family is independent, not nested).
+        const rowCount = Math.max(1, prs.length, tbes.length, pos.length);
+        for (let i = 0; i < rowCount; i++) {
+          const pr = prs[i] || {}, tbe = tbes[i] || {}, po = pos[i] || {};
+          rows.push({
+            ...base,
+            'PR No':           pr.pr_no          || '',
+            'PR Revision':     pr.pr_revision     ?? '',
+            'PR Date Created': pr.date_created    || '',
+            'PR Date Approved':pr.date_approved   || '',
+            'PR Status':       pr.pr_status       || '',
+            'TBE Number':      tbe.tbe_number     || '',
+            'TBE Revision':    tbe.tbe_revision   ?? '',
+            'Offer Received':  tbe.offer_received_date || '',
+            'TBE Returned':    tbe.tbe_returned_date   || '',
+            'PO No':           po.po_no           || '',
+            'PO Approved':     po.po_approved_date|| '',
+            'Delivery Date':   po.delivery_date   || '',
+            'Delivery Status': po.delivery_status || '',
+            'Remarks':         item.remarks       || '',
+          });
+        }
+      });
+    
+      exportToExcel(rows, `Material-Status_${matProjectCode}`);
+    }
+	
+	async function loadStructureItems(projectCode, presetAreas) {
+      structureItems = [];
+      if (!projectCode) { renderAreaField([], false, presetAreas); return; }
+      const { data } = await db.from('structure_items')
+        .select('id, area_system_module, priority_shipment')
+        .eq('project_code', projectCode)
+        .order('priority_shipment')
+        .order('area_system_module');
+      structureItems = data || [];
+      renderAreaField(structureItems, true, presetAreas);
+    }
+    
+    // Area/System is dropdown-only (no free-text fallback), and stays disabled until a
+    // Project has been selected — picking from the project's own structure items avoids typos.
+    function renderAreaField(items, projectSelected, presetAreas) {
+      const group = document.getElementById('f-area-group');
+      if (!group) return;
+      const el = document.getElementById('f-area');
+      const currentVals = presetAreas !== undefined
+        ? presetAreas
+        : (el
+            ? (el.tagName === 'SELECT'
+                ? [...el.options].filter(o => o.selected && o.value).map(o => o.value)
+                : el.value.split(',').map(v => v.trim()).filter(Boolean))
+            : []);
+    
+      if (!items.length) {
+        const msg = projectSelected ? 'No areas found for this project' : 'Select a project first';
+        group.innerHTML = `<label>Area / System</label>
+          <div class="area-dropdown-trigger" style="opacity:0.5;cursor:not-allowed;pointer-events:none;">
+            <span class="area-trigger-text">${msg}</span>
+            <span class="area-chevron"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg></span>
+          </div>
+          <input type="hidden" id="f-area" value="${currentVals.join(', ')}" />`;
+        return;
+      }
+    
+      group.innerHTML = `
+        <label>Area / System <span id="area-count-badge" style="font-size:11px;font-weight:500;color:var(--accent);margin-left:6px;"></span></label>
+        <div class="area-dropdown-wrapper" id="area-dropdown-wrapper">
+          <div class="area-dropdown-trigger" id="area-dropdown-trigger" onclick="toggleAreaDropdown()">
+            <span class="area-trigger-text" id="area-trigger-text">— Select areas —</span>
+            <span class="area-chevron"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg></span>
+          </div>
+          <div class="area-dropdown-list" id="area-dropdown-list">
+            ${items.map(i => `
+              <label class="area-dropdown-item" id="area-item-${CSS.escape(i.area_system_module)}">
+                <input type="checkbox" value="${i.area_system_module}"
+                  ${currentVals.includes(i.area_system_module) ? 'checked' : ''}
+                  onchange="onAreaCheckboxChange()" />
+                ${i.area_system_module}
+              </label>
+            `).join('')}
+          </div>
+          <input type="hidden" id="f-area" />
+        </div>`;
+    
+      // Close dropdown on outside click (capture phase = fires before any other
+      // handler can stopPropagation and swallow it) and on Escape / Tab.
+      document.addEventListener('mousedown', closeAreaDropdownOutside, true);
+      document.getElementById('area-dropdown-wrapper')
+        ?.addEventListener('keydown', onAreaDropdownKeydown);
+    
+      onAreaCheckboxChange(); // init display
+    }
+
+    function toggleAreaDropdown() {
+      const trigger = document.getElementById('area-dropdown-trigger');
+      const list    = document.getElementById('area-dropdown-list');
+      if (!trigger || !list) return;
+      const isOpen = list.classList.contains('open');
+      trigger.classList.toggle('open', !isOpen);
+      list.classList.toggle('open', !isOpen);
+    }
+    
+    function closeAreaDropdown() {
+      document.getElementById('area-dropdown-trigger')?.classList.remove('open');
+      document.getElementById('area-dropdown-list')?.classList.remove('open');
+    }
+    
+    function closeAreaDropdownOutside(e) {
+      const wrapper = document.getElementById('area-dropdown-wrapper');
+      if (wrapper && !wrapper.contains(e.target)) closeAreaDropdown();
+    }
+    
+    function onAreaDropdownKeydown(e) {
+      if (e.key === 'Escape') {
+        e.stopPropagation();           // don't let Escape also close the whole modal
+        closeAreaDropdown();
+        document.getElementById('area-dropdown-trigger')?.focus();
+      } else if (e.key === 'Tab') {
+        closeAreaDropdown();           // let focus move on naturally, just collapse the panel
+      }
+    }
+    
+    function onAreaCheckboxChange() {
+      const list = document.getElementById('area-dropdown-list');
+      if (!list) return;
+      const checked = [...list.querySelectorAll('input[type="checkbox"]:checked')].map(cb => cb.value);
+    
+      // Update hidden input
+      const hidden = document.getElementById('f-area');
+      if (hidden) hidden.value = checked.join(', ');
+    
+      // Update trigger text
+      const triggerText = document.getElementById('area-trigger-text');
+      if (triggerText) {
+        if (!checked.length) {
+          triggerText.textContent = '— Select areas —';
+          triggerText.classList.remove('has-value');
+        } else {
+          triggerText.textContent = checked.join(', ');
+          triggerText.classList.add('has-value');
+        }
+      }
+    
+      // Update count badge
+      const badge = document.getElementById('area-count-badge');
+      if (badge) badge.textContent = checked.length > 0 ? `${checked.length} area${checked.length > 1 ? 's' : ''} selected` : '';
+    
+      // Highlight checked items
+      list.querySelectorAll('.area-dropdown-item').forEach(item => {
+        const cb = item.querySelector('input[type="checkbox"]');
+        item.classList.toggle('checked', cb?.checked || false);
+      });
+    }
+
+    // ── FILTERS / SEARCH / PAGINATION ─────────────────────────
+    const onSearch=debounce(async v=>{searchQ=v;currentPage=1;await loadItems();},300);
+    async function onFilter(){filterDiscipline=document.getElementById('filter-discipline').value||'';filterPRStatus=document.getElementById('filter-pr-status').value||'';currentPage=1;await loadItems();}
+    async function changePage(p){currentPage=p;await loadItems();window.scrollTo(0,0);}
+
+    // ── MODALS ────────────────────────────────────────────────
+    function injectModals(){
+      document.body.insertAdjacentHTML('beforeend',`
+
+        <!-- ADD/EDIT MTO -->
+        <div class="modal" id="item-modal">
+          <div class="modal-backdrop" onclick="closeModal('item-modal')"></div>
+          <div class="modal-box modal-lg">
+            <div class="modal-header"><h3 id="modal-title">Add MTO Item</h3><button class="modal-close" onclick="closeModal('item-modal')">✕</button></div>
+            <div class="modal-body">
+              <input type="hidden" id="edit-id"/>
+              <p style="font-size:10px;font-weight:700;letter-spacing:1px;color:var(--accent);text-transform:uppercase;margin:0 0 12px;">MTO Information</p>
+              <div class="form-row">
+                <div class="form-group"><label>Project Code</label><select id="f-project" onchange="loadStructureItems(this.value)"><option value="">— Select —</option></select></div>
+                <div class="form-group"><label>Discipline Code</label><select id="f-discipline"><option value="">— Select —</option></select></div>
+              </div>
+              <div class="form-row">
+                <div class="form-group" style="flex:2;"><label class="required">MTO Number</label><input type="text" id="f-mto-number" placeholder="e.g. MTO-001"/></div>
+                <div class="form-group" id="f-area-group"><label>Area / System</label><input type="text" id="f-area" placeholder="e.g. Area 1"/></div>
+              </div>
+              <div class="form-row">
+                <div class="form-group"><label>MTO Description</label><input type="text" id="f-mto-desc" placeholder="Description"/></div>
+                <div class="form-group"><label>PR Description</label><input type="text" id="f-pr-desc" placeholder="Description"/></div>
+              </div>
+              <div class="form-row">
+                <div class="form-group" style="flex:1;"><label>Remarks</label><input type="text" id="f-remarks" placeholder="Optional notes"/></div>
+              </div>
+              <hr class="divider"/>
+              <p style="font-size:11px;font-weight:700;letter-spacing:0.5px;color:var(--accent);text-transform:uppercase;margin:0 0 8px;">PR Entries</p>
+              <p style="font-size:11px;color:var(--text-4);margin:0 0 8px;">No input is required. This section is generated automatically and can be updated later.</p>
+              <div id="pr-list-container"></div>
+
+              <hr class="divider" />
+              <p style="font-size:11px;font-weight:700;letter-spacing:0.5px;color:var(--blue,#60a5fa);text-transform:uppercase;margin:0 0 8px;">TBE Entries</p>
+              <p style="font-size:11px;color:var(--text-4);margin:0 0 8px;">No input is required. This section is generated automatically and can be updated later.</p>
+              <div id="tbe-list-container"></div>
+
+              <hr class="divider" />
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+                <p style="font-size:11px;font-weight:700;letter-spacing:0.5px;color:var(--green,#4ade80);text-transform:uppercase;margin:0;">PO Entries</p>
+                <button class="btn btn-ghost btn-sm" onclick="addPo()" style="display:flex;align-items:center;gap:4px;color:var(--green);">${IC.plus} Add PO</button>
+              </div>
+              <div id="po-list-container"></div>
+            </div>
+            <div class="modal-footer">
+              <button class="btn btn-ghost" onclick="closeModal('item-modal')">Cancel</button>
+              <button class="btn btn-primary" onclick="saveItem()">Save</button>
+            </div>
+        </div>
+		</div>
+
+        <!-- IMPORT -->
+        <div class="modal" id="import-modal">
+          <div class="modal-backdrop" onclick="closeModal('import-modal');resetImportFile();"></div>
+          <div class="modal-box modal-lg" style="max-width:600px;">
+            <div class="modal-header"><h3 style="display:flex;align-items:center;gap:8px;">${IC.download} Import from Excel</h3><button class="modal-close" onclick="closeModal('import-modal');resetImportFile();">✕</button></div>
+            <div class="modal-body" style="padding:0;">
+              <div id="import-upload-zone" style="padding:24px;">
+                <label for="import-file" class="import-drop-zone" style="display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:var(--radius-lg);padding:48px 24px;cursor:pointer;gap:12px;"
+                  ondragover="event.preventDefault();this.classList.add('drag-over');"
+                  ondragleave="this.classList.remove('drag-over');"
+                  ondrop="event.preventDefault();this.classList.remove('drag-over');handleImportFileDrop(event.dataTransfer.files[0]);">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                  <div style="text-align:center;"><p style="font-size:14px;font-weight:600;color:var(--text-2);margin:0;">Drop Excel file here or click to browse</p><p style="font-size:12px;color:var(--text-4);margin:4px 0 0;">.xlsx / .xls files supported</p></div>
+                  <p style="font-size:11px;color:var(--text-4);text-align:center;max-width:400px;margin:0;">Required Headers: <strong>Project Code, Discipline Code, MTO Number, Area/System</strong></p>
+                </label>
+                <input type="file" id="import-file" accept=".xlsx,.xls" style="display:none;"/>
+              </div>
+              <div id="import-details-section" style="display:none;padding:24px;">
+                <p style="font-size:10px;font-weight:700;letter-spacing:1px;color:var(--accent);text-transform:uppercase;margin:0 0 12px;">Import Details</p>
+                <div style="display:flex;flex-direction:column;gap:8px;">
+                  <div style="display:flex;gap:10px;align-items:center;"><span style="font-size:11px;color:var(--text-4);width:90px;">File</span><span id="import-filename" style="font-size:13px;font-weight:600;color:var(--text-2);"></span></div>
+                  <div style="display:flex;gap:10px;align-items:center;"><span style="font-size:11px;color:var(--text-4);width:90px;">Rows found</span><span id="import-rowcount" style="font-size:13px;font-weight:600;color:var(--text-2);"></span></div>
+                  <div id="import-remarks-row" style="display:none;align-items:flex-start;gap:10px;">
+                    <span style="font-size:11px;color:var(--text-4);width:90px;flex-shrink:0;">Status</span>
+                    <span id="import-remarks" style="font-size:12px;line-height:1.5;"></span>
+                  </div>
+                  <div style="margin-top:8px;padding:12px;background:var(--bg-4);border:1px solid var(--border);border-radius:var(--radius);font-size:12px;color:var(--text-3);">ℹ️ Imports MTO-level data only. PR, TBE and PO records are managed internally and are excluded from import.</div>
+                </div>
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button class="btn btn-ghost" onclick="closeModal('import-modal');resetImportFile();">Cancel</button>
+              <button class="btn btn-ghost" id="import-back-btn" onclick="resetImportFile()" style="display:none;margin-right:auto;order:-1;">← Back</button>
+              <button class="btn btn-primary" id="import-btn" onclick="importItems()" disabled>Import</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── CONFLICT REVIEW MODAL ── -->
+        <div class="modal" id="conflict-modal">
+          <div class="modal-backdrop" onclick="closeModal('conflict-modal')"></div>
+          <div class="modal-box" style="max-width:600px;">
+            <div class="modal-header">
+              <h3 style="display:flex;align-items:center;gap:8px;">Duplicate Material Items Review</h3>
+              <button class="modal-close" onclick="closeModal('conflict-modal')">✕</button>
+            </div>
+            <div class="modal-body">
+              <p style="font-size:12px;color:var(--text-3);margin-bottom:6px;">These MTO numbers already exist. Choose an action for each:</p>
+              <div style="font-size:12px;color:var(--text-3);margin-bottom:16px;padding:10px 12px;background:var(--bg-4);border:1px solid var(--border);border-radius:var(--radius);display:flex;flex-direction:column;gap:4px;">
+                <div><strong style="color:var(--text-2);">Skip</strong> — Ignore this row and keep the existing item unchanged.</div>
+                <div><strong style="color:var(--text-2);">Replace</strong> — Overwrite the existing item's MTO-level fields with the imported data.</div>
+              </div>
+              <div style="display:flex;gap:6px;margin-bottom:12px;">
+                <button id="bulk-skip"    onclick="setAllConflict('skip')"    class="btn btn-ghost btn-sm" style="font-size:11px;">Skip All</button>
+                <button id="bulk-replace" onclick="setAllConflict('replace')" class="btn btn-ghost btn-sm" style="font-size:11px;">Replace All</button>
+              </div>
+              <div id="import-conflict-list" style="display:flex;flex-direction:column;gap:6px;max-height:300px;overflow-y:auto;"></div>
+            </div>
+            <div class="modal-footer">
+              <button class="btn btn-primary" onclick="closeModal('conflict-modal')">Done — Back to Import</button>
+            </div>
+          </div>
+        </div>
+		
+		<!-- Generic "type to confirm" modal — same pattern as Eng. Calculations -->
+        <div class="modal" id="type-confirm-modal">
+          <div class="modal-backdrop" onclick="closeModal('type-confirm-modal')"></div>
+          <div class="modal-box modal-sm">
+            <div class="modal-header">
+              <h3 style="display:flex;align-items:center;gap:8px;color:var(--red);">${IC.trash} Delete All</h3>
+              <button class="modal-close" onclick="closeModal('type-confirm-modal')">✕</button>
+            </div>
+            <div class="modal-body">
+              <p id="type-confirm-message" style="font-size:13px;color:var(--text-3);margin-bottom:14px;"></p>
+              <div class="form-group">
+                <label>Type <strong id="type-confirm-word-label"></strong> to confirm</label>
+                <input type="text" id="type-confirm-input" oninput="onTypeConfirmInput()" autocomplete="off" />
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button class="btn btn-ghost" onclick="closeModal('type-confirm-modal')">Cancel</button>
+              <button class="btn btn-danger" id="type-confirm-btn" onclick="runTypeConfirm()" style="display:flex;align-items:center;gap:5px;"></button>
+            </div>
+          </div>
+        </div>
+      `);
+      document.getElementById('import-file').addEventListener('change',handleImportFile);
+    }
+	
+	let typeConfirmCallback = null;
+    let typeConfirmWord     = '';
+    
+    function openTypeConfirm(message, word, btnLabel, callback) {
+      typeConfirmCallback = callback;
+      typeConfirmWord = word;
+      document.getElementById('type-confirm-message').textContent = message;
+      document.getElementById('type-confirm-word-label').textContent = word;
+      document.getElementById('type-confirm-input').placeholder = word;
+      document.getElementById('type-confirm-input').value = '';
+      document.getElementById('type-confirm-btn').innerHTML = `${IC.trash} ${btnLabel}`;
+      openModal('type-confirm-modal');
+    }
+    function onTypeConfirmInput() { /* validation happens on click, in runTypeConfirm() */ }
+    function runTypeConfirm() {
+      const val = document.getElementById('type-confirm-input').value.trim();
+      if (val !== typeConfirmWord) { toast(`Incorrect. Please type "${typeConfirmWord}" exactly to confirm.`, 'error'); return; }
+      closeModal('type-confirm-modal');
+      const cb = typeConfirmCallback; typeConfirmCallback = null;
+      if (typeof cb === 'function') cb();
+    }
+
+    initLayout('Material Status');
+  </script>
+</body>
+</html>
