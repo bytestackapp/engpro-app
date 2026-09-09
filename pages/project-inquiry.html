@@ -107,6 +107,14 @@
                 <div class="form-group"><label>Date Completed</label><input type="date" id="f-date-completed" /></div>
               </div>
               <hr class="divider" />
+              <p style="font-size:10px;font-weight:700;letter-spacing:1px;color:var(--accent);text-transform:uppercase;margin:0 0 12px;">Overall Details</p>
+              <div class="modal-grid-2">
+                <div class="form-group"><label>Dia Inch (DI)</label><input type="number" id="f-dia-inch" min="0" step="0.01" placeholder="0.00" /></div>
+                <div class="form-group"><label>Steel Weight (MT)</label><input type="number" id="f-steel-weight" min="0" step="0.01" placeholder="0.00" /></div>
+                <div class="form-group"><label>Module Weight (MT)</label><input type="number" id="f-module-weight" min="0" step="0.01" placeholder="0.00" /></div>
+                <div class="form-group"><label>No. of Equipment (UNITS)</label><input type="number" id="f-no-of-equipment" min="0" step="1" placeholder="0" /></div>
+              </div>
+              <hr class="divider" />
               <p style="font-size:10px;font-weight:700;letter-spacing:1px;color:var(--accent);text-transform:uppercase;margin:0 0 12px;">Manhours Breakdown</p>
               <div class="modal-grid-3">
                 <div class="form-group"><label>PS</label><input type="number" id="f-mh-ps" min="0" step="0.5" placeholder="0.0" oninput="calcEstMH()" /></div>
@@ -152,7 +160,7 @@
                 </label>
                 <input type="file" id="import-file" accept=".xlsx,.xls" style="display:none;" />
                 <div style="margin-top:16px;padding:12px 14px;background:var(--bg-4);border:1px solid var(--border);border-radius:var(--radius);font-size:11px;color:var(--text-3);line-height:1.6;">
-                  <strong style="color:var(--text-2);">Expected columns:</strong> Control Number*, Client, Project (code), Activity, Scope of Work, Contact Person, Date Received, Due Date, Date Completed, Estimated MH, MH-PS, MH-CS, MH-CSA, MH-MP, MH-EI, MH-CD, Remarks, Status
+                  <strong style="color:var(--text-2);">Expected columns:</strong> Control Number*, Client, Project (code), Activity, Scope of Work, Contact Person, Date Received, Due Date, Date Completed, Estimated MH, Dia Inch, Steel Weight, Module Weight, No. of Equipment, MH-PS, MH-CS, MH-CSA, MH-MP, MH-EI, MH-CD, Remarks, Status
                 </div>
               </div>
               <div id="import-details-section" style="display:none;">
@@ -265,19 +273,21 @@
                     <th style="min-width:100px;">Due Date</th>
                     <th style="min-width:100px;">Date Completed</th>
                     <th style="min-width:70px;">Est. MH</th>
-                    <th colspan="6" style="min-width:240px;border-bottom:1px solid var(--border);">Manhours</th>
+					<th colspan="4" style="min-width:320px;border-bottom:1px solid var(--border);">Overall Details</th>
+					<th colspan="6" style="min-width:240px;border-bottom:1px solid var(--border);">Manhours</th>
                     <th style="min-width:130px;">Remarks</th>
                     <th style="min-width:90px;">Status</th>
                     <th style="min-width:80px;">Actions</th>
                   </tr>
                   <tr class="sub-header">
                     <th colspan="10"></th>
+                    <th>Dia Inch (DI)</th><th>Steel Weight (MT)</th><th>Module Weight (MT)</th><th>No. of Equipment</th>
                     <th>PS</th><th>CS</th><th>CSA</th><th>MP</th><th>EI</th><th>CD</th>
                     <th colspan="3"></th>
                   </tr>
                 </thead>
                 <tbody id="inq-tbody">
-                  <tr><td colspan="19" style="text-align:center;padding:40px;color:var(--text-4);">Loading…</td></tr>
+                  <tr><td colspan="23" style="text-align:center;padding:40px;color:var(--text-4);">Loading…</td></tr>
                 </tbody>
               </table>
             </div>
@@ -291,7 +301,7 @@
 
     async function loadInquiries() {
       const tbody = document.getElementById('inq-tbody');
-      if (tbody) tbody.innerHTML = `<tr><td colspan="19" style="text-align:center;padding:30px;color:var(--text-4);">Loading…</td></tr>`;
+      if (tbody) tbody.innerHTML = `<tr><td colspan="23" style="text-align:center;padding:30px;color:var(--text-4);">Loading…</td></tr>`;
 
       let q = db.from('project_inquiries')
         .select('*, inquiry_activities(manhours, activity_id, misc_activities(name))', { count:'exact' })
@@ -305,7 +315,7 @@
       q = q.range(from, from + PAGE_SIZE - 1);
 
       const { data, count, error } = await q;
-      if (error) { if(tbody) tbody.innerHTML=`<tr><td colspan="19" style="text-align:center;padding:30px;color:var(--red);">Error: ${error.message}</td></tr>`; return; }
+      if (error) { if(tbody) tbody.innerHTML=`<tr><td colspan="23" style="text-align:center;padding:30px;color:var(--red);">Error: ${error.message}</td></tr>`; return; }
       inquiries = data || [];
       renderTable(count || 0);
     }
@@ -334,6 +344,10 @@
           <td>${fmtDate(d.due_date)}</td>
           <td>${fmtDate(d.date_completed)}</td>
           <td class="mh-total">${parseFloat(d.estimated_mh||0).toFixed(1)}</td>
+          <td>${d.dia_inch ?? '—'}</td>
+          <td>${d.steel_weight ?? '—'}</td>
+          <td>${d.module_weight ?? '—'}</td>
+          <td>${d.no_of_equipment ?? '—'}</td>
           <td class="mh-sub">${parseFloat(d.mh_ps ||0).toFixed(1)}</td>
           <td class="mh-sub">${parseFloat(d.mh_cs ||0).toFixed(1)}</td>
           <td class="mh-sub">${parseFloat(d.mh_csa||0).toFixed(1)}</td>
@@ -388,6 +402,7 @@
     function clearForm() {
       ['f-id','f-control-number','f-client','f-project','f-activity','f-scope','f-contact',
        'f-est-mh','f-date-received','f-due-date','f-date-completed',
+       'f-dia-inch','f-steel-weight','f-module-weight','f-no-of-equipment',
        'f-mh-ps','f-mh-cs','f-mh-csa','f-mh-mp','f-mh-ei','f-mh-cd','f-remarks']
       .forEach(id => { const el=document.getElementById(id); if(el) el.value=''; });
       document.getElementById('f-status').value = 'Open';
@@ -402,24 +417,28 @@
 
     function openEditModal(d) {
       clearForm();
-      document.getElementById('f-id').value             = d.id             || '';
-      document.getElementById('f-control-number').value = d.control_number || '';
-      document.getElementById('f-client').value         = d.client         || '';
-      document.getElementById('f-activity').value       = d.activity       || '';
-      document.getElementById('f-scope').value          = d.scope_of_work  || '';
-      document.getElementById('f-contact').value        = d.contact_person || '';
-      document.getElementById('f-est-mh').value         = d.estimated_mh   || '';
-      document.getElementById('f-date-received').value  = d.date_received  || '';
-      document.getElementById('f-due-date').value       = d.due_date       || '';
-      document.getElementById('f-date-completed').value = d.date_completed || '';
-      document.getElementById('f-mh-ps').value          = d.mh_ps  || '';
-      document.getElementById('f-mh-cs').value          = d.mh_cs  || '';
-      document.getElementById('f-mh-csa').value         = d.mh_csa || '';
-      document.getElementById('f-mh-mp').value          = d.mh_mp  || '';
-      document.getElementById('f-mh-ei').value          = d.mh_ei  || '';
-      document.getElementById('f-mh-cd').value          = d.mh_cd  || '';
-      document.getElementById('f-remarks').value        = d.remarks || '';
-      document.getElementById('f-status').value         = d.status  || 'Open';
+      document.getElementById('f-id').value              = d.id             || '';
+      document.getElementById('f-control-number').value  = d.control_number || '';
+      document.getElementById('f-client').value          = d.client         || '';
+      document.getElementById('f-activity').value        = d.activity       || '';
+      document.getElementById('f-scope').value           = d.scope_of_work  || '';
+      document.getElementById('f-contact').value         = d.contact_person || '';
+      document.getElementById('f-est-mh').value          = d.estimated_mh   || '';
+      document.getElementById('f-date-received').value   = d.date_received  || '';
+      document.getElementById('f-due-date').value        = d.due_date       || '';
+      document.getElementById('f-date-completed').value  = d.date_completed || '';
+      document.getElementById('f-dia-inch').value        = d.dia_inch        || '';
+      document.getElementById('f-steel-weight').value    = d.steel_weight    || '';
+      document.getElementById('f-module-weight').value   = d.module_weight   || '';
+      document.getElementById('f-no-of-equipment').value = d.no_of_equipment || '';
+      document.getElementById('f-mh-ps').value           = d.mh_ps  || '';
+      document.getElementById('f-mh-cs').value           = d.mh_cs  || '';
+      document.getElementById('f-mh-csa').value          = d.mh_csa || '';
+      document.getElementById('f-mh-mp').value           = d.mh_mp  || '';
+      document.getElementById('f-mh-ei').value           = d.mh_ei  || '';
+      document.getElementById('f-mh-cd').value           = d.mh_cd  || '';
+      document.getElementById('f-remarks').value         = d.remarks || '';
+      document.getElementById('f-status').value          = d.status  || 'Open';
       document.getElementById('f-project').value = d.project || '';
       document.getElementById('inq-modal-title-text').textContent = ' Edit Project Inquiry';
       openModal('inq-modal');
@@ -433,23 +452,27 @@
 
       const payload = {
         control_number,
-        client:         document.getElementById('f-client').value.trim()        || null,
-        project: 		document.getElementById('f-project').value.trim()	    || null,
-        activity:       document.getElementById('f-activity').value.trim()      || null,
-        scope_of_work:  document.getElementById('f-scope').value.trim()         || null,
-        contact_person: document.getElementById('f-contact').value.trim()       || null,
-        estimated_mh:   parseFloat(document.getElementById('f-est-mh').value)   || 0,
-        date_received:  document.getElementById('f-date-received').value        || null,
-        due_date:       document.getElementById('f-due-date').value             || null,
-        date_completed: document.getElementById('f-date-completed').value       || null,
-        mh_ps:          parseFloat(document.getElementById('f-mh-ps').value)    || 0,
-        mh_cs:          parseFloat(document.getElementById('f-mh-cs').value)    || 0,
-        mh_csa:         parseFloat(document.getElementById('f-mh-csa').value)   || 0,
-        mh_mp:          parseFloat(document.getElementById('f-mh-mp').value)    || 0,
-        mh_ei:          parseFloat(document.getElementById('f-mh-ei').value)    || 0,
-        mh_cd:          parseFloat(document.getElementById('f-mh-cd').value)    || 0,
-        remarks:        document.getElementById('f-remarks').value.trim()       || null,
-        status:         document.getElementById('f-status').value               || 'Open',
+        client:         document.getElementById('f-client').value.trim()                || null,
+        project: 		document.getElementById('f-project').value.trim()	            || null,
+        activity:       document.getElementById('f-activity').value.trim()              || null,
+        scope_of_work:  document.getElementById('f-scope').value.trim()                 || null,
+        contact_person: document.getElementById('f-contact').value.trim()               || null,
+        estimated_mh:   parseFloat(document.getElementById('f-est-mh').value)           || 0,
+        date_received:  document.getElementById('f-date-received').value                || null,
+        due_date:       document.getElementById('f-due-date').value                     || null,
+        date_completed: document.getElementById('f-date-completed').value               || null,
+        dia_inch:        parseFloat(document.getElementById('f-dia-inch').value)        || 0,
+        steel_weight:    parseFloat(document.getElementById('f-steel-weight').value)    || 0,
+        module_weight:   parseFloat(document.getElementById('f-module-weight').value)   || 0,
+        no_of_equipment: parseInt(document.getElementById('f-no-of-equipment').value)   || 0,
+        mh_ps:          parseFloat(document.getElementById('f-mh-ps').value)            || 0,
+        mh_cs:          parseFloat(document.getElementById('f-mh-cs').value)            || 0,
+        mh_csa:         parseFloat(document.getElementById('f-mh-csa').value)           || 0,
+        mh_mp:          parseFloat(document.getElementById('f-mh-mp').value)            || 0,
+        mh_ei:          parseFloat(document.getElementById('f-mh-ei').value)            || 0,
+        mh_cd:          parseFloat(document.getElementById('f-mh-cd').value)            || 0,
+        remarks:        document.getElementById('f-remarks').value.trim()               || null,
+        status:         document.getElementById('f-status').value                       || 'Open',
       };
 
       btn.disabled = true; btn.textContent = 'Saving…';
@@ -526,6 +549,10 @@
         'Due Date':        d.due_date||'',
         'Date Completed':  d.date_completed||'',
         'Estimated MH':    parseFloat(d.estimated_mh||0),
+        'Dia Inch':        parseFloat(d.dia_inch||0),
+        'Steel Weight':    parseFloat(d.steel_weight||0),
+        'Module Weight':   parseFloat(d.module_weight||0),
+        'No. of Equipment':parseInt(d.no_of_equipment||0),
         'MH-PS':           parseFloat(d.mh_ps||0),
         'MH-CS':           parseFloat(d.mh_cs||0),
         'MH-CSA':          parseFloat(d.mh_csa||0),
@@ -607,6 +634,10 @@
           due_date:       fmtImportDate(r['Due Date']),
           date_completed: fmtImportDate(r['Date Completed']),
           estimated_mh:   parseFloat(r['Estimated MH']||0)||0,
+          dia_inch:        parseFloat(r['Dia Inch']||0)||0,
+          steel_weight:    parseFloat(r['Steel Weight']||0)||0,
+          module_weight:   parseFloat(r['Module Weight']||0)||0,
+          no_of_equipment: parseInt(r['No. of Equipment']||0)||0,
           mh_ps:          parseFloat(r['MH-PS'] ||0)||0,
           mh_cs:          parseFloat(r['MH-CS'] ||0)||0,
           mh_csa:         parseFloat(r['MH-CSA']||0)||0,

@@ -357,6 +357,88 @@
       transition: all var(--speed);
     }
     .remove-row-btn:hover { color: #e74c3c; }
+	
+	/* ── STEP-COMPLETE TOGGLE (neutral switch) ── */
+    .step-complete-toggle {
+      position: absolute;
+      top: 13px;
+      right: 34px;
+      display: inline-flex;
+      align-items: center;
+      cursor: pointer;
+    }
+    .step-complete-toggle input[type="checkbox"] {
+      position: absolute;
+      opacity: 0;
+      width: 0; height: 0;
+    }
+    .step-complete-toggle .sc-slider {
+      position: relative;
+      display: inline-block;
+      width: 26px;
+      height: 14px;
+      background: transparent;
+      border: 1px solid var(--border-2);
+      border-radius: 20px;
+      transition: border-color var(--speed);
+    }
+    .step-complete-toggle .sc-slider::before {
+      content: '';
+      position: absolute;
+      top: 1px; left: 1px;
+      width: 10px; height: 10px;
+      border-radius: 50%;
+      background: var(--text-4);
+      transition: transform var(--speed), background var(--speed);
+    }
+    /* Checked (default) = fully neutral, blends into the form */
+    .step-complete-toggle input:checked + .sc-slider::before {
+      transform: translateX(12px);
+      background: var(--text-3);
+    }
+    /* Unchecked = the only time color appears — genuine "in progress" signal */
+    .step-complete-toggle input:not(:checked) + .sc-slider {
+      border-color: #eab308;
+    }
+    .step-complete-toggle input:not(:checked) + .sc-slider::before {
+      background: #eab308;
+    }
+    
+    .step-complete-toggle .sc-tooltip {
+      position: absolute;
+      bottom: calc(100% + 8px);
+      right: -6px;
+      background: #1a1d23;
+      border: 1px solid var(--border-2);
+      color: var(--text);
+      font-size: 11px;
+      font-weight: 500;
+      line-height: 1.5;
+      padding: 8px 10px;
+      border-radius: 6px;
+      width: 200px;
+      text-align: left;
+      opacity: 0;
+      visibility: hidden;
+      transform: translateY(4px);
+      transition: opacity var(--speed), transform var(--speed), visibility var(--speed);
+      z-index: 20;
+      pointer-events: none;
+      box-shadow: 0 4px 12px rgba(0,0,0,.4);
+    }
+    .step-complete-toggle:hover .sc-tooltip {
+      opacity: 1; visibility: visible; transform: translateY(0);
+    }
+    
+    /* ── ROW: step logged but not finished yet ── */
+    .entry-row.step-in-progress {
+      border: 1px dashed #eab308 !important;
+      background: rgba(234,179,8,0.05);
+    }
+    .entry-row.step-in-progress .row-number {
+      border-color: #eab308;
+      color: #eab308;
+    }
 
     /* ── MANHOURS INPUT ── */
     .manhour-input {
@@ -919,6 +1001,21 @@
       if (adminModeActive && adminModeDate) return adminModeDate;
       return new Date().toISOString().slice(0, 10);
     }
+	
+	// Toggles the amber "in progress" row highlight based on the checkbox.
+    function onStepCompleteToggle(rowId) {
+      const row = document.getElementById(rowId);
+      const cb  = document.getElementById('sc-' + rowId);
+      if (!row || !cb) return;
+      row.classList.toggle('step-in-progress', !cb.checked);
+    }
+    
+    // Reads the per-row "mark step complete" checkbox at save time.
+    // Defaults to true if missing, so nothing silently breaks.
+    function isRowStepComplete(rowId) {
+      const cb = document.getElementById('sc-' + rowId);
+      return cb ? cb.checked : true;
+    }
 
     // ── PAGE INIT ──────────────────────────────────────────
     async function pageInit(profile) {
@@ -1263,7 +1360,7 @@
       const filterById = bypassDisciplineFilter ? null : (disciplineId || userProfile?.discipline_id);
       const results = await Promise.all(DRAWING_SOURCES.map(src => {
         let q = db.from(src.table)
-          .select(`id, drawing_number, title, discipline_id, project_id, revision_number, ${src.activities}(step_done, created_at, revision_reason_id, revision_description)`)
+          .select(`id, drawing_number, title, discipline_id, project_id, revision_number, ${src.activities}(step_done, is_step_complete, created_at, revision_reason_id, revision_description)`)
           .order('drawing_number');
         if (filterById) q = q.eq('discipline_id', filterById);
         return q;
@@ -1284,7 +1381,7 @@
             source_table: src.table,
             activities_table: src.activities,
             _activities: d[src.activities] || [],
-            completedSteps: [...new Set((d[src.activities] || []).map(a => a.step_done).filter(Boolean))],
+            completedSteps: [...new Set((d[src.activities] || []).filter(a => a.is_step_complete !== false).map(a => a.step_done).filter(Boolean))],
             get latestStep() {
               if (!this.completedSteps.length) return null;
               return this.completedSteps.reduce((latest, step) => {
@@ -1324,7 +1421,7 @@
 
     async function loadTestPackages(disciplineId) {
       let q = db.from('test_package_drawings')
-        .select('id, drawing_number, title, discipline_id, project_id, revision_number, test_package_drawing_activities(step_done, created_at, revision_reason_id, revision_description)')
+        .select('id, drawing_number, title, discipline_id, project_id, revision_number, test_package_drawing_activities(step_done, is_step_complete, created_at, revision_reason_id, revision_description)')
         .order('drawing_number');
       const bypassDisciplineFilter = userProfile?.role === 'admin' || isGeneralDisciplineUser();
       const filterById = bypassDisciplineFilter ? null : (disciplineId || userProfile?.discipline_id);
@@ -1339,7 +1436,7 @@
         discipline_id: d.discipline_id || null,
         revision_number: d.revision_number ?? 0,
         _activities: d.test_package_drawing_activities || [],
-        completedSteps: [...new Set((d.test_package_drawing_activities || []).map(a => a.step_done).filter(Boolean))],
+        completedSteps: [...new Set((d.test_package_drawing_activities || []).filter(a => a.is_step_complete !== false).map(a => a.step_done).filter(Boolean))],
         get latestStep() {
           if (!this.completedSteps.length) return null;
           return this.completedSteps.reduce((latest, step) => {
@@ -1370,7 +1467,7 @@
 	
 	async function loadCalcs(projectCode) {
       let q = db.from('eng_calculations')
-    .select('id, doc_number, doc_description, project_code, calc_type, status, eng_calculation_activities(step_done, created_at, revision_reason_id, revision_description)')
+    .select('id, doc_number, doc_description, project_code, calc_type, status, eng_calculation_activities(step_done, is_step_complete, created_at, revision_reason_id, revision_description)')
     .order('doc_number');
       const { data, error } = await q;
       if (error) console.warn('[loadCalcs]', error.message);
@@ -1381,7 +1478,7 @@
         project_id: projectsList.find(p => p.code === d.project_code)?.id || null,
         discipline_id: d.discipline_id || null,
 		_activities: d.eng_calculation_activities || [],
-		completedSteps: [...new Set((d.eng_calculation_activities || []).map(a => a.step_done).filter(Boolean))],
+		completedSteps: [...new Set((d.eng_calculation_activities || []).filter(a => a.is_step_complete !== false).map(a => a.step_done).filter(Boolean))],
         get latestStep() {
           if (!this.completedSteps.length) return null;
           return this.completedSteps.reduce((latest, step) => {
@@ -1412,7 +1509,7 @@
 	
 	async function loadMaterials() {
       const { data, error } = await db.from('material_status')
-        .select('id, mto_number, mto_description, mto_revision, project_code, discipline_code, material_activities(step_done, created_at, revision_reason_id, revision_description)')
+        .select('id, mto_number, mto_description, mto_revision, project_code, discipline_code, material_activities(step_done, is_step_complete, created_at, revision_reason_id, revision_description)')
         .order('mto_number');
       if (error) console.warn('[loadMaterials]', error.message);
       materialsList = (data || []).map(d => ({
@@ -1423,7 +1520,7 @@
         project_id: projectsList.find(p => p.code === d.project_code)?.id || null,
         discipline_id: d.discipline_code || null,
         _activities: d.material_activities || [],
-        completedSteps: [...new Set((d.material_activities || []).map(a => a.step_done).filter(Boolean))],
+        completedSteps: [...new Set((d.material_activities || []).filter(a => a.is_step_complete !== false).map(a => a.step_done).filter(Boolean))],
         get latestStep() {
           if (!this.completedSteps.length) return null;
           return this.completedSteps.reduce((latest, step) => {
@@ -1942,7 +2039,7 @@
 			
 			<div class="eng-panel">
               <div class="eng-panel-header">
-                <div class="eng-panel-title" style="color:var(--accent);"> ${IC.calc} Engineering Calculation</div>
+                <div class="eng-panel-title" style="color:var(--accent);"> ${IC.calc} Construction Support</div>
               </div>
               <div class="eng-panel-body">
                 <div class="entry-rows-container" id="calc-rows-container"></div>
@@ -2112,6 +2209,13 @@
           <div class="mh-hint" id="mh-hint-${rowId}"></div>
         </div>
 
+        <!-- Mark step complete -->
+		<label class="step-complete-toggle">
+          <input type="checkbox" id="sc-${rowId}" checked onchange="onStepCompleteToggle('${rowId}')" />
+          <span class="sc-slider"></span>
+		  <span class="sc-tooltip">Toggle if the document or drawing is incomplete.</span>
+        </label>
+
         <!-- Remove -->
         <button class="remove-row-btn" id="rm-btn-${rowId}" onclick="removeEntryRow('${rowId}')" title="Remove row">
           ${IC.x}
@@ -2236,6 +2340,13 @@
           <div class="mh-hint" id="mh-hint-${rowId}"></div>
         </div>
 
+        <!-- Mark step complete -->
+        <label class="step-complete-toggle">
+          <input type="checkbox" id="sc-${rowId}" checked onchange="onStepCompleteToggle('${rowId}')" />
+          <span class="sc-slider"></span>
+		  <span class="sc-tooltip">Toggle if the document or drawing is incomplete.</span>
+        </label>
+
         <!-- Remove -->
         <button class="remove-row-btn" id="rm-btn-${rowId}" onclick="removeTpEntryRow('${rowId}')" title="Remove row">
           ${IC.x}
@@ -2324,6 +2435,13 @@
           <div class="mh-hint" id="mh-hint-${rowId}"></div>
         </div>
     
+        <!-- Mark step complete -->
+        <label class="step-complete-toggle">
+          <input type="checkbox" id="sc-${rowId}" checked onchange="onStepCompleteToggle('${rowId}')" />
+          <span class="sc-slider"></span>
+		  <span class="sc-tooltip">Toggle if the document or drawing is incomplete.</span>
+        </label>
+
         <!-- Remove -->
         <button class="remove-row-btn" id="calc-rm-${rowId}" onclick="removeCalcEntryRow('${rowId}')" title="Remove row">
           ${IC.x}
@@ -2430,6 +2548,13 @@
             oninput="updateTotals()" />
         </div>
     
+        <!-- Mark step complete -->
+        <label class="step-complete-toggle">
+          <input type="checkbox" id="sc-${rowId}" checked onchange="onStepCompleteToggle('${rowId}')" />
+          <span class="sc-slider"></span>
+		  <span class="sc-tooltip">Toggle if the document or drawing is incomplete.</span>
+        </label>
+
         <!-- Remove -->
         <button class="remove-row-btn" id="mat-rm-${rowId}" onclick="removeMatEntryRow('${rowId}')" title="Remove row">
           ${IC.x}
@@ -4134,6 +4259,13 @@
           <div class="mh-hint" id="model-mh-hint-${rowId}"></div>
         </div>
     
+        <!-- Mark status complete -->
+        <label class="step-complete-toggle">
+          <input type="checkbox" id="sc-${rowId}" checked onchange="onStepCompleteToggle('${rowId}')" />
+          <span class="sc-slider"></span>
+		  <span class="sc-tooltip">Toggle if the document or drawing is incomplete.</span>
+        </label>
+
         <!-- Remove -->
         <button class="remove-row-btn" id="model-rm-${rowId}" onclick="removeModelRow('${rowId}')">
           ${IC.x}
@@ -4656,6 +4788,9 @@ async function saveAllEntries(addMore = false) {
       const mhEach = parseFloat((mh / count).toFixed(4));
       const isIfc      = rowState.step === IFC_STEP_NAME && !!IFC_STEP_NAME;
       const isRevision = WORKFLOW_STEPS.some(s => s.name === rowState.step && s.is_revision === true);
+      // Revision cycles are always treated as complete — they're exempt from the
+      // "already logged" gate anyway and shouldn't be left dangling "in progress."
+      const isComplete = isRevision ? true : isRowStepComplete(rowState.id);
       const targetId  = document.getElementById('pos-' + rowState.id)?.value || null;
       const posTarget = targetId ? targetsList.find(t => t.id === targetId) : null;
       const discId    = posTarget?.discipline_id || null;
@@ -4678,6 +4813,7 @@ async function saveAllEntries(addMore = false) {
           source_table: drawing?.source_table || null,
           user_id: userProfile.id,
           step_done: rowState.step,
+          is_step_complete: isComplete,
           manhours: mhEach,
           project_id: rowState.project_id || null,
           discipline_id: discId,
@@ -4711,6 +4847,7 @@ async function saveAllEntries(addMore = false) {
           [src.fk]: r.drawing_id,
           user_id: r.user_id,
           step_done: r.step_done,
+          is_step_complete: r.is_step_complete,
           manhours: r.manhours,
           project_id: r.project_id,
           discipline_id: r.discipline_id,
@@ -4730,7 +4867,7 @@ async function saveAllEntries(addMore = false) {
       const statusUpdates   = {}; // drawingId -> newStatus
       const revisionUpdates = {}; // drawingId -> newRevisionCode (static-code steps only)
 
-      records.filter(r => !REVISION_STEP_NAMES.has(r.step_done) && !AS_BUILT_STATUS_FROZEN_STEP_NAMES.has(r.step_done)).forEach(r => {
+      records.filter(r => r.is_step_complete && !REVISION_STEP_NAMES.has(r.step_done) && !AS_BUILT_STATUS_FROZEN_STEP_NAMES.has(r.step_done)).forEach(r => {
         const current = statusUpdates[r.drawing_id];
         const currentOrder = WORKFLOW_STEPS.find(w => w.name === current)?.sort_order ?? -1;
         const newOrder     = WORKFLOW_STEPS.find(w => w.name === r.step_done)?.sort_order ?? -1;
@@ -4861,6 +4998,7 @@ async function saveAllEntries(addMore = false) {
 	  const mhEach = parseFloat((mh / count).toFixed(4));
       const isIfc      = rowState.step === TP_IFC_STEP_NAME && !!TP_IFC_STEP_NAME;
       const isRevision = TP_STEPS.some(s => s.name === rowState.step && s.is_revision === true);
+      const isComplete = isRevision ? true : isRowStepComplete(rowState.id);
       const targetId  = document.getElementById('pos-' + rowState.id)?.value || null;
       const posTarget = targetId ? targetsList.find(t => t.id === targetId) : null;
       const discId    = posTarget?.discipline_id || null;
@@ -4881,6 +5019,7 @@ async function saveAllEntries(addMore = false) {
           test_package_drawing_id: tpId,
           user_id: userProfile.id,
           step_done: rowState.step,
+          is_step_complete: isComplete,
           manhours: mhEach,
           project_id: rowState.project_id || null,
           discipline_id: discId,
@@ -4921,7 +5060,7 @@ async function saveAllEntries(addMore = false) {
 
         // Update status — only advance, never downgrade
         const statusUpdates = {};
-        tpRecords.filter(r => !TP_REVISION_STEP_NAMES.has(r.step_done) && !TP_AS_BUILT_STATUS_FROZEN_STEP_NAMES.has(r.step_done)).forEach(r => {
+        tpRecords.filter(r => r.is_step_complete && !TP_REVISION_STEP_NAMES.has(r.step_done) && !TP_AS_BUILT_STATUS_FROZEN_STEP_NAMES.has(r.step_done)).forEach(r => {
           const current = statusUpdates[r.test_package_drawing_id];
           const currentOrder = TP_STEPS.find(w => w.name === current)?.sort_order ?? -1;
           const newOrder     = TP_STEPS.find(w => w.name === r.step_done)?.sort_order ?? -1;
@@ -5028,6 +5167,7 @@ if (calcBlockTouched) {
     const count     = rowState.selectedDrawings.length;
     const mhEach    = parseFloat((mh / count).toFixed(4));
     const isRevision = CALC_STEPS.some(s => s.name === rowState.step && s.is_revision === true);
+    const isComplete = isRevision ? true : isRowStepComplete(rowState.id);
     const targetId  = document.getElementById('calc-pos-' + rowState.id)?.value || null;
     const projectId = document.getElementById('calc-proj-' + rowState.id)?.value || null;
     const posTarget = targetId ? targetsList.find(t => t.id === targetId) : null;
@@ -5050,6 +5190,7 @@ if (calcBlockTouched) {
         eng_calculation_id:   calcId,
         user_id:              userProfile.id,
         step_done:            rowState.step,
+        is_step_complete:     isComplete,
         manhours:             mhEach,
         project_id:           projectId,
         discipline_id:        discId,
@@ -5087,7 +5228,7 @@ if (calcBlockTouched) {
       for (const rec of recs) {
         const step = rec.step_done;
   
-        if (!CALC_REVISION_STEP_NAMES.has(step)) {
+        if (rec.is_step_complete && !CALC_REVISION_STEP_NAMES.has(step)) {
           const newOrder = CALC_STEPS.find(s => s.name === step)?.sort_order ?? 999;
           const curOrder = CALC_STEPS.find(s => s.name === statusVal)?.sort_order ?? -1;
           if (newOrder > curOrder) statusVal = step;
@@ -5145,6 +5286,7 @@ if (calcBlockTouched) {
       const mhEach    = parseFloat((mh / count).toFixed(4));
       const isRevision = MAT_STEPS.some(s => s.name === rowState.step && s.is_revision === true);
       const isOriginRevisionStep = isRevision && getRevisionOfStep(rowState.step, MAT_STEPS) === resolveCalcTrackOrigin(rowState.step, MAT_STEPS);
+      const isComplete = isRevision ? true : isRowStepComplete(rowState.id);
       const matStepDef = MAT_STEPS.find(s => s.name === rowState.step);
       const targetId  = document.getElementById('mat-pos-' + rowState.id)?.value || null;
       const projectId = document.getElementById('mat-proj-' + rowState.id)?.value || null;
@@ -5234,6 +5376,7 @@ if (calcBlockTouched) {
           material_status_id:   matId,
           user_id:              userProfile.id,
           step_done:            rowState.step,
+          is_step_complete:     isComplete,
           manhours:             mhEach,
           project_id:           projectId,
           discipline_id:        discId,
@@ -5341,16 +5484,23 @@ if (calcBlockTouched) {
     const tons       = parseFloat(document.getElementById('model-tons-' + row.id)?.value || 0);
     const modelTargetId = document.getElementById('model-pos-' + row.id)?.value || null;
     const stepDone   = document.getElementById('model-status-' + row.id)?.value || null;
+    const isComplete = isRowStepComplete(row.id);
 
     modelRecords.push({
       model_id: modelId, user_id: userProfile.id, project_id: projectId,
       manhours: mh, progress_tons: tons > 0 ? tons : null,
-      target_id: modelTargetId, step_done: stepDone, ...getCreatedAtOverride()
+      target_id: modelTargetId, step_done: stepDone, is_step_complete: isComplete, ...getCreatedAtOverride()
     });
 
-    if (!modelStatusUpdates[modelId]) modelStatusUpdates[modelId] = {};
-    if (!modelStatusUpdates[modelId][status]) modelStatusUpdates[modelId][status] = 0;
-    modelStatusUpdates[modelId][status] += tons;
+    // Tons/manhours are always recorded above (real physical progress).
+    // The official "status" (and revision bump) below only advances once
+    // the step is flagged complete — so a partial day's tons don't
+    // prematurely flip the model's status.
+    if (isComplete) {
+      if (!modelStatusUpdates[modelId]) modelStatusUpdates[modelId] = {};
+      if (!modelStatusUpdates[modelId][status]) modelStatusUpdates[modelId][status] = 0;
+      modelStatusUpdates[modelId][status] += tons;
+    }
   }
 
   // ── Pre-check for target overrun BEFORE writing anything to the DB ──
