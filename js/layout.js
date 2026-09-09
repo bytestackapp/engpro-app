@@ -260,7 +260,7 @@ function buildNavItems(role) {
     { href: 'weld-map-drawings.html',  	  icon: NAV_ICONS.weldmap,      label: 'Weld Map Drawings',    roles: ALL_ROLES },
     { href: 'test-package.html',       	  icon: NAV_ICONS.testpkg,      label: 'Test Package',         roles: ALL_ROLES },
     { href: 'material-status.html',    	  icon: NAV_ICONS.material,     label: 'Material Status',      roles: ALL_ROLES },
-    { href: 'eng-calculations.html',   	  icon: NAV_ICONS.calcs,        label: 'Eng. Calculations',    roles: ALL_ROLES },
+    { href: 'eng-calculations.html',   	  icon: NAV_ICONS.calcs,        label: 'Construction Support', roles: ALL_ROLES },
     { href: 'technical-query.html',    	  icon: NAV_ICONS.tq,           label: 'Technical Query',      roles: ALL_ROLES },
     { href: 'issues-concerns.html',    	  icon: NAV_ICONS.issues,       label: 'Issues & Concerns',    roles: ALL_ROLES },
     { href: 'project-inquiry.html',       icon: NAV_ICONS.inquiry,      label: 'Project Inquiry',      roles: ALL_ROLES },
