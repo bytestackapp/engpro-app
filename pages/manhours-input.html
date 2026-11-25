@@ -6,25 +6,6 @@
   <title>Manhours Input — EngPro App</title>
   <link rel="stylesheet" href="../css/main.css" />
   <style>
-    /* ── CSS VARIABLE FALLBACKS (standalone preview) ── */
-    :root {
-      --text:        #e2e8f0;
-      --text-2:      #cbd5e1;
-      --text-3:      #94a3b8;
-      --text-4:      #64748b;
-      --surface:     #16191e;
-      --bg-3:        #1e2126;
-      --bg-4:        #191c21;
-      --border:      #2a2e35;
-      --border-2:    #252930;
-      --accent:      #f97316;
-      --accent-light:#fdba74;
-      --accent-dim:  rgba(249,115,22,0.08);
-      --radius:      6px;
-      --radius-lg:   10px;
-      --speed:       0.15s;
-    }
-
     /* ── STANDALONE SHELL — only applies in preview, NOT in real app ── */
     * { box-sizing: border-box; }
     /* NOTE: Do NOT set max-width/padding on #page-content — layout.js owns that in the real app */
@@ -112,7 +93,7 @@
     .admin-mode-badge {
       display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 6px;
       background: var(--bg-2);
-      border: 1px solid #64748b;
+      border: 1px solid var(--text-4);
       border-radius: var(--radius-lg);
       padding: 6px 14px;
       min-height: 61px;          /* ADD */
@@ -125,7 +106,7 @@
 	
     .admin-mode-badge.active {
       border-color: #ef4444;
-      background: #2a1416; /* solid — fixes the see-through bleed from the screenshot */
+      background: var(--red-solid); /* solid — fixes the see-through bleed from the screenshot */
     }
 	
     .admin-mode-badge .amb-toggle-row {
@@ -135,7 +116,7 @@
       line-height: 1;   /* ADD — for consistency with the row above */
     }
 	
-    .admin-mode-badge.active .amb-toggle-row { color: #f87171; }
+    .admin-mode-badge.active .amb-toggle-row { color: var(--red); }
     .admin-mode-badge .amb-second-row {
       display: flex; align-items: center; gap: 6px;
       min-height: 16px; /* same reserved space whether it holds the caption or the date picker */
@@ -145,7 +126,7 @@
       padding-left: 22px;
     }
     .admin-mode-badge input[type="date"] {
-      background: var(--bg-1); border: 1px solid #64748b; border-radius: 6px;
+      background: var(--bg-1); border: 1px solid var(--text-4); border-radius: 6px;
       color: var(--text); font-size: 11px; padding: 3px 6px; outline: none;
     }
     
@@ -153,11 +134,11 @@
     .admin-mode-banner {
       display: none; /* toggled to 'flex' by renderAdminModeUI() */
       align-items: center; gap: 8px;
-      background: #2a1416; /* solid, matches .active above */
+      background: var(--red-solid); /* solid, matches .active above */
       border: 1px solid #ef4444;
       border-radius: var(--radius-lg);
       padding: 6px 14px;
-      color: #f87171;
+      color: var(--red);
       font-size: 11px; font-weight: 600;
       max-width: 460px;
 	  min-height: 61px;
@@ -259,18 +240,18 @@
     #at-doc-name-label.placeholder { color: var(--text-4); }
     
     .at-doc-panel {
-      position: fixed; background:#16191e; border:1px solid var(--border); border-radius:8px;
+      position: fixed; background:var(--surface); border:1px solid var(--border); border-radius:8px;
       box-shadow:0 8px 24px rgba(0,0,0,0.4); z-index:5000; overflow:hidden;
       display:flex; flex-direction:column;
     }
     .at-doc-panel-search { padding:8px; border-bottom:1px solid var(--border); flex-shrink:0; }
     .at-doc-panel-search input {
-      width:100%; padding:6px 9px; font-size:13px; background:#191c21; border:1px solid #2a2e35;
-      border-radius:6px; color:#e2e8f0; outline:none; box-sizing:border-box;
+      width:100%; padding:6px 9px; font-size:13px; background:var(--bg-4); border:1px solid var(--border);
+      border-radius:6px; color:var(--text); outline:none; box-sizing:border-box;
     }
-    .at-doc-panel-search input:focus { border-color:#f97316; }
+    .at-doc-panel-search input:focus { border-color:var(--accent); }
     .at-doc-panel-list { overflow-y:auto; max-height:220px; }
-    .at-doc-panel-empty { padding:14px 12px; font-size:12px; color:#64748b; text-align:center; }
+    .at-doc-panel-empty { padding:14px 12px; font-size:12px; color:var(--text-4); text-align:center; }
 
     /* ── DRAWING PICKER BUTTON ── */
     .drawing-picker-btn {
@@ -322,7 +303,7 @@
       position: absolute;
       bottom: calc(100% + 8px);
       right: 0;
-      background: #1a1d23;
+      background: var(--surface-2);
       border: 1px solid var(--accent);
       color: var(--text);
       font-size: 11px;
@@ -408,7 +389,7 @@
       position: absolute;
       bottom: calc(100% + 8px);
       right: -6px;
-      background: #1a1d23;
+      background: var(--surface-2);
       border: 1px solid var(--border-2);
       color: var(--text);
       font-size: 11px;
@@ -502,7 +483,7 @@
     }
     .modal-box {
       position: relative; z-index: 1;
-      background: #1a1d22; border: 1px solid #2a2e35;
+      background: var(--surface-2); border: 1px solid var(--border);
       border-radius: 12px; width: 90%; max-width: 860px;
       display: flex; flex-direction: column; max-height: 80vh;
       box-shadow: 0 24px 64px rgba(0,0,0,0.6);
@@ -512,58 +493,58 @@
 	
     .modal-header {
       display: flex; align-items: center; justify-content: space-between;
-      padding: 14px 20px; border-bottom: 1px solid #2a2e35; flex-shrink: 0;
+      padding: 14px 20px; border-bottom: 1px solid var(--border); flex-shrink: 0;
     }
-    .modal-header h3 { margin:0; font-size:14px; font-weight:600; color:#e2e8f0; display:flex; align-items:center; gap:8px; }
+    .modal-header h3 { margin:0; font-size:14px; font-weight:600; color:var(--text); display:flex; align-items:center; gap:8px; }
     .modal-close {
-      background: none; border: none; color: #64748b;
+      background: none; border: none; color: var(--text-4);
       font-size: 18px; cursor: pointer; padding: 2px 8px; border-radius: 4px; line-height:1;
     }
-    .modal-close:hover { color: #e2e8f0; background: #2a2e35; }
+    .modal-close:hover { color: var(--text); background: var(--border); }
 
     .modal-drawing-search {
-      padding: 12px 20px 10px; border-bottom: 1px solid #2a2e35; flex-shrink: 0;
+      padding: 12px 20px 10px; border-bottom: 1px solid var(--border); flex-shrink: 0;
     }
     .modal-drawing-search input {
       width: 100%; padding: 7px 11px; font-size: 13px;
-      background: #191c21; border: 1px solid #2a2e35;
-      border-radius: 6px; color: #e2e8f0; outline: none;
+      background: var(--bg-4); border: 1px solid var(--border);
+      border-radius: 6px; color: var(--text); outline: none;
     }
-    .modal-drawing-search input:focus { border-color: #f97316; }
+    .modal-drawing-search input:focus { border-color: var(--accent); }
 
     .modal-select-bar {
       display: flex; align-items: center; gap: 10px;
-      padding: 7px 20px; border-bottom: 1px solid #2a2e35;
-      background: #191c21; font-size: 12px; color: #94a3b8; flex-shrink: 0;
+      padding: 7px 20px; border-bottom: 1px solid var(--border);
+      background: var(--bg-4); font-size: 12px; color: var(--text-3); flex-shrink: 0;
     }
     .modal-drawing-list { overflow-y: auto; flex: 1; }
     .modal-drawing-option {
       display: flex; align-items: center; gap: 12px;
-      padding: 9px 20px; font-size: 13px; color: #94a3b8;
+      padding: 9px 20px; font-size: 13px; color: var(--text-3);
       cursor: pointer; transition: background 0.1s;
-      border-bottom: 1px solid #1e2126;
+      border-bottom: 1px solid var(--surface-2);
     }
     .modal-drawing-option:last-child { border-bottom: none; }
-    .modal-drawing-option:hover:not(.step-locked) { background: #1e2126; color: #e2e8f0; }
-    .modal-drawing-option.selected { background: rgba(249,115,22,0.08); }
+    .modal-drawing-option:hover:not(.step-locked) { background: var(--surface-2); color: var(--text); }
+    .modal-drawing-option.selected { background: var(--accent-dim); }
     .modal-drawing-option.step-locked { opacity: 0.5; cursor: not-allowed !important; background: transparent !important; }
     .modal-drawing-option.step-locked * { pointer-events: none; cursor: not-allowed !important; }
     .modal-drawing-option input[type="checkbox"] {
-      accent-color: #f97316; width: 15px; height: 15px; flex-shrink: 0; cursor: pointer;
+      accent-color: var(--accent); width: 15px; height: 15px; flex-shrink: 0; cursor: pointer;
     }
     .modal-drawing-option-num {
-      font-weight: 700; font-size: 12px; color: #fdba74; flex-shrink: 0; min-width: 90px;
+      font-weight: 700; font-size: 12px; color: var(--accent-light); flex-shrink: 0; min-width: 90px;
     }
     .modal-drawing-option-title { flex: 1; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .modal-drawing-option-badge { flex-shrink: 0; }
 
     .modal-footer-info {
-      padding: 8px 20px; font-size: 12px; color: #64748b;
-      border-top: 1px solid #2a2e35; background: #191c21; flex-shrink: 0; display: none;
+      padding: 8px 20px; font-size: 12px; color: var(--text-4);
+      border-top: 1px solid var(--border); background: var(--bg-4); flex-shrink: 0; display: none;
     }
     .modal-footer {
       display: flex; justify-content: flex-end; gap: 10px;
-      padding: 12px 20px; border-top: 1px solid #2a2e35; flex-shrink: 0;
+      padding: 12px 20px; border-top: 1px solid var(--border); flex-shrink: 0;
     }
 	
 	/* ── PR/TBE MODALS — reskinned to match the MTO picker chrome ── */
@@ -577,13 +558,13 @@
       cursor:pointer; border:none; display:inline-flex; align-items:center; gap:6px;
       transition: all 0.15s;
     }
-    .btn-primary { background: #f97316; color: #fff; }
-    .btn-primary:hover { background: #ea6b0e; }
-    .btn-ghost { background: transparent; color: #94a3b8; border: 1px solid #2a2e35; }
-    .btn-ghost:hover { color: #e2e8f0; background: #2a2e35; }
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-primary:hover { background: var(--accent-dark); }
+    .btn-ghost { background: transparent; color: var(--text-3); border: 1px solid var(--border); }
+    .btn-ghost:hover { color: var(--text); background: var(--border); }
     .btn-sm { padding: 3px 10px; font-size: 11px; border-radius: 6px; }
     .badge-gray {
-      background: #2a2e35; color: #94a3b8; border-radius: 10px;
+      background: var(--border); color: var(--text-3); border-radius: 10px;
       padding: 2px 7px; font-size: 11px; display:inline-flex; align-items:center; gap:3px;
     }
 
@@ -879,14 +860,14 @@
     } else {
       // layout.js failed to load — show a visible error instead of silently entering mock mode
       document.body.innerHTML = `
-        <div style="display:flex;align-items:center;justify-content:center;height:100vh;background:#0f1115;font-family:sans-serif;">
-          <div style="text-align:center;color:#e2e8f0;">
-            <div style="margin-bottom:16px;color:#f97316;">
+        <div style="display:flex;align-items:center;justify-content:center;height:100vh;background:var(--bg-2);font-family:sans-serif;">
+          <div style="text-align:center;color:var(--text);">
+            <div style="margin-bottom:16px;color:var(--accent);">
               <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
             </div>
             <div style="font-size:16px;font-weight:600;margin-bottom:8px;">Failed to load application</div>
-            <div style="font-size:13px;color:#64748b;margin-bottom:20px;">layout.js could not be loaded. Check your network connection and try again.</div>
-            <button onclick="location.reload()" style="padding:8px 20px;background:#f97316;color:#fff;border:none;border-radius:6px;font-size:13px;cursor:pointer;">Retry</button>
+            <div style="font-size:13px;color:var(--text-4);margin-bottom:20px;">layout.js could not be loaded. Check your network connection and try again.</div>
+            <button onclick="location.reload()" style="padding:8px 20px;background:var(--accent);color:#fff;border:none;border-radius:6px;font-size:13px;cursor:pointer;">Retry</button>
           </div>
         </div>`;
     }
@@ -1609,17 +1590,17 @@
             <div class="modal-drawing-search">
               <input type="text" id="modal-search-input" placeholder="Search by drawing number…" oninput="renderModalList(this.value)" />
             </div>
-            <div style="padding:8px 20px;border-bottom:1px solid #2a2e35;background:#191c21;display:flex;align-items:center;gap:8px;flex-shrink:0;">
-              <span style="font-size:11px;color:#64748b;flex-shrink:0;">Filter step:</span>
+            <div style="padding:8px 20px;border-bottom:1px solid var(--border);background:var(--bg-4);display:flex;align-items:center;gap:8px;flex-shrink:0;">
+              <span style="font-size:11px;color:var(--text-4);flex-shrink:0;">Filter step:</span>
               <select id="modal-step-filter" oninput="renderModalList(document.getElementById('modal-search-input').value)"
-                style="background:#1e2126;border:1px solid #2a2e35;border-radius:6px;padding:4px 8px;font-size:12px;color:#e2e8f0;outline:none;flex:1;">
+                style="background:var(--surface-2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;font-size:12px;color:var(--text);outline:none;flex:1;">
                 <option value="">All</option>
                 ${VISIBLE_STEPS.map(s => `<option value="${s}">${s}</option>`).join('')}
                 <option value="__none__">Not started</option>
               </select>
             </div>
             <div class="modal-select-bar">
-              <span id="modal-selected-count" style="font-weight:600;color:#cbd5e1;">0 selected</span>
+              <span id="modal-selected-count" style="font-weight:600;color:var(--text-2);">0 selected</span>
               <div style="margin-left:auto;display:flex;gap:6px;">
                 <button class="btn btn-ghost btn-sm" onclick="modalSelectAll()">Select All</button>
                 <button class="btn btn-ghost btn-sm" onclick="modalClearAll()">Clear</button>
@@ -1628,13 +1609,13 @@
             <div style="flex:1;overflow-y:auto;">
               <table style="width:100%;border-collapse:collapse;table-layout:fixed;">
                 <thead>
-                  <tr style="background:#16191e;">
-                    <th style="width:32px;padding:7px 0 7px 20px;position:sticky;top:0;background:#16191e;border-bottom:1px solid #2a2e35;z-index:1;"></th>
-                    <th id="modal-drawing-header" style="padding:7px 12px;font-size:10px;font-weight:700;color:#475569;letter-spacing:0.05em;text-align:left;position:sticky;top:0;background:#16191e;border-bottom:1px solid #2a2e35;z-index:1;">MTO NO.</th>
-					<th id="modal-steps-header" style="padding:7px 12px;font-size:10px;font-weight:700;color:#475569;letter-spacing:0.05em;text-align:center;position:sticky;top:0;background:#16191e;border-bottom:1px solid #2a2e35;z-index:1;">MTO STATUS</th>
-                    <th id="modal-revision-header" style="width:10%;padding:7px 12px;font-size:10px;font-weight:700;color:#475569;letter-spacing:0.05em;text-align:center;display:none;position:sticky;top:0;background:#16191e;border-bottom:1px solid #2a2e35;z-index:1;">CURRENT REV</th>
-                    <th id="modal-reason-header" style="width:22%;padding:7px 12px;font-size:10px;font-weight:700;color:#e74c3c;letter-spacing:0.05em;text-align:left;display:none;position:sticky;top:0;background:#16191e;border-bottom:1px solid #2a2e35;z-index:1;">REVISION TYPE *</th>
-                    <th id="modal-desc-header" style="width:28%;padding:7px 20px 7px 0;font-size:10px;font-weight:700;color:#94a3b8;letter-spacing:0.05em;text-align:left;display:none;position:sticky;top:0;background:#16191e;border-bottom:1px solid #2a2e35;z-index:1;">REVISION DESCRIPTION</th>
+                  <tr style="background:var(--surface);">
+                    <th style="width:32px;padding:7px 0 7px 20px;position:sticky;top:0;background:var(--surface);border-bottom:1px solid var(--border);z-index:1;"></th>
+                    <th id="modal-drawing-header" style="padding:7px 12px;font-size:10px;font-weight:700;color:var(--text-4);letter-spacing:0.05em;text-align:left;position:sticky;top:0;background:var(--surface);border-bottom:1px solid var(--border);z-index:1;">MTO NO.</th>
+					<th id="modal-steps-header" style="padding:7px 12px;font-size:10px;font-weight:700;color:var(--text-4);letter-spacing:0.05em;text-align:center;position:sticky;top:0;background:var(--surface);border-bottom:1px solid var(--border);z-index:1;">MTO STATUS</th>
+                    <th id="modal-revision-header" style="width:10%;padding:7px 12px;font-size:10px;font-weight:700;color:var(--text-4);letter-spacing:0.05em;text-align:center;display:none;position:sticky;top:0;background:var(--surface);border-bottom:1px solid var(--border);z-index:1;">CURRENT REV</th>
+                    <th id="modal-reason-header" style="width:22%;padding:7px 12px;font-size:10px;font-weight:700;color:#e74c3c;letter-spacing:0.05em;text-align:left;display:none;position:sticky;top:0;background:var(--surface);border-bottom:1px solid var(--border);z-index:1;">REVISION TYPE *</th>
+                    <th id="modal-desc-header" style="width:28%;padding:7px 20px 7px 0;font-size:10px;font-weight:700;color:var(--text-3);letter-spacing:0.05em;text-align:left;display:none;position:sticky;top:0;background:var(--surface);border-bottom:1px solid var(--border);z-index:1;">REVISION DESCRIPTION</th>
                   </tr>
                 </thead>
                 <tbody id="modal-drawing-list"></tbody>
@@ -1660,9 +1641,9 @@
               <div class="form-group">
                 <label class="required">ETD No.</label>
                 <input type="text" id="etd-no-input" placeholder="e.g. AGP-23002-ETD-0001"
-                       style="width:100%;padding:7px 11px;font-size:13px;background:#191c21;border:1px solid #2a2e35;border-radius:6px;color:#e2e8f0;outline:none;" />
+                       style="width:100%;padding:7px 11px;font-size:13px;background:var(--bg-4);border:1px solid var(--border);border-radius:6px;color:var(--text);outline:none;" />
               </div>
-              <div style="font-size:11px;color:#64748b;">
+              <div style="font-size:11px;color:var(--text-4);">
                 This ETD No. will be attached to every document selected in this issuance.
               </div>
             </div>
@@ -1695,7 +1676,7 @@
               </div>
               <div class="modal-select-bar">
                 <label class="required" style="margin-top:4px;">Linked MTO</label>
-				<span id="pr-mto-selected-count" style="color:#94a3b8;">0 selected</span>
+				<span id="pr-mto-selected-count" style="color:var(--text-3);">0 selected</span>
                 <div style="margin-left:auto;display:flex;gap:6px;">
                   <button class="btn btn-ghost btn-sm" onclick="prMtoSelectAll()">Select All</button>
                   <button class="btn btn-ghost btn-sm" onclick="prMtoClearAll()">Clear</button>
@@ -1704,11 +1685,11 @@
               <div style="flex:1;overflow-y:auto;">
                 <table style="width:100%;border-collapse:collapse;table-layout:fixed;">
                   <thead>
-                    <tr style="background:#16191e;">
-                      <th style="width:32px;padding:7px 0 7px 20px;position:sticky;top:0;background:#16191e;border-bottom:1px solid #2a2e35;"></th>
-                      <th style="width:45%;padding:7px 12px;font-size:10px;font-weight:700;color:#475569;letter-spacing:0.05em;text-align:left;position:sticky;top:0;background:#16191e;border-bottom:1px solid #2a2e35;">MTO NO.</th>
-                      <th style="width:25%;padding:7px 12px;font-size:10px;font-weight:700;color:#475569;letter-spacing:0.05em;text-align:center;position:sticky;top:0;background:#16191e;border-bottom:1px solid #2a2e35;">MTO REV</th>
-                      <th style="width:30%;padding:7px 12px;font-size:10px;font-weight:700;color:#475569;letter-spacing:0.05em;text-align:center;position:sticky;top:0;background:#16191e;border-bottom:1px solid #2a2e35;">MTO STATUS</th>
+                    <tr style="background:var(--surface);">
+                      <th style="width:32px;padding:7px 0 7px 20px;position:sticky;top:0;background:var(--surface);border-bottom:1px solid var(--border);"></th>
+                      <th style="width:45%;padding:7px 12px;font-size:10px;font-weight:700;color:var(--text-4);letter-spacing:0.05em;text-align:left;position:sticky;top:0;background:var(--surface);border-bottom:1px solid var(--border);">MTO NO.</th>
+                      <th style="width:25%;padding:7px 12px;font-size:10px;font-weight:700;color:var(--text-4);letter-spacing:0.05em;text-align:center;position:sticky;top:0;background:var(--surface);border-bottom:1px solid var(--border);">MTO REV</th>
+                      <th style="width:30%;padding:7px 12px;font-size:10px;font-weight:700;color:var(--text-4);letter-spacing:0.05em;text-align:center;position:sticky;top:0;background:var(--surface);border-bottom:1px solid var(--border);">MTO STATUS</th>
                     </tr>
                   </thead>
                   <tbody id="pr-mto-checklist"></tbody>
@@ -1724,12 +1705,12 @@
               <div style="flex:1;overflow-y:auto;">
                 <table style="width:100%;border-collapse:collapse;table-layout:fixed;">
                   <thead>
-                    <tr style="background:#16191e;">
-                      <th style="width:32px;padding:7px 0 7px 20px;position:sticky;top:0;background:#16191e;border-bottom:1px solid #2a2e35;"></th>
-                      <th style="width:25%;padding:7px 12px;font-size:10px;font-weight:700;color:#475569;letter-spacing:0.05em;text-align:left;position:sticky;top:0;background:#16191e;border-bottom:1px solid #2a2e35;">PR NO.</th>
-                      <th style="width:15%;padding:7px 12px;font-size:10px;font-weight:700;color:#475569;letter-spacing:0.05em;text-align:center;position:sticky;top:0;background:#16191e;border-bottom:1px solid #2a2e35;">PR REV</th>
-                      <th style="width:25%;padding:7px 12px;font-size:10px;font-weight:700;color:#e74c3c;letter-spacing:0.05em;text-align:left;position:sticky;top:0;background:#16191e;border-bottom:1px solid #2a2e35;">REVISION TYPE *</th>
-                      <th style="width:35%;padding:7px 20px 7px 0;font-size:10px;font-weight:700;color:#94a3b8;letter-spacing:0.05em;text-align:left;position:sticky;top:0;background:#16191e;border-bottom:1px solid #2a2e35;">REVISION DESCRIPTION</th>
+                    <tr style="background:var(--surface);">
+                      <th style="width:32px;padding:7px 0 7px 20px;position:sticky;top:0;background:var(--surface);border-bottom:1px solid var(--border);"></th>
+                      <th style="width:25%;padding:7px 12px;font-size:10px;font-weight:700;color:var(--text-4);letter-spacing:0.05em;text-align:left;position:sticky;top:0;background:var(--surface);border-bottom:1px solid var(--border);">PR NO.</th>
+                      <th style="width:15%;padding:7px 12px;font-size:10px;font-weight:700;color:var(--text-4);letter-spacing:0.05em;text-align:center;position:sticky;top:0;background:var(--surface);border-bottom:1px solid var(--border);">PR REV</th>
+                      <th style="width:25%;padding:7px 12px;font-size:10px;font-weight:700;color:#e74c3c;letter-spacing:0.05em;text-align:left;position:sticky;top:0;background:var(--surface);border-bottom:1px solid var(--border);">REVISION TYPE *</th>
+                      <th style="width:35%;padding:7px 20px 7px 0;font-size:10px;font-weight:700;color:var(--text-3);letter-spacing:0.05em;text-align:left;position:sticky;top:0;background:var(--surface);border-bottom:1px solid var(--border);">REVISION DESCRIPTION</th>
                     </tr>
                   </thead>
                   <tbody id="pr-revision-list"></tbody>
@@ -1767,7 +1748,7 @@
               </div>
               <div class="modal-select-bar">
                 <label class="required" style="margin-top:4px;">Linked MTO</label>
-                <span id="tbe-mto-selected-count" style="color:#94a3b8;">0 selected</span>
+                <span id="tbe-mto-selected-count" style="color:var(--text-3);">0 selected</span>
                 <div style="margin-left:auto;display:flex;gap:6px;">
                   <button class="btn btn-ghost btn-sm" onclick="tbeMtoClearAll()">Clear</button>
                 </div>
@@ -1775,11 +1756,11 @@
               <div style="flex:1;overflow-y:auto;">
                 <table style="width:100%;border-collapse:collapse;table-layout:fixed;">
                   <thead>
-                    <tr style="background:#16191e;">
-                      <th style="width:32px;padding:7px 0 7px 20px;position:sticky;top:0;background:#16191e;border-bottom:1px solid #2a2e35;"></th>
-                      <th style="width:45%;padding:7px 12px;font-size:10px;font-weight:700;color:#475569;letter-spacing:0.05em;text-align:left;position:sticky;top:0;background:#16191e;border-bottom:1px solid #2a2e35;">MTO NO.</th>
-                      <th style="width:25%;padding:7px 12px;font-size:10px;font-weight:700;color:#475569;letter-spacing:0.05em;text-align:center;position:sticky;top:0;background:#16191e;border-bottom:1px solid #2a2e35;">MTO REV</th>
-                      <th style="width:30%;padding:7px 12px;font-size:10px;font-weight:700;color:#475569;letter-spacing:0.05em;text-align:center;position:sticky;top:0;background:#16191e;border-bottom:1px solid #2a2e35;">MTO STATUS</th>
+                    <tr style="background:var(--surface);">
+                      <th style="width:32px;padding:7px 0 7px 20px;position:sticky;top:0;background:var(--surface);border-bottom:1px solid var(--border);"></th>
+                      <th style="width:45%;padding:7px 12px;font-size:10px;font-weight:700;color:var(--text-4);letter-spacing:0.05em;text-align:left;position:sticky;top:0;background:var(--surface);border-bottom:1px solid var(--border);">MTO NO.</th>
+                      <th style="width:25%;padding:7px 12px;font-size:10px;font-weight:700;color:var(--text-4);letter-spacing:0.05em;text-align:center;position:sticky;top:0;background:var(--surface);border-bottom:1px solid var(--border);">MTO REV</th>
+                      <th style="width:30%;padding:7px 12px;font-size:10px;font-weight:700;color:var(--text-4);letter-spacing:0.05em;text-align:center;position:sticky;top:0;background:var(--surface);border-bottom:1px solid var(--border);">MTO STATUS</th>
                     </tr>
                   </thead>
                   <tbody id="tbe-mto-checklist"></tbody>
@@ -1795,13 +1776,13 @@
               <div style="flex:1;overflow-y:auto;">
                 <table style="width:100%;border-collapse:collapse;table-layout:fixed;">
                   <thead>
-                    <tr style="background:#16191e;">
-                      <th style="width:32px;padding:7px 0 7px 20px;position:sticky;top:0;background:#16191e;border-bottom:1px solid #2a2e35;"></th>
-                      <th id="tbe-no-header" style="width:25%;padding:7px 12px;font-size:10px;font-weight:700;color:#475569;letter-spacing:0.05em;text-align:left;position:sticky;top:0;background:#16191e;border-bottom:1px solid #2a2e35;">TBE NO.</th>
-                      <th id="tbe-steps-header" style="width:35%;padding:7px 12px;font-size:10px;font-weight:700;color:#475569;letter-spacing:0.05em;text-align:center;display:none;position:sticky;top:0;background:#16191e;border-bottom:1px solid #2a2e35;">TBE STATUS</th>
-                      <th id="tbe-rev-header" style="width:15%;padding:7px 12px;font-size:10px;font-weight:700;color:#475569;letter-spacing:0.05em;text-align:center;position:sticky;top:0;background:#16191e;border-bottom:1px solid #2a2e35;">TBE REV</th>
-                      <th id="tbe-reason-header" style="width:25%;padding:7px 12px;font-size:10px;font-weight:700;color:#e74c3c;letter-spacing:0.05em;text-align:left;position:sticky;top:0;background:#16191e;border-bottom:1px solid #2a2e35;">REVISION TYPE *</th>
-                      <th id="tbe-desc-header" style="width:35%;padding:7px 20px 7px 0;font-size:10px;font-weight:700;color:#94a3b8;letter-spacing:0.05em;text-align:left;position:sticky;top:0;background:#16191e;border-bottom:1px solid #2a2e35;">REVISION DESCRIPTION</th>
+                    <tr style="background:var(--surface);">
+                      <th style="width:32px;padding:7px 0 7px 20px;position:sticky;top:0;background:var(--surface);border-bottom:1px solid var(--border);"></th>
+                      <th id="tbe-no-header" style="width:25%;padding:7px 12px;font-size:10px;font-weight:700;color:var(--text-4);letter-spacing:0.05em;text-align:left;position:sticky;top:0;background:var(--surface);border-bottom:1px solid var(--border);">TBE NO.</th>
+                      <th id="tbe-steps-header" style="width:35%;padding:7px 12px;font-size:10px;font-weight:700;color:var(--text-4);letter-spacing:0.05em;text-align:center;display:none;position:sticky;top:0;background:var(--surface);border-bottom:1px solid var(--border);">TBE STATUS</th>
+                      <th id="tbe-rev-header" style="width:15%;padding:7px 12px;font-size:10px;font-weight:700;color:var(--text-4);letter-spacing:0.05em;text-align:center;position:sticky;top:0;background:var(--surface);border-bottom:1px solid var(--border);">TBE REV</th>
+                      <th id="tbe-reason-header" style="width:25%;padding:7px 12px;font-size:10px;font-weight:700;color:#e74c3c;letter-spacing:0.05em;text-align:left;position:sticky;top:0;background:var(--surface);border-bottom:1px solid var(--border);">REVISION TYPE *</th>
+                      <th id="tbe-desc-header" style="width:35%;padding:7px 20px 7px 0;font-size:10px;font-weight:700;color:var(--text-3);letter-spacing:0.05em;text-align:left;position:sticky;top:0;background:var(--surface);border-bottom:1px solid var(--border);">REVISION DESCRIPTION</th>
                     </tr>
                   </thead>
                   <tbody id="tbe-revision-list"></tbody>
@@ -1954,7 +1935,7 @@
             <div class="modal-body">
               <p style="font-size:13px;color:var(--text-2);line-height:1.6;margin:0 0 12px;">Enter the admin password to enable Admin Mode.</p>
               <input type="password" id="admin-password-input" placeholder="Password"
-                     style="width:100%;box-sizing:border-box;padding:8px 11px;font-size:13px;background:#191c21;border:1px solid #2a2e35;border-radius:6px;color:#e2e8f0;outline:none;"
+                     style="width:100%;box-sizing:border-box;padding:8px 11px;font-size:13px;background:var(--bg-4);border:1px solid var(--border);border-radius:6px;color:var(--text);outline:none;"
                      onkeydown="if(event.key==='Enter'){ event.preventDefault(); confirmAdminPasswordModal(); }" />
               <p id="admin-password-error" style="font-size:12px;color:var(--red);margin:8px 0 0;display:none;">Incorrect password.</p>
             </div>
@@ -2664,24 +2645,24 @@
       if (!list) return;
       const mtos = window._prModalMtos || [];
       list.innerHTML = mtos.length === 0
-        ? `<tr><td colspan="4" style="padding:24px;text-align:center;font-size:13px;color:#64748b;">No MTOs found.</td></tr>`
+        ? `<tr><td colspan="4" style="padding:24px;text-align:center;font-size:13px;color:var(--text-4);">No MTOs found.</td></tr>`
         : mtos.map(m => {
             const isSelected = prSelectedMtoIds.includes(m.id);
             const stepBadge = m.latestStep
               ? `<span class="badge-gray">${m.latestStep}</span>`
-              : `<span style="font-size:12px;color:#475569;">—</span>`;
+              : `<span style="font-size:12px;color:var(--text-4);">—</span>`;
             return `
-              <tr style="border-bottom:1px solid #1e2126;cursor:pointer;height:38px;${isSelected ? 'background:rgba(249,115,22,0.08);' : ''}"
+              <tr style="border-bottom:1px solid var(--surface-2);cursor:pointer;height:38px;${isSelected ? 'background:var(--accent-dim);' : ''}"
                 onclick="prMtoToggle('${m.id}')"
-                onmouseover="if(!this.style.background||this.style.background==='')this.style.background='#1e2126'"
-                onmouseout="this.style.background='${isSelected ? 'rgba(249,115,22,0.08)' : ''}'">
+                onmouseover="if(!this.style.background||this.style.background==='')this.style.background='var(--surface-2)'"
+                onmouseout="this.style.background='${isSelected ? 'var(--accent-dim)' : ''}'">
                 <td style="width:32px;padding:0 0 0 20px;vertical-align:middle;">
                   <input type="checkbox" ${isSelected ? 'checked' : ''}
                     onclick="event.stopPropagation();prMtoToggle('${m.id}')"
-                    style="accent-color:#f97316;width:15px;height:15px;cursor:pointer;" />
+                    style="accent-color:var(--accent);width:15px;height:15px;cursor:pointer;" />
                 </td>
-                <td style="padding:0 12px;font-size:12px;font-weight:700;color:#fdba74;vertical-align:middle;">${esc(m.mto_number || m.drawing_number || m.id)}</td>
-                <td style="padding:0 12px;text-align:center;vertical-align:middle;font-size:12px;color:#94a3b8;">${m.mto_revision ?? 0}</td>
+                <td style="padding:0 12px;font-size:12px;font-weight:700;color:var(--accent-light);vertical-align:middle;">${esc(m.mto_number || m.drawing_number || m.id)}</td>
+                <td style="padding:0 12px;text-align:center;vertical-align:middle;font-size:12px;color:var(--text-3);">${m.mto_revision ?? 0}</td>
                 <td style="padding:0 12px;text-align:center;vertical-align:middle;">${stepBadge}</td>
               </tr>`;
           }).join('');
@@ -2689,7 +2670,7 @@
       if (countEl) {
         const n = prSelectedMtoIds.length;
         countEl.textContent = n === 0 ? '0 selected' : `${n} selected`;
-        countEl.style.color = n > 0 ? '#fdba74' : '#94a3b8';
+        countEl.style.color = n > 0 ? 'var(--accent-light)' : 'var(--text-3)';
       }
     }
 
@@ -2719,34 +2700,34 @@
         .map(r => `<option value="${r.id}">${esc(r.description)}</option>`).join('');
 
       list.innerHTML = filtered.length === 0
-        ? `<tr><td colspan="5" style="padding:24px;text-align:center;font-size:13px;color:#64748b;">No PRs found.</td></tr>`
+        ? `<tr><td colspan="5" style="padding:24px;text-align:center;font-size:13px;color:var(--text-4);">No PRs found.</td></tr>`
         : filtered.map(p => {
             const isSelected = prModalSelectedId === p.id;
             const reasonCell = isSelected
               ? `<td style="padding:0 12px 0 0;vertical-align:middle;" onclick="event.stopPropagation()">
                    <select onchange="setPrReason(this.value)"
-                     style="font-size:11px;padding:3px 6px;background:#1e2126;border:1px solid ${prModalReasonId ? '#f97316' : '#e74c3c'};border-radius:4px;color:#e2e8f0;outline:none;width:100%;">
+                     style="font-size:11px;padding:3px 6px;background:var(--surface-2);border:1px solid ${prModalReasonId ? 'var(--accent)' : '#e74c3c'};border-radius:4px;color:var(--text);outline:none;width:100%;">
                      <option value="">— Type *</option>${reasonOptions.replace(`value="${prModalReasonId}"`, `value="${prModalReasonId}" selected`)}
                    </select>
                  </td>`
-              : `<td style="padding:0 12px 0 0;vertical-align:middle;"><span style="font-size:11px;color:#64748b;">Select to add reason</span></td>`;
+              : `<td style="padding:0 12px 0 0;vertical-align:middle;"><span style="font-size:11px;color:var(--text-4);">Select to add reason</span></td>`;
             const descCell = isSelected
               ? `<td style="padding:0 20px 0 0;vertical-align:middle;" onclick="event.stopPropagation()">
                    <input type="text" value="${esc(prModalDescText)}" oninput="setPrDesc(this.value)" placeholder="Describe the revision…"
-                     style="font-size:11px;padding:3px 6px;background:#1e2126;border:1px solid #2a2e35;border-radius:4px;color:#e2e8f0;outline:none;width:100%;" />
+                     style="font-size:11px;padding:3px 6px;background:var(--surface-2);border:1px solid var(--border);border-radius:4px;color:var(--text);outline:none;width:100%;" />
                  </td>`
-              : `<td style="padding:0 20px 0 0;vertical-align:middle;"><span style="font-size:11px;color:#64748b;">—</span></td>`;
+              : `<td style="padding:0 20px 0 0;vertical-align:middle;"><span style="font-size:11px;color:var(--text-4);">—</span></td>`;
             return `
-              <tr style="border-bottom:1px solid #1e2126;cursor:pointer;height:40px;${isSelected ? 'background:rgba(249,115,22,0.08);' : ''}"
+              <tr style="border-bottom:1px solid var(--surface-2);cursor:pointer;height:40px;${isSelected ? 'background:var(--accent-dim);' : ''}"
                 onclick="selectPrRow('${p.id}')"
-                onmouseover="if(!this.style.background||this.style.background==='')this.style.background='#1e2126'"
-                onmouseout="this.style.background='${isSelected ? 'rgba(249,115,22,0.08)' : ''}'">
+                onmouseover="if(!this.style.background||this.style.background==='')this.style.background='var(--surface-2)'"
+                onmouseout="this.style.background='${isSelected ? 'var(--accent-dim)' : ''}'">
                 <td style="width:32px;padding:0 0 0 20px;vertical-align:middle;">
                   <input type="radio" ${isSelected ? 'checked' : ''} onclick="event.stopPropagation();selectPrRow('${p.id}')"
-                    style="accent-color:#f97316;width:14px;height:14px;cursor:pointer;" />
+                    style="accent-color:var(--accent);width:14px;height:14px;cursor:pointer;" />
                 </td>
-                <td style="width:25%;padding:0 12px;font-size:12px;font-weight:700;color:#fdba74;vertical-align:middle;">${esc(p.pr_no)}</td>
-                <td style="width:15%;padding:0 12px;text-align:center;font-size:12px;font-weight:700;color:#fdba74;vertical-align:middle;">Rev ${p.pr_revision ?? 0}</td>
+                <td style="width:25%;padding:0 12px;font-size:12px;font-weight:700;color:var(--accent-light);vertical-align:middle;">${esc(p.pr_no)}</td>
+                <td style="width:15%;padding:0 12px;text-align:center;font-size:12px;font-weight:700;color:var(--accent-light);vertical-align:middle;">Rev ${p.pr_revision ?? 0}</td>
                 ${reasonCell}
                 ${descCell}
               </tr>`;
@@ -2873,23 +2854,23 @@
       if (!list) return;
       const mtos = window._tbeModalMtos || [];
       list.innerHTML = mtos.length === 0
-        ? `<tr><td colspan="4" style="padding:24px;text-align:center;font-size:13px;color:#64748b;">No MTOs found.</td></tr>`
+        ? `<tr><td colspan="4" style="padding:24px;text-align:center;font-size:13px;color:var(--text-4);">No MTOs found.</td></tr>`
         : mtos.map(m => {
             const isSelected = tbeSelectedMtoId === m.id;
             const stepBadge = m.latestStep
               ? `<span class="badge-gray">${m.latestStep}</span>`
-              : `<span style="font-size:12px;color:#475569;">—</span>`;
+              : `<span style="font-size:12px;color:var(--text-4);">—</span>`;
             return `
-              <tr style="border-bottom:1px solid #1e2126;cursor:pointer;height:38px;${isSelected ? 'background:rgba(249,115,22,0.08);' : ''}"
+              <tr style="border-bottom:1px solid var(--surface-2);cursor:pointer;height:38px;${isSelected ? 'background:var(--accent-dim);' : ''}"
                 onclick="tbeMtoSelect('${m.id}')"
-                onmouseover="if(!this.style.background||this.style.background==='')this.style.background='#1e2126'"
-                onmouseout="this.style.background='${isSelected ? 'rgba(249,115,22,0.08)' : ''}'">
+                onmouseover="if(!this.style.background||this.style.background==='')this.style.background='var(--surface-2)'"
+                onmouseout="this.style.background='${isSelected ? 'var(--accent-dim)' : ''}'">
                 <td style="width:32px;padding:0 0 0 20px;vertical-align:middle;">
                   <input type="radio" ${isSelected ? 'checked' : ''} onclick="event.stopPropagation();tbeMtoSelect('${m.id}')"
-                    style="accent-color:#f97316;width:14px;height:14px;cursor:pointer;" />
+                    style="accent-color:var(--accent);width:14px;height:14px;cursor:pointer;" />
                 </td>
-                <td style="padding:0 12px;font-size:12px;font-weight:700;color:#fdba74;vertical-align:middle;">${esc(m.mto_number || m.drawing_number || m.id)}</td>
-                <td style="padding:0 12px;text-align:center;vertical-align:middle;font-size:12px;color:#94a3b8;">${m.mto_revision ?? 0}</td>
+                <td style="padding:0 12px;font-size:12px;font-weight:700;color:var(--accent-light);vertical-align:middle;">${esc(m.mto_number || m.drawing_number || m.id)}</td>
+                <td style="padding:0 12px;text-align:center;vertical-align:middle;font-size:12px;color:var(--text-3);">${m.mto_revision ?? 0}</td>
                 <td style="padding:0 12px;text-align:center;vertical-align:middle;">${stepBadge}</td>
               </tr>`;
           }).join('');
@@ -2897,7 +2878,7 @@
       if (countEl) {
         const n = tbeSelectedMtoId ? 1 : 0;
         countEl.textContent = n === 0 ? '0 selected' : '1 selected';
-        countEl.style.color = n > 0 ? '#fdba74' : '#94a3b8';
+        countEl.style.color = n > 0 ? 'var(--accent-light)' : 'var(--text-3)';
       }
     }
 
@@ -2949,7 +2930,7 @@
         .map(r => `<option value="${r.id}">${esc(r.description)}</option>`).join('');
 
       list.innerHTML = filtered.length === 0
-        ? `<tr><td colspan="${isPlainMode ? 3 : 5}" style="padding:24px;text-align:center;font-size:13px;color:#64748b;">No TBEs found.</td></tr>`
+        ? `<tr><td colspan="${isPlainMode ? 3 : 5}" style="padding:24px;text-align:center;font-size:13px;color:var(--text-4);">No TBEs found.</td></tr>`
         : filtered.map(t => {
             const isSelected = tbeModalSelectedId === t.id;
             const isPlain = isPlainMode;
@@ -2960,13 +2941,13 @@
             } else if (isSelected && isOrigin) {
               reasonCell = `<td style="padding:0 12px 0 0;vertical-align:middle;" onclick="event.stopPropagation()">
                   <select onchange="setTbeReason(this.value)"
-                    style="font-size:11px;padding:3px 6px;background:#1e2126;border:1px solid ${tbeModalReasonId ? '#f97316' : '#e74c3c'};border-radius:4px;color:#e2e8f0;outline:none;width:100%;">
+                    style="font-size:11px;padding:3px 6px;background:var(--surface-2);border:1px solid ${tbeModalReasonId ? 'var(--accent)' : '#e74c3c'};border-radius:4px;color:var(--text);outline:none;width:100%;">
                     <option value="">— Type *</option>${reasonOptions.replace(`value="${tbeModalReasonId}"`, `value="${tbeModalReasonId}" selected`)}
                   </select>
                 </td>`;
               descCell = `<td style="padding:0 20px 0 0;vertical-align:middle;" onclick="event.stopPropagation()">
                   <input type="text" value="${esc(tbeModalDescText)}" oninput="setTbeDesc(this.value)" placeholder="Describe the revision…"
-                    style="font-size:11px;padding:3px 6px;background:#1e2126;border:1px solid #2a2e35;border-radius:4px;color:#e2e8f0;outline:none;width:100%;" />
+                    style="font-size:11px;padding:3px 6px;background:var(--surface-2);border:1px solid var(--border);border-radius:4px;color:var(--text);outline:none;width:100%;" />
                 </td>`;
             } else if (isSelected && !isOrigin) {
               const revEntries = (t.tbe_activities || []).filter(a => a.step_done === 'TBE Revision');
@@ -2974,27 +2955,27 @@
               const reasonDesc = latest ? (revisionReasonsList.find(r => r.id === latest.revision_reason_id)?.description || '—') : '—';
               const desc = latest?.revision_description || '—';
               reasonCell = `<td style="padding:0 12px 0 0;vertical-align:middle;">
-                  <span style="font-size:11px;color:#94a3b8;background:#1e2126;border:1px solid #2a2e35;border-radius:4px;padding:3px 6px;display:block;width:100%;box-sizing:border-box;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(reasonDesc)}</span>
+                  <span style="font-size:11px;color:var(--text-3);background:var(--surface-2);border:1px solid var(--border);border-radius:4px;padding:3px 6px;display:block;width:100%;box-sizing:border-box;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(reasonDesc)}</span>
                 </td>`;
               descCell = `<td style="padding:0 20px 0 0;vertical-align:middle;">
-                  <span style="font-size:11px;color:#94a3b8;background:#1e2126;border:1px solid #2a2e35;border-radius:4px;padding:3px 6px;display:block;width:100%;box-sizing:border-box;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(desc)}</span>
+                  <span style="font-size:11px;color:var(--text-3);background:var(--surface-2);border:1px solid var(--border);border-radius:4px;padding:3px 6px;display:block;width:100%;box-sizing:border-box;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(desc)}</span>
                 </td>`;
             } else {
-              reasonCell = `<td style="padding:0 12px 0 0;vertical-align:middle;"><span style="font-size:11px;color:#64748b;">Select row</span></td>`;
-              descCell   = `<td style="padding:0 20px 0 0;vertical-align:middle;"><span style="font-size:11px;color:#64748b;">—</span></td>`;
+              reasonCell = `<td style="padding:0 12px 0 0;vertical-align:middle;"><span style="font-size:11px;color:var(--text-4);">Select row</span></td>`;
+              descCell   = `<td style="padding:0 20px 0 0;vertical-align:middle;"><span style="font-size:11px;color:var(--text-4);">—</span></td>`;
             }
-            const stepsCell = `<td style="width:${isPlain ? '45%' : '16%'};padding:0 12px;text-align:center;vertical-align:middle;">${t.latestStep ? `<span class="badge-gray">${t.latestStep}</span>` : `<span style="font-size:12px;color:#475569;">—</span>`}</td>`;
-            const revCell   = `<td style="width:10%;padding:0 12px;text-align:center;font-size:12px;font-weight:700;color:#fdba74;vertical-align:middle;${isPlain ? 'display:none;' : ''}">Rev ${t.tbe_revision ?? 0}</td>`;
+            const stepsCell = `<td style="width:${isPlain ? '45%' : '16%'};padding:0 12px;text-align:center;vertical-align:middle;">${t.latestStep ? `<span class="badge-gray">${t.latestStep}</span>` : `<span style="font-size:12px;color:var(--text-4);">—</span>`}</td>`;
+            const revCell   = `<td style="width:10%;padding:0 12px;text-align:center;font-size:12px;font-weight:700;color:var(--accent-light);vertical-align:middle;${isPlain ? 'display:none;' : ''}">Rev ${t.tbe_revision ?? 0}</td>`;
             return `
-              <tr style="border-bottom:1px solid #1e2126;cursor:pointer;height:40px;${isSelected ? 'background:rgba(249,115,22,0.08);' : ''}"
+              <tr style="border-bottom:1px solid var(--surface-2);cursor:pointer;height:40px;${isSelected ? 'background:var(--accent-dim);' : ''}"
                 onclick="selectTbeRow('${t.id}')"
-                onmouseover="if(!this.style.background||this.style.background==='')this.style.background='#1e2126'"
-                onmouseout="this.style.background='${isSelected ? 'rgba(249,115,22,0.08)' : ''}'">
+                onmouseover="if(!this.style.background||this.style.background==='')this.style.background='var(--surface-2)'"
+                onmouseout="this.style.background='${isSelected ? 'var(--accent-dim)' : ''}'">
                 <td style="width:32px;padding:0 0 0 20px;vertical-align:middle;">
                   <input type="radio" ${isSelected ? 'checked' : ''} onclick="event.stopPropagation();selectTbeRow('${t.id}')"
-                    style="accent-color:#f97316;width:14px;height:14px;cursor:pointer;" />
+                    style="accent-color:var(--accent);width:14px;height:14px;cursor:pointer;" />
                 </td>
-                <td style="width:${isPlain ? '55%' : '32%'};padding:0 12px;font-size:12px;font-weight:700;color:#fdba74;vertical-align:middle;">${esc(t.tbe_number)}</td>
+                <td style="width:${isPlain ? '55%' : '32%'};padding:0 12px;font-size:12px;font-weight:700;color:var(--accent-light);vertical-align:middle;">${esc(t.tbe_number)}</td>
                 ${stepsCell}
                 ${revCell}
                 ${reasonCell}
@@ -3443,7 +3424,7 @@
         .join('');
 
       list.innerHTML = display.length === 0
-        ? `<tr><td colspan="6" style="padding:24px;text-align:center;font-size:13px;color:#64748b;">No drawings found.</td></tr>`
+        ? `<tr><td colspan="6" style="padding:24px;text-align:center;font-size:13px;color:var(--text-4);">No drawings found.</td></tr>`
         : display.map(d => {
           const sel      = _getSelEntry(d.id);
           const isSelected = !!sel;
@@ -3452,9 +3433,9 @@
           const revNum    = showRevCol ? ((modalSource === 'materials' ? d.mto_revision : d.revision_number) ?? 0) : null;
           const stepBadge = latestStep
             ? `<span class="badge-gray">${latestStep}</span>`
-            : `<span style="font-size:12px;color:#475569;">—</span>`;
+            : `<span style="font-size:12px;color:var(--text-4);">—</span>`;
           const revCell   = showRevCol
-            ? `<td style="width:${w.rev};padding:0 12px;text-align:center;font-size:12px;font-weight:700;color:#fdba74;vertical-align:middle;">Rev ${revNum}</td>`
+            ? `<td style="width:${w.rev};padding:0 12px;text-align:center;font-size:12px;font-weight:700;color:var(--accent-light);vertical-align:middle;">Rev ${revNum}</td>`
             : '';
 
           const reasonCell = isRevisionMode
@@ -3462,18 +3443,18 @@
                 ${isSelected
                   ? (isOriginRevisionStep
                       ? `<select onchange="modalSetReason('${d.id}',this.value)"
-                          style="font-size:11px;padding:3px 6px;background:#1e2126;border:1px solid ${sel.reason_id ? '#f97316' : '#e74c3c'};border-radius:4px;color:#e2e8f0;outline:none;width:100%;max-width:160px;">
+                          style="font-size:11px;padding:3px 6px;background:var(--surface-2);border:1px solid ${sel.reason_id ? 'var(--accent)' : '#e74c3c'};border-radius:4px;color:var(--text);outline:none;width:100%;max-width:160px;">
                           <option value="">— Type *</option>${reasonOptions.replace(
                             `value="${sel.reason_id}"`,
                             `value="${sel.reason_id}" selected`
                           )}
                         </select>`
                       : `<span title="Set when this item was flagged for Revision — read-only here"
-                           style="font-size:11px;color:#94a3b8;background:#1e2126;border:1px solid #2a2e35;border-radius:4px;padding:3px 6px;display:block;width:100%;max-width:160px;box-sizing:border-box;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+                           style="font-size:11px;color:var(--text-3);background:var(--surface-2);border:1px solid var(--border);border-radius:4px;padding:3px 6px;display:block;width:100%;max-width:160px;box-sizing:border-box;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
                            ${esc(revisionReasonsList.find(r => r.id === sel.reason_id)?.description || '—')}
                          </span>`
                     )
-                  : `<span style="font-size:11px;color:#64748b;">Select to add reason</span>`
+                  : `<span style="font-size:11px;color:var(--text-4);">Select to add reason</span>`
                 }
               </td>`
             : '';
@@ -3485,29 +3466,29 @@
                       ? `<input type="text" value="${esc(sel.revision_description || '')}"
                           oninput="modalSetDescription('${d.id}', this.value)"
                           placeholder="Describe the revision…"
-                          style="font-size:11px;padding:3px 6px;background:#1e2126;border:1px solid #2a2e35;border-radius:4px;color:#e2e8f0;outline:none;width:100%;" />`
+                          style="font-size:11px;padding:3px 6px;background:var(--surface-2);border:1px solid var(--border);border-radius:4px;color:var(--text);outline:none;width:100%;" />`
                       : `<span title="Set when this item was flagged for Revision — read-only here"
-                          style="font-size:11px;color:#94a3b8;background:#1e2126;border:1px solid #2a2e35;border-radius:4px;padding:3px 6px;display:block;width:100%;box-sizing:border-box;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+                          style="font-size:11px;color:var(--text-3);background:var(--surface-2);border:1px solid var(--border);border-radius:4px;padding:3px 6px;display:block;width:100%;box-sizing:border-box;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
                           ${esc(sel.revision_description || '—')}
                         </span>`
                     )
-                  : `<span style="font-size:11px;color:#64748b;">—</span>`
+                  : `<span style="font-size:11px;color:var(--text-4);">—</span>`
                 }
               </td>`
             : '';
 
           return `
-            <tr style="border-bottom:1px solid #1e2126;cursor:pointer;height:40px;${isSelected ? 'background:rgba(249,115,22,0.08);' : ''}"
+            <tr style="border-bottom:1px solid var(--surface-2);cursor:pointer;height:40px;${isSelected ? 'background:var(--accent-dim);' : ''}"
               id="modal-row-${d.id}"
               onclick="modalToggle('${d.id}')"
-              onmouseover="if(!this.style.background||this.style.background==='')this.style.background='#1e2126'"
-              onmouseout="this.style.background='${isSelected ? 'rgba(249,115,22,0.08)' : ''}'">
+              onmouseover="if(!this.style.background||this.style.background==='')this.style.background='var(--surface-2)'"
+              onmouseout="this.style.background='${isSelected ? 'var(--accent-dim)' : ''}'">
               <td style="width:32px;padding:0 0 0 20px;vertical-align:middle;">
                 <input type="checkbox" ${isSelected ? 'checked' : ''}
                   onclick="event.stopPropagation();modalToggle('${d.id}')"
-                  style="accent-color:#f97316;width:15px;height:15px;cursor:pointer;" />
+                  style="accent-color:var(--accent);width:15px;height:15px;cursor:pointer;" />
               </td>
-              <td style="width:${w.drawing};padding:0 12px;font-size:12px;font-weight:700;color:#fdba74;vertical-align:middle;">
+              <td style="width:${w.drawing};padding:0 12px;font-size:12px;font-weight:700;color:var(--accent-light);vertical-align:middle;">
                 ${d.drawing_number}
               </td>
              <td style="width:${w.steps};padding:0 12px;vertical-align:middle;"><div style="display:flex;flex-wrap:wrap;gap:4px;align-items:center;">${stepBadge}</div></td>
@@ -3521,7 +3502,7 @@
       if (countEl) {
         const n = modalTempSelected.length;
         countEl.textContent = n === 0 ? '0 selected' : `${n} item${n > 1 ? 's' : ''} selected`;
-        countEl.style.color = n > 0 ? '#fdba74' : '#94a3b8';
+        countEl.style.color = n > 0 ? 'var(--accent-light)' : 'var(--text-3)';
       }
       const fi = document.getElementById('modal-footer-info');
       if (fi) {
@@ -4409,7 +4390,7 @@
 	  loadTodayLoggedMH();
       const el = document.getElementById('activity-feed');
       if (!el) return;
-      el.innerHTML = `<div style="padding:24px;text-align:center;"><div style="width:18px;height:18px;border:2px solid #f97316;border-top-color:transparent;border-radius:50%;animation:spin .6s linear infinite;margin:0 auto;"></div></div>`;
+      el.innerHTML = `<div style="padding:24px;text-align:center;"><div style="width:18px;height:18px;border:2px solid var(--accent);border-top-color:transparent;border-radius:50%;animation:spin .6s linear infinite;margin:0 auto;"></div></div>`;
       
       const [drawActsResults, { data: modelActs }, { data: otherActs }, { data: tpActs }, { data: calcActs }, { data: matActs }, { data: inqActs }, { data: miscActs }, { data: prActs }, { data: tbeActs }] = await Promise.all([
       Promise.all(DRAWING_SOURCES.map(src =>

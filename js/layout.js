@@ -9,7 +9,7 @@ async function initLayout(pageTitle) {
   }
   if (!document.querySelector('meta[name="theme-color"]')) {
     const tc = document.createElement('meta');
-    tc.name = 'theme-color'; tc.content = '#111111';
+    tc.name = 'theme-color'; tc.content = document.documentElement.getAttribute('data-theme') === 'dark' ? '#111111' : '#ffffff';
     document.head.appendChild(tc);
   }
   
@@ -61,6 +61,11 @@ async function initLayout(pageTitle) {
         
         <div class="header-right" style="margin-right:12px;display:flex;align-items:center;gap:14px;">
           <span class="header-clock" id="topbar-clock"></span>
+          <button id="theme-btn" onclick="toggleTheme()" title="Switch light / dark mode" aria-label="Switch light or dark mode"
+            style="display:flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:8px;border:1px solid var(--border-2);background:transparent;color:var(--text-2);cursor:pointer;">
+            <svg class="theme-icon-moon" xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+            <svg class="theme-icon-sun" xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+          </button>
           <button id="inbox-btn" onclick="openInbox()" title="Announcements"
             style="position:relative;display:flex;align-items:center;gap:6px;padding:5px 12px;border-radius:8px;border:1px solid var(--border-2);background:transparent;color:var(--text-2);font-size:12px;font-weight:600;cursor:pointer;">
             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
@@ -495,5 +500,27 @@ function openInbox() {
 
   localStorage.setItem(_inboxSeenKey(), new Date().toISOString());
   _inboxUpdateBadge();
+}
+
+// ── THEME TOGGLE ──────────────────────────────────────────────
+function toggleTheme() {
+  const next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+  try { localStorage.setItem('engpro_theme', next); } catch (e) {}
+  document.documentElement.setAttribute('data-theme', next);
+  window.CHART_GRID   = next === 'dark' ? '#222' : '#e5e7eb';
+  window.CHART_BORDER = next === 'dark' ? '#1c1c1c' : '#ffffff';
+
+  const tc = document.querySelector('meta[name="theme-color"]');
+  if (tc) tc.content = next === 'dark' ? '#111111' : '#ffffff';
+
+  // Refresh any charts already on the page
+  if (window.Chart && Chart.instances) {
+    Object.values(Chart.instances).forEach(c => {
+      Object.values(c.options.scales || {}).forEach(s => {
+        if (s.grid && s.grid.display !== false) s.grid.color = window.CHART_GRID;
+      });
+      c.update();
+    });
+  }
 }
 
