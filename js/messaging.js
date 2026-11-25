@@ -36,7 +36,6 @@ async function initMessaging(profile) {
   await new Promise(r => setTimeout(r, 0));
   _injectMessageButton(profile);
   _injectMessageModal();
-  await _loadMsgMeta();
 }
 
 // ── STATE ───────────────────────────────────────────────────
@@ -236,9 +235,14 @@ function _injectMessageModal() {
 }
 
 // ── OPEN / CLOSE ─────────────────────────────────────────────
-function openMessageModal(tab = 'compose') {
+let _msgMetaLoaded = false;
+async function openMessageModal(tab = 'compose') {
   const modal = document.getElementById('msg-modal');
   if (modal) modal.style.display = 'flex';
+  if (!_msgMetaLoaded) {
+    try { await _loadMsgMeta(); _msgMetaLoaded = true; }
+    catch (err) { toast('Could not load recipients. Please try again.', 'error'); }
+  }
   switchMsgTab(tab);
 }
 

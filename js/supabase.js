@@ -1,5 +1,5 @@
 // ============================================================
-// SUPABASE CONFIG — Replace with your project credentials
+// SUPABASE CONFIG
 // ============================================================
 const SUPABASE_URL    = 'https://dtjsgvajdgqjlindbhxw.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR0anNndmFqZGdxamxpbmRiaHh3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA0NDMzNjQsImV4cCI6MjA5NjAxOTM2NH0.tCNEjswwgKONyiEcdfgZ_TJczofQZcvmPIh7uNS7D_U';
@@ -74,7 +74,7 @@ async function loadProfile() {
       email:     currentUser.email,
       full_name: currentUser.user_metadata?.full_name || currentUser.email,
       username:  currentUser.user_metadata?.username  || null,
-      role:      currentUser.user_metadata?.role      || null,
+      role:      null,
       is_active: true,
       disciplines: null,
     };
@@ -155,6 +155,7 @@ async function signOut() {
   }
 
   invalidateAllCache();
+  sessionStorage.removeItem('engpro_push_saved');
   await db.auth.signOut();
   currentUser    = null;
   currentProfile = null;

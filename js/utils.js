@@ -6,7 +6,12 @@ function toast(message, type = 'success') {
   const t = document.createElement('div');
   t.className = `toast toast-${type}`;
   const icons = { success: '✓', error: '✕', info: 'ℹ', warning: '⚠' };
-  t.innerHTML = `<span class="toast-icon">${icons[type] || '•'}</span><span>${message}</span>`;
+  const iconEl = document.createElement('span');
+  iconEl.className = 'toast-icon';
+  iconEl.textContent = icons[type] || '•';
+  const msgEl = document.createElement('span');
+  msgEl.textContent = message;
+  t.append(iconEl, msgEl);
   container.appendChild(t);
   setTimeout(() => t.classList.add('show'), 10);
   setTimeout(() => { t.classList.remove('show'); setTimeout(() => t.remove(), 300); }, 3500);
@@ -43,7 +48,7 @@ function confirmDialog(message, onConfirm) {
     <div class="modal-backdrop"></div>
     <div class="modal-box modal-sm">
       <div class="modal-header"><h3>Confirm Action</h3></div>
-      <div class="modal-body"><p>${message}</p></div>
+      <div class="modal-body"><p>${esc(message)}</p></div>
       <div class="modal-footer">
         <button class="btn btn-ghost" onclick="document.getElementById('confirm-modal-dynamic').remove(); document.body.style.overflow=''">Cancel</button>
         <button class="btn btn-danger" id="confirm-ok">Confirm</button>

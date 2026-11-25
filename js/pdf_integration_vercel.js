@@ -110,10 +110,14 @@ class VercelPDFGenerator {
 
       console.log(`[PDF] Sending ${tables.length} tables to Vercel API...`);
 
+      const token = await getAuthToken();
+      if (!token) throw new Error('Session expired. Please sign in again.');
+
       const response = await fetch(this.apiEndpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
         },
         body: JSON.stringify(payload)
       });

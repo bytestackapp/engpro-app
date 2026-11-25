@@ -98,7 +98,7 @@
       try {
         // Resolve username -> email first; resetPasswordForEmail() needs an email.
         const email = await getEmailForUsername(username);
-        await db.auth.resetPasswordForEmail(email);
+        await db.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin + '/reset-password.html' });
         // FIX [H1]: Use toast() instead of native alert()
         toast('If that username exists, a reset link has been sent.', 'info');
       } catch (err) {

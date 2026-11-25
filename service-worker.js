@@ -1,32 +1,18 @@
 // ============================================================
 // EngPro — Service Worker
-// Handles: PWA caching, push notifications, daily 3:30 PM PH reminder
+// Handles: push notifications, notification clicks, best-effort daily reminder
 // ============================================================
 
-const CACHE_NAME = 'engpro-v1';
-
-// ── INSTALL ─────────────────────────────────────────────────
-self.addEventListener('install', e => {
+// ── INSTALL / ACTIVATE ──────────────────────────────────────
+self.addEventListener('install', () => {
   self.skipWaiting();
 });
 
-// ── ACTIVATE ────────────────────────────────────────────────
 self.addEventListener('activate', e => {
-  e.waitUntil(
-    caches.keys().then(keys =>
-      Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k)))
-    ).then(() => self.clients.claim())
-  );
+  e.waitUntil(self.clients.claim());
 });
 
-// ── FETCH ─────────────────────────────────────────────────
-// NOTE: intentionally not intercepting fetch requests. This service
-// worker doesn't currently pre-cache any files (no caches.open()/.put()
-// calls anywhere in this file), so intercepting requests here provided
-// no real offline fallback — it only caused every request to be
-// duplicated (once by the page, once by this handler refetching it).
-// If real offline support is wanted later, this is the place to add
-// a proper install-time precache + cache-first strategy.
+// NOTE: fetch is intentionally not intercepted (no offline caching).
 
 // ── PUSH NOTIFICATIONS ──────────────────────────────────────
 self.addEventListener('push', e => {
@@ -34,14 +20,14 @@ self.addEventListener('push', e => {
   try { if (e.data) payload = { ...payload, ...e.data.json() }; } catch {}
 
   const options = {
-    body:    payload.body,
-    icon:    '/icons/icon-192.png',
-    badge:   '/icons/icon-192.png',
-    tag:     payload.type,
+    body:     payload.body,
+    icon:     '/icons/icon-192.png',
+    badge:    '/icons/icon-192.png',
+    tag:      payload.type,
     renotify: true,
-    vibrate: [200, 100, 200],
-    data:    { url: payload.url, sender: payload.sender, body: payload.body, title: payload.title },
-    actions: payload.type === 'reminder'
+    vibrate:  [200, 100, 200],
+    data:     { url: payload.url, sender: payload.sender, body: payload.body, title: payload.title, type: payload.type },
+    actions:  payload.type === 'reminder'
       ? [{ action: 'open', title: 'Log Now' }]
       : [{ action: 'open', title: 'View' }]
   };
@@ -52,95 +38,81 @@ self.addEventListener('push', e => {
 // ── NOTIFICATION CLICK ──────────────────────────────────────
 self.addEventListener('notificationclick', e => {
   e.notification.close();
-  const payload = e.notification.data || {};
+  const data = e.notification.data || {};
+  const isReminder = data.type === 'reminder' || e.notification.tag === 'daily-reminder';
 
-  e.waitUntil(
-    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(async clients => {
-      let target = null;
+  e.waitUntil((async () => {
+    const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    const existing = clients.find(c => c.url.startsWith(self.location.origin));
 
-      // Find an existing open EngPro window
-      for (const client of clients) {
-        if (client.url.startsWith(self.location.origin)) {
-          target = client;
-          break;
+    // Reminder → go straight to the page given in the notification
+    if (isReminder) {
+      const url = new URL(data.url || '/pages/manhours-input.html', self.location.origin).href;
+      if (existing) {
+        try { await existing.focus(); } catch {}
+        if ('navigate' in existing) {
+          try { await existing.navigate(url); return; } catch {}
         }
       }
+      await self.clients.openWindow(url);
+      return;
+    }
 
-      // If no window open, open one
-      if (!target) {
-        target = await self.clients.openWindow(self.location.origin + '/pages/dashboard.html');
-        // Wait for it to load before posting
-        await new Promise(r => setTimeout(r, 2000));
-      } else {
-        target.focus();
-      }
+    // Announcement → open the app and show the announcement popup
+    let target = existing;
+    if (!target) {
+      target = await self.clients.openWindow(self.location.origin + '/pages/dashboard.html');
+      await new Promise(r => setTimeout(r, 2000));
+    } else {
+      try { await target.focus(); } catch {}
+    }
 
-      // Post message to page to show announcement modal
-      if (target) {
-        target.postMessage({
-          type:   'SHOW_ANNOUNCEMENT',
-          title:  e.notification.title,
-          body:   e.notification.data?.body   || e.notification.body,
-          sender: e.notification.data?.sender || '',
-        });
-      }
-    })
-  );
+    if (target) {
+      target.postMessage({
+        type:   'SHOW_ANNOUNCEMENT',
+        title:  data.title  || e.notification.title,
+        body:   data.body   || e.notification.body,
+        sender: data.sender || '',
+      });
+    }
+  })());
 });
 
-// ── DAILY REMINDER SCHEDULER (3:30 PM PH time, Mon–Sat) ─────
-// The client pings the SW via postMessage to schedule.
-// SW uses setTimeout chained to the next 3:30 PM PH occurrence.
-
+// ── DAILY REMINDER (3:30 PM PH time, Mon–Sat) — best effort ──
+// Browsers may stop an idle service worker, so this can be missed.
+// layout.js also schedules the same reminder while the app is open.
 let _reminderTimeout = null;
 
 function msUntilNextReminder() {
-  // PH time = UTC+8
-  const now     = new Date();
-  const nowUTC  = now.getTime() + now.getTimezoneOffset() * 60000;
-  const nowPH   = new Date(nowUTC + 8 * 3600000);
-
-  // Target: 15:30 PH today
-  const target  = new Date(nowPH);
-  target.setHours(15, 30, 0, 0);
-
-  // If already past 3:30 PM today, move to tomorrow
-  if (nowPH >= target) target.setDate(target.getDate() + 1);
-
-  // Skip Sunday (0) — advance to Monday
-  while (target.getDay() === 0) target.setDate(target.getDate() + 1);
-
-  return target.getTime() - nowPH.getTime();
+  const PH_OFFSET = 8 * 3600000;
+  const ph = new Date(Date.now() + PH_OFFSET);
+  let target = Date.UTC(ph.getUTCFullYear(), ph.getUTCMonth(), ph.getUTCDate(), 15, 30, 0) - PH_OFFSET;
+  if (target <= Date.now()) target += 86400000;
+  while (new Date(target + PH_OFFSET).getUTCDay() === 0) target += 86400000; // skip Sunday
+  return target - Date.now();
 }
 
 function scheduleReminder() {
   if (_reminderTimeout) clearTimeout(_reminderTimeout);
 
-  const ms = msUntilNextReminder();
-
   _reminderTimeout = setTimeout(async () => {
-    // Double-check it's Mon–Sat in PH time before firing
-    const now    = new Date();
-    const nowUTC = now.getTime() + now.getTimezoneOffset() * 60000;
-    const nowPH  = new Date(nowUTC + 8 * 3600000);
-    const dow    = nowPH.getDay(); // 0=Sun
-
-    if (dow !== 0) {
-      await self.registration.showNotification('EngPro Reminder', {
-        body:    "Don't forget to log your daily accomplishments! 📋",
-        icon:    '/icons/icon-192.png',
-        badge:   '/icons/icon-192.png',
-        tag:     'daily-reminder',
-        renotify: true,
-        vibrate: [200, 100, 200],
-        data:    { url: '/pages/manhours-input.html' },
-        actions: [{ action: 'open', title: 'Log Now' }]
-      });
-    }
-
-    // Schedule next day
+    try {
+      const existing = await self.registration.getNotifications({ tag: 'daily-reminder' });
+      if (!existing.length) {
+        await self.registration.showNotification('EngPro Reminder', {
+          body:     "Don't forget to log your daily accomplishments! 📋",
+          icon:     '/icons/icon-192.png',
+          badge:    '/icons/icon-192.png',
+          tag:      'daily-reminder',
+          renotify: true,
+          vibrate:  [200, 100, 200],
+          data:     { url: '/pages/manhours-input.html', type: 'reminder' },
+          actions:  [{ action: 'open', title: 'Log Now' }]
+        });
+      }
+    } catch {}
     scheduleReminder();
-  }, ms);
+  }, msUntilNextReminder());
 }
 
 // ── MESSAGE FROM CLIENT ──────────────────────────────────────
@@ -149,5 +121,4 @@ self.addEventListener('message', e => {
   if (e.data?.type === 'CANCEL_REMINDER')  { if (_reminderTimeout) clearTimeout(_reminderTimeout); }
 });
 
-// Auto-start reminder schedule on SW activation
 scheduleReminder();

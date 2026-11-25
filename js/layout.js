@@ -9,7 +9,7 @@ async function initLayout(pageTitle) {
   }
   if (!document.querySelector('meta[name="theme-color"]')) {
     const tc = document.createElement('meta');
-    tc.name = 'theme-color'; tc.content = '#f07900';
+    tc.name = 'theme-color'; tc.content = '#111111';
     document.head.appendChild(tc);
   }
   
@@ -28,6 +28,7 @@ async function initLayout(pageTitle) {
   // Previously, a missing DB profile granted full admin nav access — a privilege escalation risk.
   const safeProfile = profile || { role: null, full_name: currentUser?.email?.split('@')[0] || 'User', disciplines: null };
   const role    = safeProfile.role;
+  if (!enforcePageAccess(safeProfile)) return;
   const name    = safeProfile.full_name || currentUser?.email || 'User';
   const email   = currentUser?.email || '';
   const disc    = safeProfile.disciplines?.name || '';
@@ -60,6 +61,12 @@ async function initLayout(pageTitle) {
         
         <div class="header-right" style="margin-right:12px;display:flex;align-items:center;gap:14px;">
           <span class="header-clock" id="topbar-clock"></span>
+          <button id="inbox-btn" onclick="openInbox()" title="Announcements"
+            style="position:relative;display:flex;align-items:center;gap:6px;padding:5px 12px;border-radius:8px;border:1px solid var(--border-2);background:transparent;color:var(--text-2);font-size:12px;font-weight:600;cursor:pointer;">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+            <span>Inbox</span>
+            <span id="inbox-badge" style="display:none;min-width:16px;height:16px;padding:0 4px;border-radius:8px;background:#f07900;color:#000;font-size:10px;font-weight:700;align-items:center;justify-content:center;">0</span>
+          </button>
           <button id="refresh-data-btn" onclick="refreshMyCache()" title="Refresh data"
             onmouseover="this.style.background='rgba(240,121,0,0.2)'"
             onmouseout="this.style.background='rgba(240,121,0,0.1)'"
@@ -173,6 +180,7 @@ async function initLayout(pageTitle) {
 
   if (typeof pageInit === 'function') await pageInit(safeProfile);
   if (typeof initMessaging === 'function') await initMessaging(safeProfile);
+  initInbox(safeProfile);
   
   // PWA registration + push subscription saving
   const VAPID_PUBLIC_KEY = 'BCzQfJUwT7SR9SY3IgFOPSw06s1IpKI-SDgQH9cKnFVvbx3IZUOMoE47OswI7_10vOQKqvrdQKe1BD0zwF1Y4SY';
@@ -184,43 +192,47 @@ async function initLayout(pageTitle) {
     return Uint8Array.from([...raw].map(c => c.charCodeAt(0)));
   }
 
-  if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('/service-worker.js').then(async reg => {
-      const perm = await Notification.requestPermission();
-      if (perm !== 'granted') return;
+    if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/service-worker.js').catch(() => {});
 
-      // Schedule daily reminder
-      const sw = reg.active || reg.waiting || reg.installing;
-      if (sw) {
-        if (sw.state === 'activated') {
-          sw.postMessage({ type: 'SCHEDULE_REMINDER' });
-        } else {
-          sw.addEventListener('statechange', function handler(e) {
-            if (e.target.state === 'activated') {
-              e.target.postMessage({ type: 'SCHEDULE_REMINDER' });
-              e.target.removeEventListener('statechange', handler);
-            }
-          });
-        }
-      }
+    if ('Notification' in window) {
+      const startPush = async () => {
+        try {
+          const reg = await navigator.serviceWorker.register('/service-worker.js');
+          if (Notification.permission === 'default') await Notification.requestPermission();
+          if (Notification.permission !== 'granted') return;
+          await navigator.serviceWorker.ready;
 
-      // Subscribe to push and save to Supabase
-      try {
-        const subscription = await reg.pushManager.subscribe({
-          userVisibleOnly:      true,
-          applicationServerKey: _urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
-        });
-        const profile = getProfile();
-        if (profile?.id) {
-          await db.from('push_subscriptions').upsert({
-            user_id:      profile.id,
-            subscription: subscription.toJSON(),
-          }, { onConflict: 'user_id' });
+          if (reg.active) reg.active.postMessage({ type: 'SCHEDULE_REMINDER' });
+          scheduleInPageReminder(reg);
+
+          // Save the push subscription once per login session, not on every page
+          if (sessionStorage.getItem('engpro_push_saved') === '1') return;
+          const subscription = (await reg.pushManager.getSubscription()) ||
+            await reg.pushManager.subscribe({
+              userVisibleOnly:      true,
+              applicationServerKey: _urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+            });
+          const p = getProfile();
+          if (p?.id) {
+            const { error } = await db.from('push_subscriptions').upsert(
+              { user_id: p.id, subscription: subscription.toJSON() },
+              { onConflict: 'user_id' }
+            );
+            if (!error) sessionStorage.setItem('engpro_push_saved', '1');
+          }
+        } catch (err) {
+          console.warn('[EngPro] Push setup failed:', err);
         }
-      } catch (err) {
-        console.warn('[EngPro] Push subscription failed:', err);
+      };
+
+      // Browsers only allow the permission prompt after a user click
+      if (Notification.permission === 'default') {
+        document.addEventListener('click', startPush, { once: true });
+      } else {
+        startPush();
       }
-    });
+    }
   }
 }
 
@@ -359,3 +371,129 @@ function hideLoadingOverlay() {
   const el = document.getElementById('loading-overlay');
   if (el) el.style.display = 'none';
 }
+
+// ── PAGE ACCESS GUARD ─────────────────────────────────────────
+function enforcePageAccess(p) {
+  const current = window.location.pathname.split('/').pop();
+  if (!p?.role || p.is_active === false) {
+    db.auth.signOut().finally(() => { window.location.href = '../index.html'; });
+    return false;
+  }
+  const all     = buildNavItems('admin').map(i => i.href);
+  const allowed = buildNavItems(p.role).map(i => i.href);
+  if (current !== 'dashboard.html' && all.includes(current) && !allowed.includes(current)) {
+    window.location.href = 'dashboard.html';
+    return false;
+  }
+  return true;
+}
+
+// ── IN-PAGE DAILY REMINDER (3:30 PM PH, Mon–Sat, while app is open) ──
+let _pageReminderTimer = null;
+function scheduleInPageReminder(reg) {
+  if (_pageReminderTimer) clearTimeout(_pageReminderTimer);
+  const PH = 8 * 3600000;
+  const ph = new Date(Date.now() + PH);
+  let target = Date.UTC(ph.getUTCFullYear(), ph.getUTCMonth(), ph.getUTCDate(), 15, 30, 10) - PH;
+  if (target <= Date.now()) target += 86400000;
+  while (new Date(target + PH).getUTCDay() === 0) target += 86400000;
+
+  _pageReminderTimer = setTimeout(async () => {
+    try {
+      const existing = await reg.getNotifications({ tag: 'daily-reminder' });
+      if (!existing.length) {
+        await reg.showNotification('EngPro Reminder', {
+          body: "Don't forget to log your daily accomplishments! 📋",
+          icon: '/icons/icon-192.png', badge: '/icons/icon-192.png',
+          tag: 'daily-reminder', renotify: true, vibrate: [200, 100, 200],
+          data: { url: '/pages/manhours-input.html', type: 'reminder' },
+          actions: [{ action: 'open', title: 'Log Now' }]
+        });
+      }
+    } catch (e) { /* ignore */ }
+    scheduleInPageReminder(reg);
+  }, target - Date.now());
+}
+
+// ── ANNOUNCEMENT INBOX ────────────────────────────────────────
+let _inboxItems = [];
+
+function _inboxSeenKey() { return 'engpro_inbox_seen_' + (getProfile()?.id || ''); }
+
+function _inboxSeenTime() {
+  const v = localStorage.getItem(_inboxSeenKey());
+  return v ? new Date(v).getTime() : Date.now() - 7 * 86400000;
+}
+
+function _inboxIsForMe(a, p) {
+  const ids = a.recipient_ids || [];
+  switch (a.recipient_type) {
+    case 'all':        return true;
+    case 'group':      return ids.includes(p.discipline_id);
+    case 'team':       return ids.includes(p.project_id);
+    case 'individual': return ids.includes(p.id);
+    default:           return false;
+  }
+}
+
+async function initInbox(profile) {
+  if (!profile?.id) return;
+  try {
+    const { data, error } = await db.from('announcements')
+      .select('id, subject, body, created_at, recipient_type, recipient_ids, users:sender_id(full_name)')
+      .order('created_at', { ascending: false })
+      .limit(50);
+    if (error) throw error;
+    _inboxItems = (data || []).filter(a => _inboxIsForMe(a, profile));
+    _inboxUpdateBadge();
+  } catch (err) {
+    console.warn('[EngPro] Inbox load failed:', err);
+  }
+}
+
+function _inboxUpdateBadge() {
+  const badge = document.getElementById('inbox-badge');
+  if (!badge) return;
+  const seen   = _inboxSeenTime();
+  const unread = _inboxItems.filter(a => new Date(a.created_at).getTime() > seen).length;
+  badge.textContent   = unread > 9 ? '9+' : String(unread);
+  badge.style.display = unread ? 'flex' : 'none';
+}
+
+function openInbox() {
+  const old = document.getElementById('inbox-modal');
+  if (old) old.remove();
+  const seen = _inboxSeenTime();
+
+  const rows = _inboxItems.length ? _inboxItems.map(a => {
+    const isNew = new Date(a.created_at).getTime() > seen;
+    const dt = new Date(a.created_at).toLocaleString('en-US', { month:'short', day:'numeric', year:'numeric', hour:'2-digit', minute:'2-digit' });
+    return `
+      <div style="background:var(--surface-2);border:1px solid ${isNew ? '#f07900' : 'var(--border-2)'};border-radius:8px;padding:12px 14px;margin-bottom:8px;">
+        <div style="display:flex;justify-content:space-between;gap:8px;">
+          <div style="font-size:13px;font-weight:700;color:var(--text);">${esc(a.subject)}</div>
+          <div style="font-size:10px;color:var(--text-4);white-space:nowrap;">${dt}</div>
+        </div>
+        <div style="font-size:12px;color:var(--text-3);margin:6px 0;white-space:pre-wrap;word-break:break-word;">${esc(a.body)}</div>
+        <div style="font-size:10px;color:var(--text-4);">By: ${esc(a.users?.full_name) || '—'}</div>
+      </div>`;
+  }).join('') : `<div style="text-align:center;padding:32px;color:var(--text-3);font-size:13px;">No announcements.</div>`;
+
+  const div = document.createElement('div');
+  div.id = 'inbox-modal';
+  div.style.cssText = 'position:fixed;inset:0;z-index:9990;background:rgba(0,0,0,0.65);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;';
+  div.innerHTML = `
+    <div style="background:var(--surface);border:1px solid var(--border-2);border-radius:14px;width:min(560px,94vw);max-height:80vh;display:flex;flex-direction:column;box-shadow:0 32px 80px rgba(0,0,0,0.6);overflow:hidden;">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--border-2);">
+        <span style="font-size:14px;font-weight:700;color:var(--text);">Announcements</span>
+        <button onclick="document.getElementById('inbox-modal').remove()" style="background:none;border:none;cursor:pointer;color:var(--text-3);font-size:18px;">✕</button>
+      </div>
+      <div style="padding:16px;overflow-y:auto;">${rows}</div>
+    </div>`;
+  div.addEventListener('click', e => { if (e.target === div) div.remove(); });
+  document.body.appendChild(div);
+
+  localStorage.setItem(_inboxSeenKey(), new Date().toISOString());
+  _inboxUpdateBadge();
+}
+

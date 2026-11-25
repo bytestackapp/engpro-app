@@ -4516,7 +4516,10 @@
     async function clearRecentActivity() {
   confirmDialog('Delete all your activity log entries? This cannot be undone.', async () => {
     await Promise.all([
-      db.from('drawing_activities').delete().eq('user_id', userProfile.id),
+      db.from('erection_drawing_activities').delete().eq('user_id', userProfile.id),
+      db.from('fabrication_drawing_activities').delete().eq('user_id', userProfile.id),
+      db.from('support_drawing_activities').delete().eq('user_id', userProfile.id),
+      db.from('weld_map_drawing_activities').delete().eq('user_id', userProfile.id),
       db.from('model_activities').delete().eq('user_id', userProfile.id),
       db.from('other_activity_logs').delete().eq('user_id', userProfile.id),
       db.from('test_package_drawing_activities').delete().eq('user_id', userProfile.id),
