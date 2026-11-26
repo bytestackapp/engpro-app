@@ -53,34 +53,27 @@ let _msgBodyDraft    = '';
 
 // ── INJECT BUTTON INTO HEADER ────────────────────────────────
 function _injectMessageButton(profile) {
-  const clockEl = document.getElementById('topbar-clock');
-  if (!clockEl) {
-    console.warn('[EngPro] topbar-clock not found — Message button not injected');
+  const pill = document.getElementById('header-actions');
+  if (!pill) {
+    console.warn('[EngPro] header-actions not found — Message button not injected');
     return;
   }
 
   const btn = document.createElement('button');
   btn.id        = 'msg-open-btn';
   btn.title     = 'Send Announcement';
-  btn.innerHTML = `
-    <span style="color:#f07900;line-height:0;">${_MI.send}</span>
-    <span>Message</span>
-  `;
+  btn.setAttribute('aria-label', 'Send Announcement');
+  btn.innerHTML = _MI.send;
   btn.style.cssText = `
-    display:flex;align-items:center;gap:6px;padding:5px 14px;
-    border-radius:8px;border:1px solid #f07900;
-    background:rgba(240,121,0,0.1);color:#f07900;
-    font-size:12px;font-weight:600;cursor:pointer;
-    position:relative;
-    transition:background .15s;
+    display:flex;align-items:center;justify-content:center;
+    width:30px;height:30px;border-radius:8px;
+    border:1px solid var(--border-2);background:transparent;
+    color:var(--text-2);cursor:pointer;
   `;
-  btn.onmouseover = () => btn.style.background = 'rgba(240,121,0,0.2)';
-  btn.onmouseout  = () => btn.style.background = 'rgba(240,121,0,0.1)';
   btn.onclick     = () => openMessageModal('compose');
   // Insert after the Refresh button if it exists, otherwise fall back to right after the clock
   const refreshBtn = document.getElementById('refresh-data-btn');
-  const anchor = refreshBtn ? refreshBtn.nextSibling : clockEl.nextSibling;
-  clockEl.parentElement.insertBefore(btn, anchor);
+  pill.insertBefore(btn, refreshBtn ? refreshBtn.nextSibling : null);
 }
 
 // ── INJECT MODAL HTML ────────────────────────────────────────

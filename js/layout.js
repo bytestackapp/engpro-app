@@ -34,82 +34,72 @@ async function initLayout(pageTitle) {
   const email   = currentUser?.email || '';
   const disc    = safeProfile.disciplines?.name || '';
   const initials = name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0,2) || 'U';
+  const roleLabel = (role || '').replace(/_/g, ' ');
   const navItems = buildNavItems(role).filter(i => canOpenPage(i.href, role));
 
   document.body.innerHTML = `
     <div class="app-layout">
 
-      <!-- FIXED TOP HEADER -->
-      <header class="app-header">
-        <!-- Icon slot (aligns with rail) -->
-        <div class="header-brand">
+      <!-- FLOATING SIDEBAR -->
+      <aside class="sidebar" id="sidebar">
+        <div class="sidebar-brand">
           <div class="header-brand-icon">
-             <img src="/icons/logo.png" alt="Logo">
+            <img src="/icons/logo.png" alt="Logo">
+          </div>
+          <div class="sidebar-brand-text">
+            <span class="header-appname-title">EngPro App</span>
+            <span class="header-appname-tag">Track. Manage. Deliver.</span>
           </div>
         </div>
 
-        <!-- App name + tagline -->
-        <div class="header-appname">
-          <span class="header-appname-title">EngPro App</span>
-          <span class="header-appname-tag">Track. Manage. Deliver.</span>
+        <nav class="sidebar-nav">
+          ${navItems.map(item => `
+          ${item.dividerBefore ? '<div style="height:1px;background:var(--border);margin:12px 10px;"></div>' : ''}
+          <a href="${item.href}" class="nav-link ${isActivePage(item.href) ? 'active' : ''}" title="${item.label}">
+            <span class="nav-icon" style="display:flex;align-items:center;justify-content:center;width:20px;height:20px;flex-shrink:0;">${item.icon}</span>
+            <span class="nav-label">${item.label}</span>
+          </a>
+        `).join('')}
+        </nav>
+
+        <div class="sidebar-footer">
+          <button class="signout-link" onclick="confirmSignOut()" title="Sign Out">
+            <span class="nav-icon">${NAV_ICONS.signout}</span>
+            <span class="signout-label">Sign Out</span>
+          </button>
         </div>
-        <div class="header-user-badge" style="margin-left:16px;">
-          <div class="header-avatar">${initials}</div>
-          <div class="header-uname">${name}</div>
-        </div>
-        
+      </aside>
+
+      <!-- FLOATING TOP BAR -->
+      <header class="app-header">
+        <div class="header-title" id="header-title">${pageTitle || ''}</div>
         <div class="header-spacer"></div>
-        
-        <div class="header-right" style="margin-right:12px;display:flex;align-items:center;gap:14px;">
-          <span class="header-clock" id="topbar-clock"></span>
-          <button id="theme-btn" onclick="toggleTheme()" title="Switch light / dark mode" aria-label="Switch light or dark mode"
-            style="display:flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:8px;border:1px solid var(--border-2);background:transparent;color:var(--text-2);cursor:pointer;">
+
+        <div class="header-user-badge">
+          <div class="header-avatar">${initials}</div>
+          <div class="header-user-text">
+            <span class="header-uname">${name}</span>
+            <span class="header-role">${roleLabel}</span>
+          </div>
+        </div>
+
+        <div class="header-pill" id="header-actions">
+          <button id="theme-btn" onclick="toggleTheme()" title="Switch light / dark mode" aria-label="Switch light or dark mode">
             <svg class="theme-icon-moon" xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
             <svg class="theme-icon-sun" xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
           </button>
-          <button id="inbox-btn" onclick="openInbox()" title="Announcements"
-            style="position:relative;display:flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:8px;border:1px solid var(--border-2);background:transparent;color:var(--text-2);cursor:pointer;">
+          <button id="inbox-btn" onclick="openInbox()" title="Announcements" aria-label="Announcements" style="position:relative;">
             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
-            <span id="inbox-badge" style="display:none;position:absolute;top:-6px;right:-6px;min-width:16px;height:16px;padding:0 4px;border-radius:8px;background:#ef4444;color:#fff;border:2px solid var(--bg-3);box-sizing:content-box;font-size:9px;font-weight:700;line-height:1;align-items:center;justify-content:center;">0</span>
+            <span id="inbox-badge" style="display:none;position:absolute;width:9px;height:9px;border-radius:50%;background:#ef4444;box-sizing:content-box;"></span>
           </button>
-          <button id="refresh-data-btn" onclick="refreshMyCache()" title="Refresh data"
-            onmouseover="this.style.background='rgba(240,121,0,0.2)'"
-            onmouseout="this.style.background='rgba(240,121,0,0.1)'"
-            style="display:flex;align-items:center;gap:6px;padding:5px 14px;
-                   border-radius:8px;border:1px solid #f07900;
-                   background:rgba(240,121,0,0.1);color:#f07900;
-                   font-size:12px;font-weight:600;cursor:pointer;
-                   transition:background .15s;">
-            <span style="color:#f07900;line-height:0;display:flex;">
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
-            </span>
-            <span>Refresh Data</span>
+          <button id="refresh-data-btn" onclick="refreshMyCache()" title="Refresh data" aria-label="Refresh data">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
           </button>
         </div>
       </header>
 
-      <!-- BODY (below header) -->
+      <!-- BODY -->
       <div class="app-body">
-
-        <!-- SIDEBAR RAIL -->
-        <aside class="sidebar" id="sidebar">
-          <nav class="sidebar-nav">
-            ${navItems.map(item => `
-            ${item.dividerBefore ? '<div style="height:1px;background:var(--border);margin:12px 10px;"></div>' : ''}
-            <a href="${item.href}" class="nav-link ${isActivePage(item.href) ? 'active' : ''}" title="${item.label}">
-              <span class="nav-icon" style="display:flex;align-items:center;justify-content:center;width:20px;height:20px;flex-shrink:0;">${item.icon}</span>
-              <span class="nav-label">${item.label}</span>
-            </a>
-          `).join('')}
-          </nav>
-
-          <div class="sidebar-footer">
-            <button class="signout-link" onclick="confirmSignOut()" title="Sign Out">
-              <span class="nav-icon">${NAV_ICONS.signout}</span>
-              <span class="signout-label">Sign Out</span>
-            </button>
-          </div>
-        </aside>
 
         <!-- MAIN CONTENT -->
         <div class="main-area" id="main-area">
@@ -174,20 +164,12 @@ async function initLayout(pageTitle) {
     toast('Page refreshed.', 'success');
   }
 
-  // Clock
-  const tick = () => {
-    const el = document.getElementById('topbar-clock');
-    if (el) el.textContent = new Date().toLocaleString('en-US', {
-      weekday:'short', month:'short', day:'numeric', year:'numeric',
-      hour:'2-digit', minute:'2-digit'
-    });
-  };
-  // FIX [M5]: Store interval ID and clear any existing one before starting.
-  // Previously accumulated intervals on every initLayout() call with no cleanup.
-  if (window._clockInterval) clearInterval(window._clockInterval);
-  tick(); window._clockInterval = setInterval(tick, 30000);
-
   if (typeof pageInit === 'function') await pageInit(safeProfile);
+  {
+    const h1 = document.querySelector('#page-content .page-header h1');
+    const titleEl = document.getElementById('header-title');
+    if (titleEl) titleEl.textContent = (h1 && h1.textContent.trim()) || pageTitle || 'EngPro';
+  }
   if (typeof initMessaging === 'function') await initMessaging(safeProfile);
   initInbox(safeProfile);
   
@@ -466,8 +448,7 @@ function _inboxUpdateBadge() {
   if (!badge) return;
   const seen   = _inboxSeenTime();
   const unread = _inboxItems.filter(a => new Date(a.created_at).getTime() > seen).length;
-  badge.textContent   = unread > 9 ? '9+' : String(unread);
-  badge.style.display = unread ? 'flex' : 'none';
+  badge.style.display = unread ? 'block' : 'none';
   document.getElementById('inbox-btn')?.classList.toggle('has-unread', unread > 0);
 }
 

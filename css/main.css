@@ -730,23 +730,127 @@ tbody tr:hover td { background: var(--surface-2); }
 }
 
 /* ── INBOX BELL: rings when there are unread announcements ── */
-#inbox-btn svg { transform-origin: 50% 3px; }
+#inbox-btn svg { transform-origin: 50% 10%; display: block; }
+#inbox-btn.has-unread { color: var(--accent) !important; }
 #inbox-btn.has-unread svg {
-  color: var(--accent);
-  animation: bell-ring 3s ease-in-out infinite;
+  animation: bell-ring 2.5s ease-in-out infinite;
 }
 @keyframes bell-ring {
   0%   { transform: rotate(0); }
-  4%   { transform: rotate(18deg); }
-  8%   { transform: rotate(-16deg); }
-  12%  { transform: rotate(12deg); }
-  16%  { transform: rotate(-10deg); }
-  20%  { transform: rotate(6deg); }
-  24%  { transform: rotate(-4deg); }
-  28%  { transform: rotate(0); }
+  5%   { transform: rotate(18deg); }
+  10%  { transform: rotate(-16deg); }
+  15%  { transform: rotate(12deg); }
+  20%  { transform: rotate(-10deg); }
+  25%  { transform: rotate(6deg); }
+  30%  { transform: rotate(-4deg); }
+  35%  { transform: rotate(0); }
   100% { transform: rotate(0); }
 }
-@media (prefers-reduced-motion: reduce) {
-  #inbox-btn.has-unread svg { animation: none; }
+
+/* ============================================================
+   FLOATING PANELS LAYOUT (sidebar / top bar / body)
+   ============================================================ */
+:root { --gap: 12px; --panel-radius: 16px; }
+
+body { background: var(--bg-2); }
+
+/* ── SIDEBAR PANEL ── */
+.sidebar {
+  top: var(--gap);
+  left: var(--gap);
+  bottom: var(--gap);
+  z-index: 400;
+  border: 1px solid var(--border);
+  border-radius: var(--panel-radius);
+  box-shadow: var(--shadow);
+}
+.sidebar:hover { box-shadow: var(--shadow-lg); }
+
+.sidebar-brand {
+  display: flex; align-items: center; gap: 10px;
+  padding: 12px 9px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  overflow: hidden;
+}
+.sidebar-brand .header-brand-icon { flex-shrink: 0; }
+.sidebar-brand-text {
+  display: flex; flex-direction: column; justify-content: center;
+  opacity: 0; white-space: nowrap;
+  transition: opacity var(--speed) var(--ease);
+}
+.sidebar:hover .sidebar-brand-text { opacity: 1; }
+
+.sidebar-nav {
+  overflow-y: auto; overflow-x: hidden;
+  scrollbar-width: none;
+}
+.sidebar-nav::-webkit-scrollbar { display: none; }
+
+/* ── TOP BAR PANEL ── */
+.app-header {
+  top: var(--gap);
+  left: calc(var(--rail-w) + var(--gap) * 2);
+  right: var(--gap);
+  padding: 0 10px 0 22px;
+  border: 1px solid var(--border);
+  border-radius: var(--panel-radius);
+  box-shadow: var(--shadow);
+  gap: 12px;
+}
+.header-title {
+  font-size: 18px; font-weight: 700;
+  color: var(--text); letter-spacing: -0.01em;
+  white-space: nowrap;
+}
+.header-user-text { display: flex; flex-direction: column; line-height: 1.2; }
+.header-role { text-transform: capitalize; }
+
+/* ── ICON PILL ── */
+.header-pill {
+  display: flex; align-items: center; gap: 2px;
+  padding: 3px;
+  background: var(--surface-2);
+  border: 1px solid var(--border-2);
+  border-radius: 999px;
+}
+.header-pill button {
+  display: flex !important; align-items: center; justify-content: center;
+  width: 30px !important; height: 30px !important;
+  padding: 0 !important;
+  border: none !important;
+  border-radius: 50% !important;
+  background: transparent !important;
+  color: var(--text-2);
+  cursor: pointer;
+  transition: background var(--speed);
+}
+.header-pill button:hover { background: var(--surface-3) !important; }
+.header-pill #inbox-badge {
+  top: 4px !important; right: 4px !important;
+  border: 2px solid var(--surface-2) !important;
 }
 
+/* ── BODY PANEL ── */
+.app-body {
+  margin-top: calc(var(--header-h) + var(--gap) * 2);
+  min-height: calc(100vh - var(--header-h) - var(--gap) * 2);
+}
+.main-area {
+  margin-left: calc(var(--rail-w) + var(--gap) * 2);
+  margin-right: var(--gap);
+  margin-bottom: var(--gap);
+  min-height: calc(100vh - var(--header-h) - var(--gap) * 3);
+  border: 1px solid var(--border);
+  border-radius: var(--panel-radius);
+  box-shadow: var(--shadow);
+}
+
+/* Page title/subtitle now live in the top bar */
+.page-content .page-header h1,
+.page-content .page-header p { display: none; }
+.page-content .page-header:not(:has(button, a, select, input)) { display: none; }
+
+/* Remove body panel inner padding */
+.page-content,
+.page-content { padding: 0 !important; }
