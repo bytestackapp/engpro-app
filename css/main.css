@@ -728,3 +728,25 @@ tbody tr:hover td { background: var(--surface-2); }
   .form-row, .form-row-3 { grid-template-columns: 1fr; }
   .grid-3, .charts-grid { grid-template-columns: 1fr; }
 }
+
+/* ── INBOX BELL: rings when there are unread announcements ── */
+#inbox-btn svg { transform-origin: 50% 3px; }
+#inbox-btn.has-unread svg {
+  color: var(--accent);
+  animation: bell-ring 3s ease-in-out infinite;
+}
+@keyframes bell-ring {
+  0%   { transform: rotate(0); }
+  4%   { transform: rotate(18deg); }
+  8%   { transform: rotate(-16deg); }
+  12%  { transform: rotate(12deg); }
+  16%  { transform: rotate(-10deg); }
+  20%  { transform: rotate(6deg); }
+  24%  { transform: rotate(-4deg); }
+  28%  { transform: rotate(0); }
+  100% { transform: rotate(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  #inbox-btn.has-unread svg { animation: none; }
+}
+

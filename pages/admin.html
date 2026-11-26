@@ -967,7 +967,34 @@
           </div>
         </div>
 
-		<!-- ── REPORT PERMISSION MODAL ── -->
+		<!-- ── PAGE ACCESS MODAL ── -->
+        <div class="modal" id="page-access-modal">
+          <div class="modal-backdrop" onclick="closeModal('page-access-modal')"></div>
+          <div class="modal-box modal-sm" style="max-width:520px;">
+            <div class="modal-header">
+              <h3>${IC.lock} Page Access</h3>
+              <button class="modal-close" onclick="closeModal('page-access-modal')">✕</button>
+            </div>
+            <div class="modal-body">
+              <div class="form-group">
+                <label class="required">Page</label>
+                <select id="pa-page" onchange="onPaPageChange()"></select>
+              </div>
+              <div class="form-group">
+                <label>Search people</label>
+                <input type="text" id="pa-search" placeholder="Type a name…" oninput="renderPaList()" />
+              </div>
+              <div id="pa-list" style="border:1px solid var(--border);border-radius:var(--radius);max-height:300px;overflow-y:auto;"></div>
+              <p id="pa-status" style="font-size:11px;color:var(--text-4);margin-top:8px;"></p>
+            </div>
+            <div class="modal-footer">
+              <button class="btn btn-ghost" onclick="closeModal('page-access-modal')">Exit</button>
+              <button class="btn btn-primary" id="pa-save-btn" onclick="savePageAccess()">${IC.save} Save</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── REPORT PERMISSION MODAL ── -->
         <div class="modal" id="report-permission-modal">
           <div class="modal-backdrop" onclick="closeModal('report-permission-modal')"></div>
           <div class="modal-box modal-sm" style="max-width:520px;">
@@ -1544,6 +1571,20 @@
               </div>
             </div>
 			
+            <div class="card" style="display:flex;flex-direction:column;">
+              <div class="card-header">
+                <span class="card-title">Page Access</span>
+              </div>
+              <div class="card-body" style="display:flex;flex-direction:column;flex:1;">
+                <p style="color:var(--text-3);font-size:13px;line-height:1.6;margin-bottom:16px;flex:1;">
+                  Choose which people can open Material Status, Construction Support and Project Inquiry. Admins always have access; everyone else must be ticked here. Changes apply within a minute.
+                </p>
+                <button class="btn btn-primary" onclick="openPageAccessModal()" style="display:flex;align-items:center;gap:6px;align-self:flex-start;">
+                  ${IC.lock} Manage Page Access
+                </button>
+              </div>
+            </div>
+
             <!-- Next Admin Setting cards go here, as siblings of the card above -->
           </div>
         </div>` : ''}
@@ -2677,6 +2718,98 @@ let currentWfTab = 'model';
       await db.from('roles').update({ sort_order: other.sort_order }).eq('id', r.id);
       await db.from('roles').update({ sort_order: r.sort_order }).eq('id', other.id);
       await loadRoles();
+    }
+
+    // ── PAGE ACCESS (per-person) ──────────────────────────────
+    const PA_PAGES = [
+      { key: 'material-status.html',  label: 'Material Status' },
+      { key: 'eng-calculations.html', label: 'Construction Support' },
+      { key: 'project-inquiry.html',  label: 'Project Inquiry' },
+    ];
+    let paUsers = [];
+    let paSelected = new Set();   // ticked in the window
+    let paSaved = new Set();      // currently saved in the database
+
+    async function openPageAccessModal() {
+      document.getElementById('pa-page').innerHTML =
+        PA_PAGES.map(p => `<option value="${p.key}">${esc(p.label)}</option>`).join('');
+      document.getElementById('pa-search').value = '';
+      document.getElementById('pa-list').innerHTML =
+        `<div style="padding:16px;text-align:center;color:var(--text-4);font-size:12px;">Loading…</div>`;
+      document.getElementById('pa-status').textContent = '';
+      openModal('page-access-modal');
+
+      const { data, error } = await db.from('users')
+        .select('id, full_name, role')
+        .eq('is_active', true)
+        .neq('role', 'admin')
+        .order('full_name');
+      if (error) { toast('Error loading users: ' + error.message, 'error'); return; }
+      paUsers = data || [];
+      await onPaPageChange();
+    }
+
+    async function onPaPageChange() {
+      const page = document.getElementById('pa-page').value;
+      document.getElementById('pa-status').textContent = 'Loading…';
+      const { data, error } = await db.from('page_access').select('user_id').eq('page', page);
+      if (error) {
+        document.getElementById('pa-status').textContent = 'Error loading current access.';
+        return;
+      }
+      paSaved = new Set((data || []).map(r => r.user_id));
+      paSelected = new Set(paSaved);
+      document.getElementById('pa-search').value = '';
+      renderPaList();
+    }
+
+    function renderPaList() {
+      const q = (document.getElementById('pa-search').value || '').trim().toLowerCase();
+      const rows = paUsers.filter(u => !q || (u.full_name || '').toLowerCase().includes(q));
+      const list = document.getElementById('pa-list');
+      list.innerHTML = rows.length ? rows.map(u => `
+        <label style="display:flex;align-items:center;gap:10px;padding:9px 14px;border-bottom:1px solid var(--border);cursor:pointer;font-size:13px;">
+          <input type="checkbox" value="${u.id}" ${paSelected.has(u.id) ? 'checked' : ''} onchange="togglePaUser(this)"
+                 style="accent-color:var(--accent);width:14px;height:14px;flex-shrink:0;" />
+          <span style="font-weight:600;color:var(--text);">${esc(u.full_name || '—')}</span>
+          <span style="font-family:monospace;font-size:11px;color:var(--text-4);margin-left:auto;">${esc(u.role || '')}</span>
+        </label>`).join('')
+        : `<div style="padding:16px;text-align:center;color:var(--text-4);font-size:12px;">No matching people.</div>`;
+      updatePaStatus();
+    }
+
+    function togglePaUser(cb) {
+      if (cb.checked) paSelected.add(cb.value); else paSelected.delete(cb.value);
+      updatePaStatus();
+    }
+
+    function updatePaStatus() {
+      document.getElementById('pa-status').textContent =
+        `${paSelected.size} person(s) allowed on this page (admins always allowed).`;
+    }
+
+    async function savePageAccess() {
+      const btn  = document.getElementById('pa-save-btn');
+      const page = document.getElementById('pa-page').value;
+      const toAdd    = [...paSelected].filter(id => !paSaved.has(id));
+      const toRemove = [...paSaved].filter(id => !paSelected.has(id));
+      if (!toAdd.length && !toRemove.length) { toast('No changes to save.', 'info'); return; }
+
+      btn.disabled = true; btn.textContent = 'Saving…';
+      let err = null;
+      if (toRemove.length) {
+        const r = await db.from('page_access').delete().eq('page', page).in('user_id', toRemove);
+        err = r.error;
+      }
+      if (!err && toAdd.length) {
+        const r = await db.from('page_access').insert(toAdd.map(user_id => ({ page, user_id })));
+        err = r.error;
+      }
+      btn.disabled = false; btn.innerHTML = `${IC.save} Save`;
+
+      if (err) { toast('Error: ' + err.message, 'error'); return; }
+      paSaved = new Set(paSelected);
+      toast('Page access updated.', 'success');
     }
 
     function openReportPermissionModal() {

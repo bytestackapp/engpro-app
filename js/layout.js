@@ -28,12 +28,13 @@ async function initLayout(pageTitle) {
   // Previously, a missing DB profile granted full admin nav access — a privilege escalation risk.
   const safeProfile = profile || { role: null, full_name: currentUser?.email?.split('@')[0] || 'User', disciplines: null };
   const role    = safeProfile.role;
+  await loadPageGrants(safeProfile);
   if (!enforcePageAccess(safeProfile)) return;
   const name    = safeProfile.full_name || currentUser?.email || 'User';
   const email   = currentUser?.email || '';
   const disc    = safeProfile.disciplines?.name || '';
   const initials = name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0,2) || 'U';
-  const navItems = buildNavItems(role);
+  const navItems = buildNavItems(role).filter(i => canOpenPage(i.href, role));
 
   document.body.innerHTML = `
     <div class="app-layout">
@@ -67,10 +68,9 @@ async function initLayout(pageTitle) {
             <svg class="theme-icon-sun" xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
           </button>
           <button id="inbox-btn" onclick="openInbox()" title="Announcements"
-            style="position:relative;display:flex;align-items:center;gap:6px;padding:5px 12px;border-radius:8px;border:1px solid var(--border-2);background:transparent;color:var(--text-2);font-size:12px;font-weight:600;cursor:pointer;">
+            style="position:relative;display:flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:8px;border:1px solid var(--border-2);background:transparent;color:var(--text-2);cursor:pointer;">
             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
-            <span>Inbox</span>
-            <span id="inbox-badge" style="display:none;min-width:16px;height:16px;padding:0 4px;border-radius:8px;background:#f07900;color:#000;font-size:10px;font-weight:700;align-items:center;justify-content:center;">0</span>
+            <span id="inbox-badge" style="display:none;position:absolute;top:-6px;right:-6px;min-width:16px;height:16px;padding:0 4px;border-radius:8px;background:#ef4444;color:#fff;border:2px solid var(--bg-3);box-sizing:content-box;font-size:9px;font-weight:700;line-height:1;align-items:center;justify-content:center;">0</span>
           </button>
           <button id="refresh-data-btn" onclick="refreshMyCache()" title="Refresh data"
             onmouseover="this.style.background='rgba(240,121,0,0.2)'"
@@ -165,6 +165,10 @@ async function initLayout(pageTitle) {
   `;
 
   // Show a confirmation toast if we just reloaded because of the Refresh Data button
+  if (sessionStorage.getItem('engpro_denied_toast')) {
+    sessionStorage.removeItem('engpro_denied_toast');
+    toast('You do not have access to that page. Ask an admin.', 'warning');
+  }
   if (sessionStorage.getItem('engpro_show_refreshed_toast')) {
     sessionStorage.removeItem('engpro_show_refreshed_toast');
     toast('Page refreshed.', 'success');
@@ -386,7 +390,8 @@ function enforcePageAccess(p) {
   }
   const all     = buildNavItems('admin').map(i => i.href);
   const allowed = buildNavItems(p.role).map(i => i.href);
-  if (current !== 'dashboard.html' && all.includes(current) && !allowed.includes(current)) {
+  if (current !== 'dashboard.html' && ((all.includes(current) && !allowed.includes(current)) || !canOpenPage(current, p.role))) {
+    sessionStorage.setItem('engpro_denied_toast', '1');
     window.location.href = 'dashboard.html';
     return false;
   }
@@ -463,6 +468,7 @@ function _inboxUpdateBadge() {
   const unread = _inboxItems.filter(a => new Date(a.created_at).getTime() > seen).length;
   badge.textContent   = unread > 9 ? '9+' : String(unread);
   badge.style.display = unread ? 'flex' : 'none';
+  document.getElementById('inbox-btn')?.classList.toggle('has-unread', unread > 0);
 }
 
 function openInbox() {
@@ -524,3 +530,27 @@ function toggleTheme() {
   }
 }
 
+// ── PAGE-SPECIFIC ACCESS (restricted pages need a grant from Admin) ──
+const RESTRICTED_PAGES = ['material-status.html', 'eng-calculations.html', 'project-inquiry.html'];
+let _pageGrants = new Set();
+
+async function loadPageGrants(p) {
+  _pageGrants = new Set();
+  if (!p?.id || p.role === 'admin') return;
+  try {
+    const pages = await cachedQuery('page_grants_' + p.id, async () => {
+      const { data, error } = await db.from('page_access').select('page').eq('user_id', p.id);
+      if (error) throw error;
+      return (data || []).map(r => r.page);
+    }, 60 * 1000);
+    (pages || []).forEach(k => _pageGrants.add(k));
+  } catch (err) {
+    console.warn('[EngPro] Could not load page access:', err);   // fails closed: no access
+  }
+}
+
+function canOpenPage(href, role) {
+  if (!RESTRICTED_PAGES.includes(href)) return true;
+  if (role === 'admin') return true;
+  return _pageGrants.has(href);
+}

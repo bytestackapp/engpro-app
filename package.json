@@ -14,7 +14,7 @@
     "pdf-merger-js": "^4.3.1"
   },
   "devDependencies": {
-    "vercel": "latest"
+    "vercel": "54.20.1"
   },
   "engines": {
     "node": "22.x"
