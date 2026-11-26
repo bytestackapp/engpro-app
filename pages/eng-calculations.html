@@ -176,6 +176,9 @@
 
     const SVG_SM = (path) => `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${path}</svg>`;
     const IC = {
+      expand:   SVG_SM('<polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/>'),
+      collapse: SVG_SM('<polyline points="4 14 10 14 10 20"/><polyline points="20 10 14 10 14 4"/><line x1="14" y1="10" x2="21" y2="3"/><line x1="3" y1="21" x2="10" y2="14"/>'),
+      menu:     SVG_SM('<line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>'),
       columns:  SVG_SM('<path d="M12 3h7a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-7m0-18H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h7m0-18v18"/>'),
       upload:   SVG_SM('<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>'),
       download: SVG_SM('<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>'),
@@ -458,7 +461,7 @@
     }
 
     // ── RENDER PAGE ─────────────────────────────────────────
-    function renderPage() {
+        function renderPage() {
       const content = document.getElementById('page-content');
       content.innerHTML = `
         <div class="page-header" style="margin-bottom:14px;">
@@ -469,27 +472,13 @@
           <p>Manage and track construction support and connection design documents and review status.</p>
         </div>
 
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;flex-wrap:nowrap;">
-          <div style="font-size:12px;color:var(--text-3);font-weight:500;">Project:</div>
-          <select id="calc-project-select" onchange="onProjectChange()" style="font-size:12px;padding:5px 8px;min-width:160px;max-width:320px;width:fit-content;">
-            <option value="">— Select a project —</option>
-            ${projectsData.map(p => `<option value="${p.id}">${p.code} — ${p.name}</option>`).join('')}
-          </select>
-          <div style="margin-left:auto;display:flex;gap:8px;flex-wrap:nowrap;flex-shrink:0;">
-            ${ENG_UP.includes(currentUserRole) ? `<button class="btn btn-ghost btn-sm" onclick="openColManager()" style="display:flex;align-items:center;gap:5px;">${IC.settings} Columns</button>` : ''}
-            <button class="btn btn-ghost btn-sm" onclick="openImportModal()" style="display:flex;align-items:center;gap:5px;">${IC.download} Import Excel</button>
-            <button class="btn btn-ghost btn-sm" onclick="exportCalcs()" style="display:flex;align-items:center;gap:5px;">${IC.upload} Export</button>
-            <button class="btn btn-primary btn-sm" onclick="openAddModal()" style="display:flex;align-items:center;gap:5px;">${IC.plus} Add Calculation</button>
-            <button class="btn btn-danger btn-sm" onclick="deleteAllCalcs()" style="display:flex;align-items:center;gap:5px;">${IC.trash} Delete All</button>
-          </div>
-        </div>
-
         <div class="card">
           <div class="card-body" style="padding-top:14px;padding-bottom:0;padding-left:0;padding-right:0;">
             <div class="table-toolbar" style="margin-left:24px;">
-              <div class="search-box-sm">
-                <input type="text" id="search-input" placeholder="Search…" oninput="onSearch(this.value)" />
-              </div>
+              <select class="filter-select" id="calc-project-select" onchange="onProjectChange()" style="font-size:12px;padding:6px 10px;">
+                <option value="">— Select a project —</option>
+                ${projectsData.map(p => `<option value="${p.id}">${p.code} — ${p.name}</option>`).join('')}
+              </select>
               <select class="filter-select" id="filter-type" onchange="onFilter()" style="font-size:12px;padding:6px 10px;">
                 <option value="">All Types</option>
                 ${CALC_TYPES.map(t => `<option value="${t}">${t}</option>`).join('')}
@@ -498,8 +487,21 @@
                 <option value="">All Statuses</option>
                 ${STATUS_LIST.map(s => `<option value="${s}">${s}</option>`).join('')}
               </select>
+              <div class="search-box-sm">
+                <input type="text" id="search-input" placeholder="Search…" oninput="onSearch(this.value)" />
+              </div>
               <div class="toolbar-right" style="margin-right:24px;">
-                <button class="btn btn-ghost btn-sm expand-table-btn" id="expand-btn" onclick="toggleTableExpand()" title="Expand Table" style="display:flex;align-items:center;gap:5px;">${IC.columns} <span id="expand-label">Expand</span></button>
+                <button class="btn btn-primary btn-sm btn-icon-only" onclick="openAddModal()" title="Add Calculation">${IC.plus}</button>
+                <button class="btn btn-danger btn-sm btn-icon-only" onclick="deleteAllCalcs()" title="Delete All">${IC.trash}</button>
+                <button class="btn btn-ghost btn-sm btn-icon-only expand-table-btn" id="expand-btn" onclick="toggleTableExpand()" title="${tableExpanded ? 'Collapse Table' : 'Expand Table'}">${tableExpanded ? IC.collapse : IC.expand}</button>
+                <div class="action-menu">
+                  <button class="btn btn-ghost btn-sm btn-icon-only action-menu-toggle" onclick="toggleActionMenu(this)" title="More options">${IC.menu}</button>
+                  <div class="action-menu-list">
+                    ${ENG_UP.includes(currentUserRole) ? `<button class="action-menu-item" onclick="openColManager()">${IC.settings} Columns</button>` : ''}
+                    <button class="action-menu-item" onclick="openImportModal()">${IC.download} Import Excel</button>
+                    <button class="action-menu-item" onclick="exportCalcs()">${IC.upload} Export</button>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -541,8 +543,9 @@
     // ── TOGGLE EXPAND ────────────────────────────────────────
     function toggleTableExpand() {
       tableExpanded = !tableExpanded;
-      const label = document.getElementById('expand-label');
-      label.textContent = tableExpanded ? 'Collapse' : 'Expand';
+      const btn = document.getElementById('expand-btn');
+      btn.innerHTML = tableExpanded ? IC.collapse : IC.expand;
+      btn.title = tableExpanded ? 'Collapse Table' : 'Expand Table';
       renderTableHeader();
       renderTable(calcs.length);
     }

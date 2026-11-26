@@ -251,6 +251,9 @@
 	  folder:   SVG_SM('<path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>'),
 	  lock:     SVG_SM('<rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>'),
       chevron:  SVG_SM('<polyline points="6 9 12 15 18 9"/>'),
+      expand:   SVG_SM('<polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/>'),
+      collapse: SVG_SM('<polyline points="4 14 10 14 10 20"/><polyline points="20 10 14 10 14 4"/><line x1="14" y1="10" x2="21" y2="3"/><line x1="3" y1="21" x2="10" y2="14"/>'),
+      menu:     SVG_SM('<line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>'),
     };
 
     async function loadModelWorkflowSteps(projectId, disciplineId) {
@@ -675,25 +678,12 @@
     }
 
     // ── RENDER REGISTER PAGE ──────────────────────────────
-    function renderRegisterPage() {
+        function renderRegisterPage() {
       const content = document.getElementById('page-content');
       content.innerHTML = `
         <div class="page-header" style="margin-bottom:14px;">
           <h1 style="display:flex;align-items:center;gap:10px;"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg> 3D Model Manager</h1>
           <p>Central repository of all drawings and documents</p>
-        </div>
-
-        <div class="disc-header" style="flex-wrap:nowrap;">
-          <div class="disc-header-badge" onclick="openModal('disc-picker-modal')" title="Switch discipline">
-            ${activeDiscipline.icon} ${activeDiscipline.name} <span style="opacity:0.6;display:flex;align-items:center;gap:2px;font-size:11px;margin-left:4px;">${IC.chevron} switch</span>
-          </div>
-          <div style="margin-left:auto;display:flex;gap:8px;flex-wrap:nowrap;flex-shrink:0;">
-            ${ENG_UP.includes(currentUserRole) ? `<button class="btn btn-ghost btn-sm" onclick="openColManager()" style="display:flex;align-items:center;gap:5px;">${IC.settings} Columns</button>` : ''}
-            <button class="btn btn-ghost btn-sm" onclick="openImportModal()" style="display:flex;align-items:center;gap:5px;">${IC.download} Import Excel</button>
-			<button class="btn btn-ghost btn-sm" onclick="exportDrawings()" style="display:flex;align-items:center;gap:5px;">${IC.upload} Export</button>
-            <button class="btn btn-primary btn-sm" onclick="openAddModal()" style="display:flex;align-items:center;gap:5px;">${IC.plus} Add Model</button>
-            <button class="btn btn-danger btn-sm" onclick="deleteAllDrawings()" style="display:flex;align-items:center;gap:5px;">${IC.trash} Delete All</button>
-          </div>
         </div>
 
         <div class="card">
@@ -709,7 +699,17 @@
                 <option value="">All Statuses</option>
               </select>
               <div class="toolbar-right" style="margin-right:24px;">
-                <button class="btn btn-ghost btn-sm expand-table-btn" id="expand-btn" onclick="toggleTableExpand()" title="Expand Table" style="display:flex;align-items:center;gap:5px;">${IC.columns} <span id="expand-label">Expand</span></button>
+                <button class="btn btn-primary btn-sm btn-icon-only" onclick="openAddModal()" title="Add Model">${IC.plus}</button>
+                <button class="btn btn-danger btn-sm btn-icon-only" onclick="deleteAllDrawings()" title="Delete All">${IC.trash}</button>
+                <button class="btn btn-ghost btn-sm btn-icon-only expand-table-btn" id="expand-btn" onclick="toggleTableExpand()" title="${tableExpanded ? 'Collapse Table' : 'Expand Table'}">${tableExpanded ? IC.collapse : IC.expand}</button>
+                <div class="action-menu">
+                  <button class="btn btn-ghost btn-sm btn-icon-only action-menu-toggle" onclick="toggleActionMenu(this)" title="More options">${IC.menu}</button>
+                  <div class="action-menu-list">
+                    ${ENG_UP.includes(currentUserRole) ? `<button class="action-menu-item" onclick="openColManager()">${IC.settings} Columns</button>` : ''}
+                    <button class="action-menu-item" onclick="openImportModal()">${IC.download} Import Excel</button>
+                    <button class="action-menu-item" onclick="exportDrawings()">${IC.upload} Export</button>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -724,23 +724,19 @@
         </div>
       `;
 
+      setHeaderCrumb(activeDiscipline.name, () => openModal('disc-picker-modal'));
       renderTableHeader();
     }
 
     // ── TABLE EXPAND/COLLAPSE ────────────────────────────
-    function toggleTableExpand() {
+        function toggleTableExpand() {
       tableExpanded = !tableExpanded;
       const wrapper = document.getElementById('table-wrapper');
-      const label = document.getElementById('expand-label');
-      
-      if (tableExpanded) {
-        wrapper.classList.add('expanded');
-        label.textContent = 'Collapse';
-      } else {
-        wrapper.classList.remove('expanded');
-        label.textContent = 'Expand';
-      }
-      
+      const btn = document.getElementById('expand-btn');
+      wrapper.classList.toggle('expanded', tableExpanded);
+      btn.innerHTML = tableExpanded ? IC.collapse : IC.expand;
+      btn.title = tableExpanded ? 'Collapse Table' : 'Expand Table';
+
       // Re-render table header and body to show/hide columns
       renderTableHeader();
       renderTable(drawings.length);

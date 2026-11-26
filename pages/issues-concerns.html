@@ -6,11 +6,13 @@
   <title>Issues and Concerns — EngPro App</title>
   <link rel="stylesheet" href="../css/main.css" />
   <style>
-    .table-toolbar { display:flex; align-items:center; gap:8px; padding:10px 24px; flex-wrap:wrap; border-bottom:1px solid var(--border); }
+    .table-toolbar { display:flex; align-items:center; gap:8px; margin-bottom:12px; flex-wrap:wrap; }
     .search-box-sm { position:relative; width:200px; }
     .search-box-sm input { padding-left:28px; font-size:12px; padding-top:6px; padding-bottom:6px; }
     .search-box-sm::before { content:''; position:absolute; left:9px; top:50%; transform:translateY(-50%); width:13px; height:13px; background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='13' height='13' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cpath d='m21 21-4.35-4.35'/%3E%3C/svg%3E") no-repeat center; }
     .toolbar-right { margin-left:auto; display:flex; gap:6px; align-items:center; }
+    table thead th { position:sticky; top:0; z-index:2; background:var(--bg-3); }
+    table th, table td { padding:10px 12px; }
     .concern-text { max-width:300px; white-space:pre-wrap; word-break:break-word; font-size:12px; line-height:1.5; }
     .action-text  { max-width:250px; white-space:pre-wrap; word-break:break-word; font-size:12px; line-height:1.5; color:var(--text-3); }
   </style>
@@ -102,7 +104,7 @@
       `);
     }
 
-    async function pageInit(profile) {
+        async function pageInit(profile) {
       injectModals();
 
       document.getElementById('page-content').innerHTML = `
@@ -115,31 +117,27 @@
         </div>
 
         <div class="card">
-          <div class="card-header">
-            <span class="card-title">Issues &amp; Concerns Log</span>
-            <button class="btn btn-primary btn-sm" onclick="openAddModal()" style="display:flex;align-items:center;gap:5px;">
-              ${IC.plus} Add Issue
-            </button>
-          </div>
-
-          <div class="table-toolbar">
-            <div class="search-box-sm">
-              <input type="text" placeholder="Search concerns…" oninput="onSearch(this.value)" />
+          <div class="card-body" style="padding-top:14px;padding-bottom:0;padding-left:0;padding-right:0;">
+            <div class="table-toolbar" style="margin-left:24px;">
+              <select class="filter-select" id="filter-project" onchange="onFilter()" style="font-size:12px;padding:6px 10px;">
+                <option value="">All Projects</option>
+              </select>
+              <select class="filter-select" id="filter-disc" onchange="onFilter()" style="font-size:12px;padding:6px 10px;">
+                <option value="">All Disciplines</option>
+              </select>
+              <select class="filter-select" id="filter-status" onchange="onFilter()" style="font-size:12px;padding:6px 10px;">
+                <option value="">All Statuses</option>
+                ${STATUS_LIST.map(s => `<option value="${s}">${s}</option>`).join('')}
+              </select>
+              <div class="search-box-sm">
+                <input type="text" placeholder="Search concerns…" oninput="onSearch(this.value)" />
+              </div>
+              <div class="toolbar-right" style="margin-right:24px;">
+                <button class="btn btn-primary btn-sm btn-icon-only" onclick="openAddModal()" title="Add Issue">${IC.plus}</button>
+              </div>
             </div>
-            <select class="filter-select" id="filter-project" onchange="onFilter()" style="font-size:12px;padding:6px 10px;">
-              <option value="">All Projects</option>
-            </select>
-            <select class="filter-select" id="filter-disc" onchange="onFilter()" style="font-size:12px;padding:6px 10px;">
-              <option value="">All Disciplines</option>
-            </select>
-            <select class="filter-select" id="filter-status" onchange="onFilter()" style="font-size:12px;padding:6px 10px;">
-              <option value="">All Statuses</option>
-              ${STATUS_LIST.map(s => `<option value="${s}">${s}</option>`).join('')}
-            </select>
-          </div>
 
-          <div class="card-body" style="padding:0;">
-            <div class="table-wrapper">
+            <div class="table-wrapper" id="table-wrapper">
               <table>
                 <thead>
                   <tr>

@@ -168,7 +168,7 @@ async function initLayout(pageTitle) {
   {
     const h1 = document.querySelector('#page-content .page-header h1');
     const titleEl = document.getElementById('header-title');
-    if (titleEl) titleEl.textContent = (h1 && h1.textContent.trim()) || pageTitle || 'EngPro';
+    if (titleEl && !titleEl.querySelector('.header-crumb')) titleEl.textContent = (h1 && h1.textContent.trim()) || pageTitle || 'EngPro';
   }
   if (typeof initMessaging === 'function') await initMessaging(safeProfile);
   initInbox(safeProfile);
@@ -535,3 +535,37 @@ function canOpenPage(href, role) {
   if (role === 'admin') return true;
   return _pageGrants.has(href);
 }
+
+// ── HEADER BREADCRUMB:  Page Title / Discipline ──────────────
+function setHeaderCrumb(label, onClick) {
+  const titleEl = document.getElementById('header-title');
+  if (!titleEl) return;
+  const baseText = (document.title.split(' — ')[0] || '').trim() || 'EngPro';
+  titleEl.textContent = '';
+  const base = document.createElement('span');
+  base.textContent = baseText;
+  const sep = document.createElement('span');
+  sep.className = 'header-sep';
+  sep.textContent = '/';
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'header-crumb';
+  btn.title = 'Switch discipline';
+  btn.textContent = label;
+  btn.onclick = onClick;
+  titleEl.append(base, sep, btn);
+}
+
+// ── ACTION MENU (hamburger dropdown) ─────────────────────────
+function toggleActionMenu(btn) {
+  const menu = btn.closest('.action-menu');
+  const wasOpen = menu.classList.contains('open');
+  document.querySelectorAll('.action-menu.open').forEach(m => m.classList.remove('open'));
+  if (!wasOpen) menu.classList.add('open');
+}
+document.addEventListener('click', e => {
+  if (!e.target.closest('.action-menu-toggle')) {
+    document.querySelectorAll('.action-menu.open').forEach(m => m.classList.remove('open'));
+  }
+});
+

@@ -20,7 +20,7 @@
     table thead th { position:sticky;top:0;z-index:2;background:var(--bg-3); }
     table th, table td { text-align:center;padding:9px 11px;font-size:12px; }
     table th:first-child, table td:first-child { text-align:left; }
-    .sub-header th { font-size:10px;font-weight:600;color:var(--text-4);letter-spacing:.04em;padding:4px 8px;background:var(--bg-4); }
+    .sub-header th { font-size:10px;font-weight:600;color:var(--text-4);letter-spacing:.04em;padding:4px 8px;background:var(--bg-3);top:36px; }
     .status-badge { display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600; }
     .status-open       { background:rgba(249,115,22,.15);color:#f97316; }
     .status-inprogress { background:rgba(59,130,246,.15);color:#3b82f6; }
@@ -213,6 +213,14 @@
       });
     }
 
+        const PI_IC = {
+      plus:     '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>',
+      trash:    '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>',
+      download: '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>',
+      upload:   '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>',
+      menu:     '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>',
+    };
+
     function renderPage() {
       document.getElementById('page-content').innerHTML = `
         <div class="page-header" style="margin-bottom:14px;">
@@ -223,43 +231,31 @@
           <p>Track and manage project inquiry requests and manhours</p>
         </div>
 
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:18px;flex-wrap:wrap;">
-          <div style="margin-left:auto;display:flex;gap:8px;flex-wrap:nowrap;flex-shrink:0;">
-            <button class="btn btn-ghost btn-sm" onclick="openModal('import-modal')" style="display:flex;align-items:center;gap:5px;">
-			  <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-              Import Excel
-            </button>		  
-            <button class="btn btn-ghost btn-sm" onclick="exportInquiries()" style="display:flex;align-items:center;gap:5px;">
-              <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-              Export
-            </button>
-            <button class="btn btn-primary btn-sm" onclick="openAddModal()" style="display:flex;align-items:center;gap:5px;">
-              <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-              Add Inquiry
-            </button>
-            <button class="btn btn-danger btn-sm" onclick="openDeleteAllModal()" style="display:flex;align-items:center;gap:5px;">
-              <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
-              Delete All
-            </button>
-          </div>
-        </div>
-
         <div class="card">
           <div class="card-body" style="padding-top:14px;padding-bottom:0;padding-left:0;padding-right:0;">
-            <div class="table-toolbar" style="margin:0 16px 12px;">
-              <div class="search-box-sm">
-                <input type="text" id="search-input" placeholder="Search control no, client…" oninput="onSearch(this.value)" />
-              </div>
+            <div class="table-toolbar" style="margin:0 24px 12px;">
               <input type="text" id="filter-project" placeholder="Filter by project…" oninput="onFilter()" style="font-size:12px;padding:6px 10px;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg-3);color:var(--text);width:160px;" />
               <select class="filter-select" id="filter-status" onchange="onFilter()" style="font-size:12px;padding:6px 10px;">
                 <option value="">All Statuses</option>
                 <option>Open</option><option>In Progress</option><option>Completed</option><option>Cancelled</option>
               </select>
+              <div class="search-box-sm">
+                <input type="text" id="search-input" placeholder="Search control no, client…" oninput="onSearch(this.value)" />
+              </div>
               <div class="toolbar-right">
-                <span id="row-count" style="font-size:11px;color:var(--text-4);"></span>
+                <span id="row-count" style="font-size:11px;color:var(--text-4);margin-right:6px;"></span>
+                <button class="btn btn-primary btn-sm btn-icon-only" onclick="openAddModal()" title="Add Inquiry">${PI_IC.plus}</button>
+                <button class="btn btn-danger btn-sm btn-icon-only" onclick="openDeleteAllModal()" title="Delete All">${PI_IC.trash}</button>
+                <div class="action-menu">
+                  <button class="btn btn-ghost btn-sm btn-icon-only action-menu-toggle" onclick="toggleActionMenu(this)" title="More options">${PI_IC.menu}</button>
+                  <div class="action-menu-list">
+                    <button class="action-menu-item" onclick="openModal('import-modal')">${PI_IC.download} Import Excel</button>
+                    <button class="action-menu-item" onclick="exportInquiries()">${PI_IC.upload} Export</button>
+                  </div>
+                </div>
               </div>
             </div>
-            <div class="table-wrapper">
+            <div class="table-wrapper" id="table-wrapper">
               <table>
                 <thead>
                   <tr>
@@ -273,8 +269,8 @@
                     <th style="min-width:100px;">Due Date</th>
                     <th style="min-width:100px;">Date Completed</th>
                     <th style="min-width:70px;">Est. MH</th>
-					<th colspan="4" style="min-width:320px;border-bottom:1px solid var(--border);">Overall Details</th>
-					<th colspan="6" style="min-width:240px;border-bottom:1px solid var(--border);">Manhours</th>
+                    <th colspan="4" style="min-width:320px;border-bottom:1px solid var(--border);">Overall Details</th>
+                    <th colspan="6" style="min-width:240px;border-bottom:1px solid var(--border);">Manhours</th>
                     <th style="min-width:130px;">Remarks</th>
                     <th style="min-width:90px;">Status</th>
                     <th style="min-width:80px;">Actions</th>

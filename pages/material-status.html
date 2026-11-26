@@ -92,6 +92,11 @@
 	.badge-delivery-completed   { background:color-mix(in srgb,var(--green) 15%,transparent); color:var(--green); border:1px solid color-mix(in srgb,var(--green) 30%,transparent); }
 	.badge-delivery-cancelled   { background:color-mix(in srgb,var(--red) 15%,transparent); color:var(--red); border:1px solid color-mix(in srgb,var(--red) 30%,transparent); }
 
+    /* stats inside the dropdown */
+    .stats-menu-list { min-width: 190px; padding: 10px; }
+    .stats-menu-list .stat-strip { flex-direction: column; flex-wrap: nowrap; gap: 8px; margin: 0; }
+    .stats-menu-list .stat-chip { width: 100%; }
+
     /* stats */
     .stat-strip { display:flex; gap:12px; margin-bottom:16px; flex-wrap:wrap; }
     .stat-chip { display:flex; align-items:center; gap:8px; padding:4px 8px; background:var(--bg-3); border:1px solid var(--border); border-radius:var(--radius-lg); font-size:12px; color:var(--text-3); }
@@ -330,6 +335,8 @@
 
     const SVG_SM=p=>`<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
     const IC={
+      stats:    SVG_SM('<line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>'),
+      menu:     SVG_SM('<line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>'),
       columns:  SVG_SM('<path d="M12 3h7a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-7m0-18H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h7m0-18v18"/>'),
       upload:   SVG_SM('<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>'),
       download: SVG_SM('<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>'),
@@ -345,44 +352,51 @@
       await loadProjects(); await loadDisciplines(); await loadItems();
     }
 
-    function renderPage() {
+        function renderPage() {
       document.getElementById('page-content').innerHTML = `
         <div class="page-header" style="margin-bottom:14px;">
           <h1 style="display:flex;align-items:center;gap:10px;">
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M2 7l10-5 10 5-10 5-10-5z"/><path d="M2 7v10l10 5 10-5V7"/><line x1="12" y1="12" x2="12" y2="22"/></svg></svg>
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M2 7l10-5 10 5-10 5-10-5z"/><path d="M2 7v10l10 5 10-5V7"/><line x1="12" y1="12" x2="12" y2="22"/></svg>
             Material Status
           </h1>
           <p>Track material procurement, delivery status, and inventory per project.</p>
         </div>
-        <div class="stat-strip">
-          <div class="stat-chip yellow" id="stat-total"><strong id="s-total">—</strong>&nbsp;Total MTO</div>
-		  <div class="stat-chip accent" id="stat-pr"><strong id="s-pr">—</strong>&nbsp;PR Entries</div>
-          <div class="stat-chip blue" id="stat-tbe"><strong id="s-tbe">—</strong>&nbsp;TBE Entries</div>
-          <div class="stat-chip green" id="stat-po"><strong id="s-po">—</strong>&nbsp;PO Approved</div>
-          <div class="stat-chip purple" id="stat-delivered"><strong id="s-delivered">—</strong>&nbsp;Delivered</div>
-          <div class="stat-chip red" id="stat-flagged"><strong id="s-flagged">—</strong>&nbsp;Flagged</div>
-        </div>
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;flex-wrap:nowrap;">
-          <div style="font-size:12px;color:var(--text-3);font-weight:500;">Project:</div>
-          <select id="mat-project-select" onchange="onProjectChange()" style="font-size:12px;padding:5px 8px;min-width:160px;max-width:320px;width:fit-content;">
-            <option value="">— Select a project —</option>
-          </select>
-          <div style="margin-left:auto;display:flex;gap:6px;flex-wrap:nowrap;flex-shrink:0;">
-            <button class="btn btn-ghost btn-sm" onclick="openImportModal()" style="display:flex;align-items:center;gap:5px;">${IC.download} Import Excel</button>
-            <button class="btn btn-ghost btn-sm" onclick="exportItems()" style="display:flex;align-items:center;gap:5px;">${IC.upload} Export</button>
-            <button class="btn btn-primary btn-sm" onclick="openAddModal()" style="display:flex;align-items:center;gap:5px;">${IC.plus} Add MTO</button>
-            <button class="btn btn-danger btn-sm" onclick="deleteAllItems()" style="display:flex;align-items:center;gap:5px;">${IC.trash} Delete All</button>
-          </div>
-        </div>
         <div class="card">
           <div class="card-body" style="padding-top:14px;padding-bottom:0;padding-left:0;padding-right:0;">
-            <div class="table-toolbar" style="margin:0 16px 12px;">
-              <div class="search-box-sm"><input type="text" id="search-input" placeholder="Search MTO, PR, PO…" oninput="onSearch(this.value)"/></div>
+            <div class="table-toolbar" style="margin:0 24px 12px;">
+              <select class="filter-select" id="mat-project-select" onchange="onProjectChange()" style="font-size:12px;padding:6px 10px;">
+                <option value="">— Select a project —</option>
+              </select>
               <select class="filter-select" id="filter-discipline" onchange="onFilter()" style="font-size:12px;padding:6px 10px;"><option value="">All Disciplines</option></select>
               <select class="filter-select" id="filter-pr-status" onchange="onFilter()" style="font-size:12px;padding:6px 10px;">
                 <option value="">All PR Statuses</option>
                 <option>Issued</option><option>Approved</option><option>Cancelled</option>
               </select>
+              <div class="search-box-sm"><input type="text" id="search-input" placeholder="Search MTO, PR, PO…" oninput="onSearch(this.value)"/></div>
+              <div class="toolbar-right">
+                <button class="btn btn-primary btn-sm btn-icon-only" onclick="openAddModal()" title="Add MTO">${IC.plus}</button>
+                <button class="btn btn-danger btn-sm btn-icon-only" onclick="deleteAllItems()" title="Delete All">${IC.trash}</button>
+                <div class="action-menu">
+                  <button class="btn btn-ghost btn-sm btn-icon-only action-menu-toggle" onclick="toggleActionMenu(this)" title="Summary">${IC.stats}</button>
+                  <div class="action-menu-list stats-menu-list">
+                    <div class="stat-strip">
+                      <div class="stat-chip yellow" id="stat-total"><strong id="s-total">—</strong>&nbsp;Total MTO</div>
+                      <div class="stat-chip accent" id="stat-pr"><strong id="s-pr">—</strong>&nbsp;PR Entries</div>
+                      <div class="stat-chip blue" id="stat-tbe"><strong id="s-tbe">—</strong>&nbsp;TBE Entries</div>
+                      <div class="stat-chip green" id="stat-po"><strong id="s-po">—</strong>&nbsp;PO Approved</div>
+                      <div class="stat-chip purple" id="stat-delivered"><strong id="s-delivered">—</strong>&nbsp;Delivered</div>
+                      <div class="stat-chip red" id="stat-flagged"><strong id="s-flagged">—</strong>&nbsp;Flagged</div>
+                    </div>
+                  </div>
+                </div>
+                <div class="action-menu">
+                  <button class="btn btn-ghost btn-sm btn-icon-only action-menu-toggle" onclick="toggleActionMenu(this)" title="More options">${IC.menu}</button>
+                  <div class="action-menu-list">
+                    <button class="action-menu-item" onclick="openImportModal()">${IC.download} Import Excel</button>
+                    <button class="action-menu-item" onclick="exportItems()">${IC.upload} Export</button>
+                  </div>
+                </div>
+              </div>
             </div>
             <div class="table-wrapper" id="table-wrapper">
               <table><thead id="material-thead"></thead><tbody id="material-tbody"></tbody></table>
