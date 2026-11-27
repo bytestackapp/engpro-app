@@ -77,37 +77,26 @@
       await loadDisciplineOptions();
       await loadProjectOptions();
       await loadUsers(profile?.role !== 'admin' ? profile : undefined);
-	  adjustTableWrapperHeight();
     }
 
     function renderPage() {
       document.getElementById('page-content').innerHTML = `
-        <div class="page-header" style="margin-bottom:14px;">
-          <h1 style="display:flex;align-items:center;gap:10px;">
-            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>
-              <path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
-            </svg>
-            User Management
-          </h1>
-          <p>Add, edit, and manage team members and their access</p>
-        </div>
-
         <div class="card">
           <div class="card-body" style="padding-top:14px;padding-bottom:0;padding-left:0;padding-right:0;">
-            <div class="table-toolbar" style="margin:0 18px 12px;">
-              <div class="search-box-sm">
-                <input type="text" id="user-search" placeholder="Search name, email, username…" oninput="filterUsers(this.value)" />
-              </div>
-              <select class="filter-select" id="role-filter" onchange="filterUsers(document.getElementById('user-search').value)" style="font-size:12px;padding:6px 10px;">
+            <div class="table-toolbar" style="margin:0 24px 12px;">
+              <select class="filter-select" id="proj-filter" data-gate="users" data-gate-sub="Choose a project, or All Projects, to list its users." onchange="filterUsers()" style="font-size:12px;padding:6px 10px;border:1.5px solid var(--accent);font-weight:600;color:var(--accent);">
+                <option value="">— Select a project —</option>
+                <option value="__all__">All Projects</option>
+              </select>
+              <select class="filter-select" id="role-filter" onchange="filterUsers()" style="font-size:12px;padding:6px 10px;">
                 <option value="">All Roles</option>
               </select>
-              <select class="filter-select" id="proj-filter" onchange="filterUsers(document.getElementById('user-search').value)" style="font-size:12px;padding:6px 10px;">
-                <option value="">All Projects</option>
-              </select>
-              <div style="margin-left:auto;display:flex;gap:8px;" id="add-user-wrap">
-                <button class="btn btn-ghost btn-sm" onclick="exportUsers()" style="display:flex;align-items:center;gap:5px;">${IC.upload} Export</button>
-                <button class="btn btn-primary btn-sm" onclick="openAddUser()" style="display:flex;align-items:center;gap:5px;">${IC.plus} Add User</button>
+              <div class="search-box-sm">
+                <input type="text" id="user-search" placeholder="Search name, email, username…" oninput="filterUsers()" />
+              </div>
+              <div style="margin-left:auto;display:flex;gap:6px;align-items:center;" id="add-user-wrap">
+                <button class="btn btn-ghost btn-sm btn-icon-only" onclick="exportUsers()" title="Export">${IC.upload}</button>
+                <button class="btn btn-primary btn-sm btn-icon-only" onclick="openAddUser()" title="Add User">${IC.plus}</button>
               </div>
             </div>
 
@@ -292,7 +281,7 @@
       const sel = document.getElementById('u-project');
       if (sel) sel.innerHTML = `<option value="">— None —</option>` + projectsData.map(p => `<option value="${p.id}">${p.code} — ${p.name}</option>`).join('');
       const filt = document.getElementById('proj-filter');
-      if (filt) filt.innerHTML = `<option value="">All Projects</option>` + projectsData.map(p => `<option value="${p.id}">${p.code} — ${p.name}</option>`).join('');
+      if (filt) filt.innerHTML = `<option value="">— Select a project —</option><option value="__all__">All Projects</option>` + projectsData.map(p => `<option value="${p.id}">${p.code} — ${p.name}</option>`).join('');
     }
 
     function adjustTableWrapperHeight() {
@@ -302,7 +291,6 @@
       const bottomPadding = 24; // breathing room below the table
       wrapper.style.maxHeight = `calc(100vh - ${top}px - ${bottomPadding}px)`;
     }
-    window.addEventListener('resize', adjustTableWrapperHeight);
 
     async function loadUsers(profile) {
       const tbody = document.getElementById('user-tbody');
@@ -311,7 +299,7 @@
         .order('full_name');
       if (error) { tbody.innerHTML = `<tr><td colspan="10" style="text-align:center;padding:30px;color:var(--red);">Error loading users.</td></tr>`; return; }
       allUsers = data || [];
-      renderUsers(allUsers);
+      renderUsers(getFilteredUsers());
     }
 
     function renderUsers(list) {
@@ -366,6 +354,7 @@
       const roleFilter = document.getElementById('role-filter')?.value || '';
       const projFilter = document.getElementById('proj-filter')?.value || '';
       const q = search.toLowerCase();
+      if (!projFilter) return [];   // no project chosen -> clean table
       return allUsers.filter(u => {
         const matchSearch = !q ||
           u.full_name?.toLowerCase().includes(q) ||
@@ -373,7 +362,7 @@
           u.username?.toLowerCase().includes(q) ||
           u.initials?.toLowerCase().includes(q);
         const matchRole = !roleFilter || u.role === roleFilter;
-        const matchProj = !projFilter || u.project_id === projFilter;
+        const matchProj = projFilter === '__all__' || u.project_id === projFilter;
         return matchSearch && matchRole && matchProj;
       });
     }

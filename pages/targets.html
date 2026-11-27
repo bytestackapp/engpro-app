@@ -98,6 +98,38 @@
     .import-preview td { padding:4px 8px;text-align:right;box-shadow:inset -1px -1px 0 0 var(--border); }
     .import-preview td:first-child { text-align:left;font-weight:500; }
     .import-preview tr:nth-child(even) td { background:var(--bg-2); }
+    /* ── FULL-SCREEN PANELS (same look as other refined pages) ── */
+    .page-content > .tgt-panel { display:none; }
+    .page-content > .tgt-panel.active {
+      display:flex; flex-direction:column;
+      height:calc(100vh - var(--header-h) - var(--gap) * 3);
+      overflow:hidden;
+    }
+    .tgt-panel > .card-body {
+      flex:1; min-height:0; display:flex; flex-direction:column;
+      padding:14px 0 0 0;
+    }
+    .tgt-content { flex:1; min-height:0; display:flex; flex-direction:column; overflow:auto; }
+    .tgt-content.pad { padding:0 24px 16px; }
+    .tgt-content > .toolbar { margin:0 24px 12px; }
+    .card-body.gated > .tgt-content { display:none !important; }
+    .histo-outer { max-height:none; flex:1; min-height:0; }
+
+    .table-toolbar { display:flex; align-items:center; gap:8px; margin:0 24px 12px; flex-wrap:wrap; }
+    .toolbar-right { margin-left:auto; display:flex; gap:6px; align-items:center; }
+
+    /* ── TAB PICKER (title dropdown) ── */
+    .disc-picker-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:12px; margin-top:8px; }
+    .disc-card {
+      background:var(--bg-4); border:1px solid var(--border-2); border-radius:var(--radius-lg);
+      padding:20px 14px; text-align:center; cursor:pointer; transition:all var(--speed);
+      display:flex; flex-direction:column; align-items:center; gap:8px;
+    }
+    .disc-card:hover { border-color:var(--accent); background:var(--accent-dim); transform:translateY(-2px); box-shadow:0 4px 16px rgba(240,121,0,0.2); }
+    .disc-card.current { border-color:var(--accent); }
+    .disc-card-icon { width:32px; height:32px; display:flex; align-items:center; justify-content:center; color:var(--accent); }
+    .disc-card-name { font-size:12px; font-weight:600; color:var(--text-2); }
+    .disc-card:hover .disc-card-name { color:var(--accent-light); }
   </style>
 </head>
 <body>
@@ -120,6 +152,14 @@
 	  refresh:  SVG_SM('<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M3 21v-5h5"/>'),
       back:     `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M5 12l14 0" /><path d="M5 12l6 6" /><path d="M5 12l6 -6" /></svg>`,
     };
+
+    const TGT_TABS = [
+      { key: 'positions', label: 'Positions', icon: `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8.5 12.2l2.2 2.2 4.8-5"/></svg>` },
+      { key: 'histogram', label: 'Histogram', icon: `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="4" height="18"/><rect x="9" y="8" width="4" height="13"/><rect x="16" y="13" width="4" height="8"/></svg>` },
+      { key: 'roc', label: 'Rules of Credit', icon: `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>` },
+      { key: 'progress', label: 'Progress', icon: `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>` },
+      { key: 'kpi', label: 'Target KPI', icon: `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20V10"/><path d="M18 20V4"/><path d="M6 20v-4"/></svg>` }
+    ];
 
 	let typeConfirmCallback = null;
 	let typeConfirmWord     = '';
@@ -176,6 +216,26 @@
     // ─── MODALS ───────────────────────────────────────────────────────────────
     function injectModals() {
       document.body.insertAdjacentHTML('beforeend', `
+        <!-- Tab Picker Modal (opened from the title) -->
+        <div class="modal" id="tab-picker-modal">
+          <div class="modal-backdrop" onclick="closeModal('tab-picker-modal')"></div>
+          <div class="modal-box modal-lg">
+            <div class="modal-header">
+              <div>
+                <h3>Select Target Option</h3>
+                <p style="font-size:12px;color:var(--text-3);font-weight:400;margin-top:2px;">Choose which part of Targets you want to open</p>
+              </div>
+              <button class="modal-close" onclick="closeModal('tab-picker-modal')">✕</button>
+            </div>
+            <div class="modal-body">
+              <div style="margin-bottom:14px;">
+                <button class="btn btn-ghost btn-sm" onclick="closeModal('tab-picker-modal')">← Back to Targets</button>
+              </div>
+              <div class="disc-picker-grid" id="tab-picker-grid"></div>
+            </div>
+          </div>
+        </div>
+
         <!-- Target Modal -->
         <div class="modal" id="target-modal">
           <div class="modal-backdrop" onclick="closeModal('target-modal')"></div>
@@ -488,175 +548,106 @@
       injectModals();
 
       document.getElementById('page-content').innerHTML = `
-        <div class="page-header">
-          <h1 style="display:flex;align-items:center;gap:10px;">${IC.target} Targets</h1>
-          <p>Define planned manhours per position and distribute them across the project schedule</p>
-        </div>
 
-        <div class="tabs">
-          <button class="tab-btn active" onclick="switchTab('positions', this)">
-            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8.5 12.2l2.2 2.2 4.8-5"/></svg>
-            Positions
-          </button>
-          <button class="tab-btn" onclick="switchTab('histogram', this)">
-            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="4" height="18"/><rect x="9" y="8" width="4" height="13"/><rect x="16" y="13" width="4" height="8"/></svg>
-            Histogram
-          </button>
-		  <button class="tab-btn" onclick="switchTab('roc', this)">
-            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
-            Rules of Credit
-          </button>		  
-          <button class="tab-btn" onclick="switchTab('progress', this)">
-            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-            Progress
-          </button>
-		  <button class="tab-btn" onclick="switchTab('kpi', this)">
-            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20V10"/><path d="M18 20V4"/><path d="M6 20v-4"/></svg>
-            Target KPI
-          </button>
-        </div>
-
-        <!-- Positions Tab -->
-        <div class="tab-panel active" id="tab-positions">
-          <div class="card">
-            <div class="card-header">
-              <span class="card-title">Positions &amp; Manhour Targets</span>
-              <div style="display:flex;align-items:center;gap:8px;">
-                <button class="btn btn-ghost btn-sm" onclick="openPositionImportModal()" style="display:flex;align-items:center;gap:5px;">${IC.download} Import Excel</button>
-                <button class="btn btn-ghost btn-sm" onclick="exportPosExcel()" style="display:flex;align-items:center;gap:5px;">${IC.upload} Export Excel</button>
-                <button class="btn btn-primary btn-sm" onclick="openAddTarget()" style="display:flex;align-items:center;gap:5px;">${IC.plus} Add Position</button>
-                <button class="btn btn-danger btn-sm" onclick="deleteAllTargets()" style="display:flex;align-items:center;gap:5px;">${IC.trash} Delete All</button>
-              </div>
-            </div>
-            <div class="card-body">
-              <div class="histo-toolbar">
-              <div style="font-size:12px;color:var(--text-3);font-weight:500;">Project:</div>
-              <select id="target-proj-select" onchange="onPositionProjectChange(this.value)" style="font-size:12px;padding:5px 8px;min-width:160px;max-width:320px;width:fit-content;">
+        <div class="card tgt-panel active" id="tab-positions">
+          <div class="card-body">
+            <div class="table-toolbar">
+              <select id="target-proj-select" data-gate="positions" data-gate-sub="Targets are set up per project." onchange="onPositionProjectChange(this.value)" class="filter-select" style="font-size:12px;padding:6px 10px;border:1.5px solid var(--accent);font-weight:600;color:var(--accent);">
                 <option value="">— Select a project —</option>
               </select>
-            </div>
-            <div id="pos-content-wrap">
-              <div style="text-align:center;padding:60px;color:var(--text-4);font-size:13px;">
-                Select a project above to view and edit its positions.
+              
+              <div class="toolbar-right">
+                <button class="btn btn-ghost btn-sm btn-icon-only" onclick="openPositionImportModal()" title="Import Excel">${IC.download}</button>
+                <button class="btn btn-ghost btn-sm btn-icon-only" onclick="exportPosExcel()" title="Export Excel">${IC.upload}</button>
+                <button class="btn btn-primary btn-sm btn-icon-only" onclick="openAddTarget()" title="Add Position">${IC.plus}</button>
+                <button class="btn btn-danger btn-sm btn-icon-only" onclick="deleteAllTargets()" title="Delete All">${IC.trash}</button>
               </div>
             </div>
-            </div>
+            <div class="tgt-content" id="pos-content-wrap"></div>
           </div>
         </div>
 
-        <!-- Histogram Tab -->
-        <div class="tab-panel" id="tab-histogram">
-          <div class="card">
-            <div class="card-header">
-              <span class="card-title">Manhour Histogram</span>
-              <div style="display:flex;align-items:center;gap:8px;">
-                <button class="btn btn-ghost btn-sm" onclick="openImportModal()" style="display:flex;align-items:center;gap:5px;">${IC.download} Import Excel</button>                
-				<button class="btn btn-ghost btn-sm" onclick="exportHistoExcel()" style="display:flex;align-items:center;gap:5px;">${IC.upload} Export Excel</button>
-                <button class="btn btn-ghost btn-sm" id="histo-save-btn" onclick="saveHistogram(true)" style="display:flex;align-items:center;gap:5px;" title="Save now (auto-saves after 3s)">${IC.save} Save</button>
-                <button class="btn btn-danger btn-sm" onclick="clearAllHistogram()" style="display:flex;align-items:center;gap:5px;">${IC.trash} Clear All</button>
+        <div class="card tgt-panel" id="tab-histogram">
+          <div class="card-body">
+            <div class="table-toolbar">
+              <select id="histo-proj-select" data-gate="manhour histogram" data-gate-sub="Targets are set up per project." onchange="onHistoProjectChange(this.value)" class="filter-select" style="font-size:12px;padding:6px 10px;border:1.5px solid var(--accent);font-weight:600;color:var(--accent);">
+                <option value="">— Select a project —</option>
+              </select>
+              <div id="histo-proj-info" style="font-size:11px;color:var(--text-4);"></div>
+              <div class="toolbar-right">
+                <button class="btn btn-ghost btn-sm btn-icon-only" onclick="openImportModal()" title="Import Excel">${IC.download}</button>
+                <button class="btn btn-ghost btn-sm btn-icon-only" onclick="exportHistoExcel()" title="Export Excel">${IC.upload}</button>
+                <button class="btn btn-ghost btn-sm btn-icon-only" id="histo-save-btn" onclick="saveHistogram(true)" title="Save now (auto-saves after 3s)">${IC.save}</button>
+                <button class="btn btn-danger btn-sm btn-icon-only" onclick="clearAllHistogram()" title="Clear All">${IC.trash}</button>
               </div>
             </div>
-            <div class="card-body">
-              <div class="histo-toolbar">
-                <div style="font-size:12px;color:var(--text-3);font-weight:500;">Project:</div>
-                <select id="histo-proj-select" onchange="onHistoProjectChange(this.value)" style="font-size:12px;padding:5px 8px;min-width:160px;max-width:320px;width:fit-content;">
-                  <option value="">— Select a project —</option>
-                </select>
-                <div id="histo-proj-info" style="font-size:11px;color:var(--text-4);"></div>
-              </div>
-              <div id="histo-content">
-                <div style="text-align:center;padding:60px;color:var(--text-4);font-size:13px;">
-                  Select a project above to view and edit its manhour histogram.
-                </div>
-              </div>
-            </div>
+            <div class="tgt-content pad" id="histo-content"></div>
           </div>
         </div>
 
-        <!-- Progress Tab -->
-        <div class="tab-panel" id="tab-progress">
-          <div class="card">
-            <div class="card-header">
-              <span class="card-title">Planned Progress</span>
-              <div style="display:flex;align-items:center;gap:8px;">
+        <div class="card tgt-panel" id="tab-progress">
+          <div class="card-body">
+            <div class="table-toolbar">
+              <select id="prog-proj-select" data-gate="planned progress" data-gate-sub="Targets are set up per project." onchange="onProgProjectChange(this.value)" class="filter-select" style="font-size:12px;padding:6px 10px;border:1.5px solid var(--accent);font-weight:600;color:var(--accent);">
+                <option value="">— Select a project —</option>
+              </select>
+              <div id="prog-proj-info" style="font-size:11px;color:var(--text-4);"></div>
+              <div class="toolbar-right">
                 <span class="save-dot" id="prog-dirty-dot" title="Unsaved changes"></span>
-                <button class="btn btn-ghost btn-sm" onclick="openProgImportModal()" style="display:flex;align-items:center;gap:5px;">${IC.download} Import Excel</button>
-                <button class="btn btn-ghost btn-sm" onclick="exportProgExcel()" style="display:flex;align-items:center;gap:5px;">${IC.upload} Export Excel</button>
-                <button class="btn btn-ghost btn-sm" id="prog-save-btn" onclick="saveProgress(true)" style="display:flex;align-items:center;gap:5px;">${IC.save} Save</button>
-                <button class="btn btn-danger btn-sm" onclick="clearAllProgress()" style="display:flex;align-items:center;gap:5px;">${IC.trash} Clear All</button>
+                <button class="btn btn-ghost btn-sm btn-icon-only" onclick="openProgImportModal()" title="Import Excel">${IC.download}</button>
+                <button class="btn btn-ghost btn-sm btn-icon-only" onclick="exportProgExcel()" title="Export Excel">${IC.upload}</button>
+                <button class="btn btn-ghost btn-sm btn-icon-only" id="prog-save-btn" onclick="saveProgress(true)" title="Save">${IC.save}</button>
+                <button class="btn btn-danger btn-sm btn-icon-only" onclick="clearAllProgress()" title="Clear All">${IC.trash}</button>
               </div>
             </div>
-            <div class="card-body">
-              <div class="histo-toolbar">
-                <div style="font-size:12px;color:var(--text-3);font-weight:500;">Project:</div>
-                <select id="prog-proj-select" onchange="onProgProjectChange(this.value)" style="font-size:12px;padding:5px 8px;min-width:160px;max-width:320px;width:fit-content;">
-                  <option value="">— Select a project —</option>
-                </select>
-                <div id="prog-proj-info" style="font-size:11px;color:var(--text-4);"></div>
-              </div>
-              <div id="prog-content">
-                <div style="text-align:center;padding:60px;color:var(--text-4);font-size:13px;">
-                  Select a project above to view and edit its planned progress.
-                </div>
-              </div>
-            </div>
+            <div class="tgt-content pad" id="prog-content"></div>
           </div>
         </div>
-		
-		<!-- Rules of Credit Tab -->
-        <div class="tab-panel" id="tab-roc">
-          <div class="card">
-            <div class="card-header">
-              <span class="card-title">Rules of Credit (ROC)</span>
-              <div style="display:flex;align-items:center;gap:8px;">
-                <button class="btn btn-ghost btn-sm" onclick="openRocImportModal()" style="display:flex;align-items:center;gap:5px;">${IC.download} Import Excel</button>
-                <button class="btn btn-ghost btn-sm" onclick="exportRocExcel()" style="display:flex;align-items:center;gap:5px;">${IC.upload} Export Excel</button>
-                <button class="btn btn-ghost btn-sm" onclick="collapseAllRoc()" style="display:flex;align-items:center;gap:5px;">${IC.refresh} Refresh</button>
-                <button class="btn btn-ghost btn-sm" id="roc-save-btn" onclick="saveRoc()" style="display:flex;align-items:center;gap:5px;">${IC.save} Save</button>
-                <button class="btn btn-danger btn-sm" onclick="clearAllRoc()" style="display:flex;align-items:center;gap:5px;">${IC.trash} Clear</button>
+
+        <div class="card tgt-panel" id="tab-roc">
+          <div class="card-body">
+            <div class="table-toolbar">
+              <select id="roc-proj-select" data-gate="rules of credit" data-gate-sub="Targets are set up per project." onchange="onRocProjectChange(this.value)" class="filter-select" style="font-size:12px;padding:6px 10px;border:1.5px solid var(--accent);font-weight:600;color:var(--accent);">
+                <option value="">— Select a project —</option>
+              </select>
+              
+              <div class="toolbar-right">
+                <button class="btn btn-ghost btn-sm btn-icon-only" onclick="openRocImportModal()" title="Import Excel">${IC.download}</button>
+                <button class="btn btn-ghost btn-sm btn-icon-only" onclick="exportRocExcel()" title="Export Excel">${IC.upload}</button>
+                <button class="btn btn-ghost btn-sm btn-icon-only" onclick="collapseAllRoc()" title="Refresh">${IC.refresh}</button>
+                <button class="btn btn-ghost btn-sm btn-icon-only" id="roc-save-btn" onclick="saveRoc()" title="Save">${IC.save}</button>
+                <button class="btn btn-danger btn-sm btn-icon-only" onclick="clearAllRoc()" title="Clear">${IC.trash}</button>
               </div>
             </div>
-            <div class="card-body">
-              <div class="histo-toolbar">
-                <div style="font-size:12px;color:var(--text-3);font-weight:500;">Project:</div>
-                <select id="roc-proj-select" onchange="onRocProjectChange(this.value)" style="font-size:12px;padding:5px 8px;min-width:160px;max-width:320px;width:fit-content;">
-                  <option value="">— Select a project —</option>
-                </select>
-              </div>
-              <div id="roc-content">
-                <div style="text-align:center;padding:60px;color:var(--text-4);font-size:13px;">Select a project to configure Rules of Credit.</div>
-              </div>
-            </div>
+            <div class="tgt-content pad" id="roc-content"></div>
           </div>
         </div>
-		
-		<!-- KPI Tab -->
-        <div class="tab-panel" id="tab-kpi">
-          <div class="card">
-            <div class="card-header">
-              <span class="card-title">Target KPI</span>
-              <div style="display:flex;align-items:center;gap:8px;">
-                <button class="btn btn-ghost btn-sm" onclick="openKpiImportModal()" style="display:flex;align-items:center;gap:5px;">${IC.download} Import Excel</button>
-			  <button class="btn btn-ghost btn-sm" onclick="exportKpiExcel()" style="display:flex;align-items:center;gap:5px;">${IC.upload} Export Excel</button>
-                <button class="btn btn-danger btn-sm" onclick="deleteAllKpi()" style="display:flex;align-items:center;gap:5px;">${IC.trash} Clear All</button>
+
+        <div class="card tgt-panel" id="tab-kpi">
+          <div class="card-body">
+            <div class="table-toolbar">
+              <select id="kpi-proj-select" data-gate="target KPIs" data-gate-sub="Targets are set up per project." onchange="onKpiProjectChange(this.value)" class="filter-select" style="font-size:12px;padding:6px 10px;border:1.5px solid var(--accent);font-weight:600;color:var(--accent);">
+                <option value="">— Select a project —</option>
+              </select>
+              
+              <div class="toolbar-right">
+                <button class="btn btn-ghost btn-sm btn-icon-only" onclick="openKpiImportModal()" title="Import Excel">${IC.download}</button>
+                <button class="btn btn-ghost btn-sm btn-icon-only" onclick="exportKpiExcel()" title="Export Excel">${IC.upload}</button>
+                <button class="btn btn-danger btn-sm btn-icon-only" onclick="deleteAllKpi()" title="Clear All">${IC.trash}</button>
               </div>
             </div>
-            <div class="card-body">
-              <div class="histo-toolbar">
-                <div style="font-size:12px;color:var(--text-3);font-weight:500;">Project:</div>
-                <select id="kpi-proj-select" onchange="onKpiProjectChange(this.value)" style="font-size:12px;padding:5px 8px;min-width:160px;max-width:320px;width:fit-content;">
-                  <option value="">— Select a project —</option>
-                </select>
-              </div>
-              <div id="kpi-content">
-                <div style="text-align:center;padding:60px;color:var(--text-4);font-size:13px;">
-                  Select a project above to view and edit its KPI targets.
-                </div>
-              </div>
-            </div>
+            <div class="tgt-content" id="kpi-content"></div>
           </div>
         </div>
       `;
+
+      // Section picker cards + title crumb ("Targets / Positions")
+      document.getElementById('tab-picker-grid').innerHTML = TGT_TABS.map(t => `
+        <div class="disc-card" onclick="switchTab('${t.key}')">
+          <div class="disc-card-icon">${t.icon}</div>
+          <div class="disc-card-name">${t.label}</div>
+        </div>`).join('');
+      switchTab('positions');
 
       await loadRolesAndDiscs();
       await loadTargets();
@@ -716,7 +707,7 @@
       posProjectId = id || null;
       const wrap = document.getElementById('pos-content-wrap');
       if (!posProjectId) {
-        wrap.innerHTML = `<div style="text-align:center;padding:60px;color:var(--text-4);font-size:13px;">Select a project above to view and edit its positions.</div>`;
+        wrap.innerHTML = '';
         return;
       }
       wrap.innerHTML = `
@@ -1038,7 +1029,7 @@
       markDirty(false);
 
       if (!projId || !histoProject) {
-        document.getElementById('histo-content').innerHTML = `<div style="text-align:center;padding:60px;color:var(--text-4);font-size:13px;">Select a project above to view and edit its manhour histogram.</div>`;
+        document.getElementById('histo-content').innerHTML = '';
         document.getElementById('histo-proj-info').textContent = '';
         return;
       }
@@ -1066,7 +1057,7 @@
         document.getElementById('histo-content').innerHTML = `
           <div style="text-align:center;padding:60px;color:var(--text-4);font-size:13px;">
             No positions defined for this project.<br/>
-            <span style="cursor:pointer;color:var(--accent);" onclick="switchTab('positions',document.querySelectorAll('.tab-btn')[0])">Go to Positions tab</span> to add them first.
+            <span style="cursor:pointer;color:var(--accent);" onclick="switchTab('positions')">Go to Positions tab</span> to add them first.
           </div>`;
         return;
       }
@@ -1356,7 +1347,7 @@
       }
       histoSaving = true;
       const btn = document.getElementById('histo-save-btn');
-      if (btn) { btn.textContent = 'Saving…'; btn.disabled = true; }
+      if (btn) { btn.disabled = true; }
     
       // Snapshot exactly which keys are being saved right now
       const savedKeys = [];
@@ -1378,7 +1369,7 @@
         .upsert(upserts, { onConflict: 'target_id,period' });
     
       histoSaving = false;
-      if (btn) { btn.innerHTML = `${IC.save} Save`; btn.disabled = false; }
+      if (btn) { btn.disabled = false; }
       if (error) { toast('Error saving: ' + error.message, 'error'); return; }
     
       // Only clear the keys that were part of THIS save — not anything edited since
@@ -1585,11 +1576,12 @@ function parseHistogramExcel(rows) {
       document.getElementById('import-drop').style.display = 'none';
     }
 	
-	function switchTab(name, btn) {
-      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-      document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
-      btn.classList.add('active');
+	function switchTab(name) {
+      document.querySelectorAll('.tgt-panel').forEach(p => p.classList.remove('active'));
       document.getElementById('tab-' + name).classList.add('active');
+      const t = TGT_TABS.find(x => x.key === name);
+      setHeaderCrumb(t.label, () => openModal('tab-picker-modal'));
+      closeModal('tab-picker-modal');
       if (name === 'kpi') loadKpi();
     }
 	
@@ -1879,7 +1871,7 @@ async function onProgProjectChange(pid) {
   const content = document.getElementById('prog-content');
 
   if (!pid) {
-    content.innerHTML = `<div style="text-align:center;padding:60px;color:var(--text-4);font-size:13px;">Select a project above to view and edit its planned progress.</div>`;
+    content.innerHTML = '';
     if (info) info.textContent = '';
     return;
   }
@@ -2087,7 +2079,7 @@ async function saveProgress(isManual = false) {
   }
   progSaving = true;
   const btn = document.getElementById('prog-save-btn');
-  if (btn) { btn.textContent = 'Saving…'; btn.disabled = true; }
+  if (btn) { btn.disabled = true; }
 
   const errors = [];
 
@@ -2154,7 +2146,7 @@ async function saveProgress(isManual = false) {
   }
 
   progSaving = false;
-  if (btn) { btn.innerHTML = `${IC.save} Save`; btn.disabled = false; }
+  if (btn) { btn.disabled = false; }
   if (errors.length) { toast('Error: ' + errors.join(' | '), 'error'); return; }
 
   markProgDirty(false);
@@ -2174,7 +2166,7 @@ async function onRocProjectChange(projId) {
 
   const content = document.getElementById('roc-content');
   if (!projId) {
-    content.innerHTML = `<div style="text-align:center;padding:60px;color:var(--text-4);font-size:13px;">Select a project to configure Rules of Credit.</div>`;
+    content.innerHTML = '';
     return;
   }
   content.innerHTML = `<div style="text-align:center;padding:40px;color:var(--text-4);">Loading…</div>`;
@@ -2649,7 +2641,7 @@ async function saveRoc() {
   if (rocHasAnyIssue()) { toast('Save failed. Fix the flagged weight inconsistencies before saving.', 'error'); return; }
   if (!rocDirty) { toast('No data to save for this project.', 'info'); return; }
   const btn = document.getElementById('roc-save-btn');
-  if (btn) { btn.textContent = 'Saving…'; btn.disabled = true; }
+  if (btn) { btn.disabled = true; }
 
   const discUpserts = rocDiscs.map(d => ({
     project_id:    rocProjectId,
@@ -2659,7 +2651,7 @@ async function saveRoc() {
   if (discUpserts.length) {
     const { error } = await db.from('project_discipline_roc')
       .upsert(discUpserts, { onConflict: 'project_id,discipline_id' });
-    if (error) { toast('Error saving discipline ROC: ' + error.message, 'error'); if (btn) { btn.innerHTML = `${IC.save} Save`; btn.disabled = false; } return; }
+    if (error) { toast('Error saving discipline ROC: ' + error.message, 'error'); if (btn) { btn.disabled = false; } return; }
   }
 
   for (const [discId, codes] of Object.entries(rocItems)) {
@@ -2695,7 +2687,7 @@ async function saveRoc() {
   }
 }
 
-  if (btn) { btn.innerHTML = `${IC.save} Save`; btn.disabled = false; }
+  if (btn) { btn.disabled = false; }
   rocDirty = false;
   markRocDirty(false);
   await onRocProjectChange(rocProjectId);
@@ -3040,10 +3032,7 @@ const KPI_UNITS = {
 function onKpiProjectChange(projId) {
   kpiProjectId = projId || null;
   if (!kpiProjectId) {
-    document.getElementById('kpi-content').innerHTML = `
-      <div style="text-align:center;padding:60px;color:var(--text-4);font-size:13px;">
-        Select a project above to view and edit its KPI targets.
-      </div>`;
+    document.getElementById('kpi-content').innerHTML = '';
     return;
   }
   loadKpi();

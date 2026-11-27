@@ -202,6 +202,30 @@
 
     .pdf-table tr.total-row td { font-weight:700; font-style:italic; background:var(--ag-orange) !important; color:#000 !important; }
     .pdf-table td.dash { color:#555; }
+
+    /* ── FULL-SCREEN MAIN CARD ── */
+    .rpt-card {
+      display:flex; flex-direction:column;
+      height:calc(100vh - var(--header-h) - var(--gap) * 3);
+      overflow:hidden; border-radius:var(--panel-radius);
+    }
+    .rpt-card > .card-body { flex:1; min-height:0; display:flex; flex-direction:column; padding:14px 0 0 0; }
+    .table-toolbar { display:flex; align-items:center; gap:8px; margin:0 24px 14px; flex-wrap:wrap; }
+    .rpt-scroll { flex:1; min-height:0; overflow-y:auto; padding:0 24px 20px; }
+    .rpt-section { display:none; }
+    .rpt-section.active { display:block; }
+
+    /* ── SECTION PICKER (title dropdown) ── */
+    .disc-picker-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:12px; margin-top:8px; }
+    .disc-card {
+      background:var(--bg-4); border:1px solid var(--border-2); border-radius:var(--radius-lg);
+      padding:20px 14px; text-align:center; cursor:pointer; transition:all var(--speed);
+      display:flex; flex-direction:column; align-items:center; gap:8px;
+    }
+    .disc-card:hover { border-color:var(--accent); background:var(--accent-dim); transform:translateY(-2px); box-shadow:0 4px 16px rgba(240,121,0,0.2); }
+    .disc-card-icon { width:32px; height:32px; display:flex; align-items:center; justify-content:center; color:var(--accent); }
+    .disc-card-name { font-size:12px; font-weight:600; color:var(--text-2); }
+    .disc-card:hover .disc-card-name { color:var(--accent-light); }
   </style>
 </head>
 <body>
@@ -299,41 +323,20 @@
       const showMonitoringTab  = showInquiry || showDrawingList;
       const content = document.getElementById('page-content');
       content.innerHTML = `
-        <div class="page-header">
-          <h1 style="display:flex;align-items:center;gap:10px;">
-            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
-            Reports
-          </h1>
-          <p>Select a project to get started</p>
-        </div>
-
-        <!-- Project Selector -->
-        <div class="card" style="margin-bottom:20px;">
-          <div class="card-body" style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
-            <div style="font-size:13px;font-weight:600;color:var(--text-2);white-space:nowrap;">Active Project:</div>
-            <select id="report-project" onchange="onProjectChange(this.value)" style="flex:1;min-width:200px;max-width:400px;">
-              <option value="">— Select Project —</option>
-            </select>
-          </div>
-        </div>
-
         <!-- Main Report Area -->
         <div id="report-main" style="display:block;">
-
-          <!-- Tabs -->
-          <div class="tabs" id="report-tabs">
-            ${showReportsTab ? `
-            <button class="tab-btn active" onclick="switchReportTab('reports', this)">
-              ${IC.report} Reports
-            </button>` : ''}
-            <button class="tab-btn ${showReportsTab ? '' : 'active'}" onclick="switchReportTab('monitoring', this)">
-              ${IC.monitor} Monitoring
-            </button>
-          </div>
+         <div class="card rpt-card">
+          <div class="card-body">
+            <div class="table-toolbar">
+              <select id="report-project" class="filter-select" onchange="onProjectChange(this.value)" style="font-size:12px;padding:6px 10px;border:1.5px solid var(--accent);font-weight:600;color:var(--accent);min-width:220px;">
+                <option value="">— Select Project —</option>
+              </select>
+            </div>
+            <div class="rpt-scroll">
 
           ${showReportsTab ? `
           <!-- Reports Tab -->
-          <div class="tab-panel active" id="tab-reports">
+          <div class="rpt-section active" id="tab-reports">
             <div class="report-list">
               ${showWeekly ? `
               <div class="report-card requires-project" onclick="openWeeklyReport()">
@@ -363,7 +366,7 @@
           ` : ''}
 
           <!-- Monitoring Tab -->
-          <div class="tab-panel ${showReportsTab ? '' : 'active'}" id="tab-monitoring">
+          <div class="rpt-section ${showReportsTab ? '' : 'active'}" id="tab-monitoring">
             <div class="report-list">
               ${!showMonitoringTab ? `
               <div style="text-align:center;padding:40px;color:var(--text-4);font-size:13px;">
@@ -394,6 +397,9 @@
             </div>
           </div>
 
+            </div>
+          </div>
+         </div>
         </div>
 
         <!-- Weekly Report View (replaces main when active) -->
@@ -616,6 +622,39 @@
         <div id="pdf-preview"></div>
       `;
 
+      // Section picker + title crumb ("Reports / Reports")
+      const RPT_SECTIONS = [
+        ...(showReportsTab ? [{ key: 'reports', label: 'Reports', icon: IC.report }] : []),
+        { key: 'monitoring', label: 'Monitoring', icon: IC.monitor },
+      ];
+      window.RPT_SECTIONS = RPT_SECTIONS;
+      document.body.insertAdjacentHTML('beforeend', `
+        <div class="modal" id="rpt-picker-modal">
+          <div class="modal-backdrop" onclick="closeModal('rpt-picker-modal')"></div>
+          <div class="modal-box modal-lg">
+            <div class="modal-header">
+              <div>
+                <h3>Select Type</h3>
+                <p style="font-size:12px;color:var(--text-3);font-weight:400;margin-top:2px;">Choose which part of Reports you want to open</p>
+              </div>
+              <button class="modal-close" onclick="closeModal('rpt-picker-modal')">✕</button>
+            </div>
+            <div class="modal-body">
+              <div style="margin-bottom:14px;">
+                <button class="btn btn-ghost btn-sm" onclick="closeModal('rpt-picker-modal')">← Back to Reports</button>
+              </div>
+              <div class="disc-picker-grid">
+                ${RPT_SECTIONS.map(t => `
+                <div class="disc-card" onclick="switchReportTab('${t.key}')">
+                  <div class="disc-card-icon">${t.icon.replace(/width="14" height="14"/, 'width="28" height="28"')}</div>
+                  <div class="disc-card-name">${t.label}</div>
+                </div>`).join('')}
+              </div>
+            </div>
+          </div>
+        </div>`);
+      switchReportTab(RPT_SECTIONS[0].key);
+
       await loadBaseData();
 
       // Pre-select from localStorage
@@ -675,11 +714,12 @@
       updateReportCardStates();
     }
 
-    function switchReportTab(tab, btn) {
-      document.querySelectorAll('#report-tabs .tab-btn').forEach(b => b.classList.remove('active'));
-      document.querySelectorAll('#report-main .tab-panel').forEach(p => p.classList.remove('active'));
-      btn.classList.add('active');
+    function switchReportTab(tab) {
+      document.querySelectorAll('#report-main .rpt-section').forEach(p => p.classList.remove('active'));
       document.getElementById(`tab-${tab}`).classList.add('active');
+      const t = (window.RPT_SECTIONS || []).find(x => x.key === tab);
+      if (t) setHeaderCrumb(t.label, () => openModal('rpt-picker-modal'));
+      closeModal('rpt-picker-modal');
     }
 
     function openInquirySummary() {

@@ -10,6 +10,31 @@
        is 10001 in layout.js) — otherwise a toast fired while a modal is open
        gets hidden behind it. */
     #toast-container { z-index: 10002 !important; }
+
+    /* ── FULL-SCREEN PANELS ── */
+    .page-content > .adm-panel { display:none; }
+    .page-content > .adm-panel.active {
+      display:flex; flex-direction:column;
+      height:calc(100vh - var(--header-h) - var(--gap) * 3);
+      overflow:hidden;
+    }
+    .adm-panel > .card-body { flex:1; min-height:0; display:flex; flex-direction:column; padding:14px 0 0 0; }
+    .adm-scroll { flex:1; min-height:0; overflow:auto; padding:0 24px 16px; }
+    .page-content > .adm-panel .table-wrapper { overflow:visible !important; max-height:none !important; }
+    .table-toolbar { display:flex; align-items:center; gap:8px; margin:0 24px 12px; flex-wrap:wrap; }
+    .toolbar-right { margin-left:auto; display:flex; gap:6px; align-items:center; }
+
+    /* ── SECTION PICKER (title dropdown) ── */
+    .disc-picker-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:12px; margin-top:8px; }
+    .disc-card {
+      background:var(--bg-4); border:1px solid var(--border-2); border-radius:var(--radius-lg);
+      padding:20px 14px; text-align:center; cursor:pointer; transition:all var(--speed);
+      display:flex; flex-direction:column; align-items:center; gap:8px;
+    }
+    .disc-card:hover { border-color:var(--accent); background:var(--accent-dim); transform:translateY(-2px); box-shadow:0 4px 16px rgba(240,121,0,0.2); }
+    .disc-card-icon { width:32px; height:32px; display:flex; align-items:center; justify-content:center; color:var(--accent); }
+    .disc-card-name { font-size:12px; font-weight:600; color:var(--text-2); }
+    .disc-card:hover .disc-card-name { color:var(--accent-light); }
   </style>
 </head>
 <body>
@@ -418,6 +443,26 @@
 
     function injectModals() {
       document.body.insertAdjacentHTML('beforeend', `
+        <!-- Section Picker (opened from the title) -->
+        <div class="modal" id="admin-picker-modal">
+          <div class="modal-backdrop" onclick="closeModal('admin-picker-modal')"></div>
+          <div class="modal-box modal-lg">
+            <div class="modal-header">
+              <div>
+                <h3>Select Section</h3>
+                <p style="font-size:12px;color:var(--text-3);font-weight:400;margin-top:2px;">Choose which part of Admin you want to open</p>
+              </div>
+              <button class="modal-close" onclick="closeModal('admin-picker-modal')">✕</button>
+            </div>
+            <div class="modal-body">
+              <div style="margin-bottom:14px;">
+                <button class="btn btn-ghost btn-sm" onclick="closeModal('admin-picker-modal')">← Back to Admin</button>
+              </div>
+              <div class="disc-picker-grid" id="admin-picker-grid"></div>
+            </div>
+          </div>
+        </div>
+
 
         <!-- Discipline Modal -->
         <div class="modal" id="disc-modal">
@@ -1055,83 +1100,41 @@
       preview.textContent = name;
     }
 
+    const ADMIN_TABS = [
+      { key: 'projects', label: 'Projects', icon: `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg>` },
+      { key: 'disciplines', label: 'Disciplines', icon: `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>` },
+      { key: 'workflow', label: 'Workflow Steps', icon: `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>` },
+      { key: 'roles', label: 'Roles', icon: `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>` },
+      { key: 'miscactivities', label: 'Miscellaneous', icon: `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>` },
+      { key: 'otheractivities', label: 'Other Activities', icon: `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>` },
+      { key: 'doccodes', label: 'Deliverables', icon: `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>` },
+      { key: 'revisiontypes', label: 'Revision Types', icon: `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M18 8l-6 6-4-4-4 4"/></svg>` },
+      { key: 'customcolumns', label: 'Custom Columns', icon: `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>` },
+      { key: 'adminsettings', label: 'Admin Settings', icon: `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>`, adminOnly: true }
+    ];
+
     async function pageInit(profile) {
       userProfile = profile;
       injectModals();
 
       const content = document.getElementById('page-content');
       content.innerHTML = `
-        <div class="page-header">
-          <h1 style="display:flex;align-items:center;gap:10px;">
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><line x1="2.5" y1="5.5" x2="21.5" y2="5.5"/><line x1="2.5" y1="12" x2="21.5" y2="12"/><line x1="2.5" y1="18.5" x2="21.5" y2="18.5"/><circle cx="8.5" cy="5.5" r="1.5"/><circle cx="15.5" cy="12" r="1.5"/><circle cx="11" cy="18.5" r="1.5"/></svg>
-            Admin Panel
-          </h1>
-          <p>Manage projects, disciplines, workflow, and role configuration</p>
-        </div>
-
-        <div class="tabs">
-          <button class="tab-btn active" onclick="switchTab('projects', this)">
-            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg>
-            Projects
-          </button>
-          <button class="tab-btn" onclick="switchTab('disciplines', this)">
-            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
-            Disciplines
-          </button>
-          <button class="tab-btn" onclick="switchTab('workflow', this)">
-            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-            Workflow Steps
-          </button>
-          <button class="tab-btn" onclick="switchTab('roles', this)">
-            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-            Roles
-          </button>
-          <button class="tab-btn" onclick="switchTab('miscactivities', this)">
-            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>
-            Miscellaneous
-          </button>		  
-		  <button class="tab-btn" onclick="switchTab('otheractivities', this)">
-            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-            Other Activities
-          </button>
-          <button class="tab-btn" onclick="switchTab('doccodes', this)">
-            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-            Deliverables
-          </button>
-		  <button class="tab-btn" onclick="switchTab('revisiontypes', this)">
-            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M18 8l-6 6-4-4-4 4"/></svg>
-            Revision Types
-          </button>
-		  <button class="tab-btn" onclick="switchTab('customcolumns', this)">
-            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
-            Custom Columns
-          </button>
-          ${userProfile?.role === 'admin' ? `
-		  <button class="tab-btn" onclick="switchTab('adminsettings', this)">
-            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-            Admin Settings
-          </button>` : ''}
-        </div>
-
         <!-- Projects Tab -->
-        <div class="tab-panel active" id="tab-projects">
-          <div class="card">
-            <div class="card-header">
-              <span class="card-title">Projects</span>
-              <button class="btn btn-primary btn-sm" onclick="openAddProject()" style="display:flex;align-items:center;gap:5px;">
-                ${IC.plus} Add Project
-              </button>
-            </div>
-            <div class="card-body">
-              <div class="toolbar">
-                <div class="search-box">
-                  <input type="text" id="proj-search" placeholder="Search by name or code…" oninput="filterProjects(this.value)" />
-                </div>
-                <select class="filter-select" id="proj-status-filter" onchange="filterProjects(document.getElementById('proj-search').value)">
-                  <option value="">All Statuses</option>
-                  ${PROJECT_STATUSES.map(s => `<option value="${s}">${s}</option>`).join('')}
-                </select>
+        <div class="card adm-panel active" id="tab-projects">
+          <div class="card-body">
+            <div class="table-toolbar">
+              <div class="search-box" style="flex:0 1 260px;">
+          <input type="text" id="proj-search" placeholder="Search by name or code…" oninput="filterProjects(this.value)" />
+        </div>
+        <select class="filter-select" id="proj-status-filter" onchange="filterProjects(document.getElementById('proj-search').value)" style="font-size:12px;padding:6px 10px;">
+          <option value="">All Statuses</option>
+          ${PROJECT_STATUSES.map(s => `<option value="${s}">${s}</option>`).join('')}
+        </select>
+              <div class="toolbar-right">
+                <button class="btn btn-primary btn-sm btn-icon-only" onclick="openAddProject()" title="Add Project">${IC.plus}</button>
               </div>
+            </div>
+            <div class="adm-scroll">
               <div class="table-wrapper">
                 <table>
                   <thead>
@@ -1157,15 +1160,15 @@
         </div>
 
         <!-- Disciplines Tab -->
-        <div class="tab-panel" id="tab-disciplines">
-          <div class="card">
-            <div class="card-header">
-              <span class="card-title">Disciplines</span>
-              <button class="btn btn-primary btn-sm" onclick="openAddDisc()" style="display:flex;align-items:center;gap:5px;">
-                ${IC.plus} Add Discipline
-              </button>
+        <div class="card adm-panel" id="tab-disciplines">
+          <div class="card-body">
+            <div class="table-toolbar">
+              
+              <div class="toolbar-right">
+                <button class="btn btn-primary btn-sm btn-icon-only" onclick="openAddDisc()" title="Add Discipline">${IC.plus}</button>
+              </div>
             </div>
-            <div class="card-body">
+            <div class="adm-scroll">
               <div class="table-wrapper">
                 <table>
                   <thead>
@@ -1185,15 +1188,15 @@
         </div>
 
         <!-- Workflow Steps Tab -->
-        <div class="tab-panel" id="tab-workflow">
-          <div class="card">
-            <div class="card-header">
-              <span class="card-title">Workflow Steps</span>
-              <button class="btn btn-primary btn-sm" onclick="openAddStep()" style="display:flex;align-items:center;gap:5px;">
-                ${IC.plus} Add Step
-              </button>
+        <div class="card adm-panel" id="tab-workflow">
+          <div class="card-body">
+            <div class="table-toolbar">
+              
+              <div class="toolbar-right">
+                <button class="btn btn-primary btn-sm btn-icon-only" onclick="openAddStep()" title="Add Step">${IC.plus}</button>
+              </div>
             </div>
-            <div class="card-body">
+            <div class="adm-scroll">
               <!-- Sub-tabs -->
               <div style="display:flex;gap:6px;margin-bottom:16px;border-bottom:1px solid var(--border);padding-bottom:0;">
                 <button class="wf-sub-btn active" onclick="switchWfTab('model',this)" style="padding:6px 16px;font-size:12px;font-weight:600;border:none;border-bottom:2px solid var(--accent);background:none;color:var(--text);cursor:pointer;">3D Model</button>
@@ -1319,15 +1322,15 @@
         </div>
 
         <!-- Roles Tab -->
-        <div class="tab-panel" id="tab-roles">
-          <div class="card">
-            <div class="card-header">
-              <span class="card-title">Roles</span>
-              <button class="btn btn-primary btn-sm" onclick="openAddRole()" style="display:flex;align-items:center;gap:5px;">
-                ${IC.plus} Add Role
-              </button>
+        <div class="card adm-panel" id="tab-roles">
+          <div class="card-body">
+            <div class="table-toolbar">
+              
+              <div class="toolbar-right">
+                <button class="btn btn-primary btn-sm btn-icon-only" onclick="openAddRole()" title="Add Role">${IC.plus}</button>
+              </div>
             </div>
-            <div class="card-body">
+            <div class="adm-scroll">
               <div class="table-wrapper">
                 <table>
                   <thead>
@@ -1353,15 +1356,15 @@
         </div>
 
         <!-- Deliverables Tab -->
-        <div class="tab-panel" id="tab-doccodes">
-          <div class="card">
-            <div class="card-header">
-              <span class="card-title">Deliverables</span>
-              <button class="btn btn-primary btn-sm" onclick="openAddDocCode()" style="display:flex;align-items:center;gap:5px;">
-                ${IC.plus} Add Deliverable
-              </button>
+        <div class="card adm-panel" id="tab-doccodes">
+          <div class="card-body">
+            <div class="table-toolbar">
+              
+              <div class="toolbar-right">
+                <button class="btn btn-primary btn-sm btn-icon-only" onclick="openAddDocCode()" title="Add Deliverable">${IC.plus}</button>
+              </div>
             </div>
-            <div class="card-body">
+            <div class="adm-scroll">
               <div class="table-wrapper">
                 <table>
                   <thead>
@@ -1382,15 +1385,15 @@
           </div>
         </div>
 		
-		<div class="tab-panel" id="tab-revisiontypes">
-          <div class="card">
-            <div class="card-header">
-              <span class="card-title">Revision Types</span>
-              <button class="btn btn-primary btn-sm" onclick="openAddRevisionType()" style="display:flex;align-items:center;gap:5px;">
-                ${IC.plus} Add Revision Type
-              </button>
+		<div class="card adm-panel" id="tab-revisiontypes">
+          <div class="card-body">
+            <div class="table-toolbar">
+              
+              <div class="toolbar-right">
+                <button class="btn btn-primary btn-sm btn-icon-only" onclick="openAddRevisionType()" title="Add Revision Type">${IC.plus}</button>
+              </div>
             </div>
-            <div class="card-body">
+            <div class="adm-scroll">
               <!-- Sub-tabs -->
               <div style="display:flex;gap:6px;margin-bottom:16px;border-bottom:1px solid var(--border);padding-bottom:0;">
                 <button class="rt-sub-btn active" onclick="switchRtTab('drawing',this)" style="padding:6px 16px;font-size:12px;font-weight:600;border:none;border-bottom:2px solid var(--accent);background:none;color:var(--text);cursor:pointer;">Drawing</button>
@@ -1419,15 +1422,15 @@
         </div>
 		
 		<!-- Custom Columns Tab -->
-		<div class="tab-panel" id="tab-customcolumns">
-          <div class="card">
-            <div class="card-header">
-              <span class="card-title">Custom Columns</span>
-              <button class="btn btn-primary btn-sm" onclick="openAddCustomColumn()" style="display:flex;align-items:center;gap:5px;">
-                ${IC.plus} Add Custom Column
-              </button>
+		<div class="card adm-panel" id="tab-customcolumns">
+          <div class="card-body">
+            <div class="table-toolbar">
+              
+              <div class="toolbar-right">
+                <button class="btn btn-primary btn-sm btn-icon-only" onclick="openAddCustomColumn()" title="Add Custom Column">${IC.plus}</button>
+              </div>
             </div>
-            <div class="card-body">
+            <div class="adm-scroll">
               <p style="font-size:12px;color:var(--text-3);margin-bottom:14px;">
                 Manage custom columns for Drawing and Document Registers. Columns are automatically locked once they are in use.
               </p>
@@ -1453,15 +1456,15 @@
         </div>
 		
 		<!-- Other Activities Tab -->
-        <div class="tab-panel" id="tab-otheractivities">
-          <div class="card">
-            <div class="card-header">
-              <span class="card-title">Other Activities</span>
-              <button class="btn btn-primary btn-sm" onclick="openAddOtherActivity()" style="display:flex;align-items:center;gap:5px;">
-                ${IC.plus} Add Activity
-              </button>
+        <div class="card adm-panel" id="tab-otheractivities">
+          <div class="card-body">
+            <div class="table-toolbar">
+              
+              <div class="toolbar-right">
+                <button class="btn btn-primary btn-sm btn-icon-only" onclick="openAddOtherActivity()" title="Add Activity">${IC.plus}</button>
+              </div>
             </div>
-            <div class="card-body">
+            <div class="adm-scroll">
               <div class="table-wrapper">
                 <table>
                   <thead>
@@ -1482,15 +1485,15 @@
         </div>
 
         <!-- Miscellaneous Activities Tab -->
-        <div class="tab-panel" id="tab-miscactivities">
-          <div class="card" style="margin-bottom:16px;">
-            <div class="card-header">
-              <span class="card-title">Miscellaneous Activities</span>
-              <button class="btn btn-primary btn-sm" onclick="openAddMiscActivity()" style="display:flex;align-items:center;gap:5px;">
-                ${IC.plus} Add Activity
-              </button>
+        <div class="card adm-panel" id="tab-miscactivities">
+          <div class="card-body">
+            <div class="table-toolbar">
+              
+              <div class="toolbar-right">
+                <button class="btn btn-primary btn-sm btn-icon-only" onclick="openAddMiscActivity()" title="Add Activity">${IC.plus}</button>
+              </div>
             </div>
-            <div class="card-body">
+            <div class="adm-scroll">
               <div class="table-wrapper">
                 <table>
                   <thead>
@@ -1512,7 +1515,7 @@
 		
 		${userProfile?.role === 'admin' ? `
         <!-- Admin Settings Tab -->
-        <div class="tab-panel" id="tab-adminsettings">
+        <div class="card adm-panel" id="tab-adminsettings"><div class="card-body"><div class="adm-scroll">
             <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(420px, 1fr));grid-auto-rows:1fr;gap:16px;">
             <div class="card" style="display:flex;flex-direction:column;">
               <div class="card-header">
@@ -1587,18 +1590,28 @@
 
             <!-- Next Admin Setting cards go here, as siblings of the card above -->
           </div>
-        </div>` : ''}
+        </div></div></div>` : ''}
 
       `;
+
+      // Section picker + title crumb ("Admin / Projects")
+      const visibleTabs = ADMIN_TABS.filter(t => !t.adminOnly || userProfile?.role === 'admin');
+      document.getElementById('admin-picker-grid').innerHTML = visibleTabs.map(t => `
+        <div class="disc-card" onclick="switchTab('${t.key}')">
+          <div class="disc-card-icon">${t.icon}</div>
+          <div class="disc-card-name">${t.label}</div>
+        </div>`).join('');
+      setHeaderCrumb('Projects', () => openModal('admin-picker-modal'));
 
       await loadProjects();
     }
 
-    async function switchTab(tab, btn) {
-      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-      document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
-      btn.classList.add('active');
+    async function switchTab(tab) {
+      document.querySelectorAll('.adm-panel').forEach(p => p.classList.remove('active'));
       document.getElementById(`tab-${tab}`).classList.add('active');
+      const t = ADMIN_TABS.find(x => x.key === tab);
+      if (t) setHeaderCrumb(t.label, () => openModal('admin-picker-modal'));
+      closeModal('admin-picker-modal');
       if (tab === 'projects')    await loadProjects();
       if (tab === 'disciplines') await loadDisciplines();
       if (tab === 'workflow')    await loadWorkflowSteps();
@@ -3032,8 +3045,7 @@ let currentWfTab = 'model';
         });
       }
 
-      const btn = [...document.querySelectorAll('.tab-btn')].find(b => b.textContent.trim() === 'Admin Settings');
-          if (btn) switchTab('adminsettings', btn);
+      if (document.getElementById('tab-adminsettings')) switchTab('adminsettings');
         }, 300); // small delay so pageInit's DOM has rendered first
       }
     });
