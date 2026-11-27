@@ -75,11 +75,11 @@ async function initLayout(pageTitle) {
         <div class="header-title" id="header-title">${pageTitle || ''}</div>
         <div class="header-spacer"></div>
 
-        <div class="header-user-badge">
-          <div class="header-avatar">${initials}</div>
+        <div class="header-user-badge" id="header-user-badge" role="button" tabindex="0" title="View my profile" onclick="openProfile()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openProfile();}">
+          <div class="header-avatar">${esc(initials)}</div>
           <div class="header-user-text">
-            <span class="header-uname">${name}</span>
-            <span class="header-role">${roleLabel}</span>
+            <span class="header-uname">${esc(name)}</span>
+            <span class="header-role">${esc(roleLabel)}</span>
           </div>
         </div>
 
@@ -127,6 +127,8 @@ async function initLayout(pageTitle) {
     <div id="toast-container"></div>
     <style>
       @keyframes spin { to { transform: rotate(360deg); } }
+      .header-user-badge { cursor: pointer; transition: border-color .15s, background .15s; }
+      .header-user-badge:hover, .header-user-badge:focus-visible { border-color: var(--accent); background: var(--surface-2); outline: none; }
       @keyframes modal-in { from { opacity:0; transform:translateY(-8px); } to { opacity:1; transform:translateY(0); } }
     </style>
 
@@ -271,7 +273,7 @@ function buildNavItems(role) {
 	{ href: 'structure.html', 			  icon: NAV_ICONS.structure, 	label: 'Structure', 		   roles: [...LEAD_UP, 'engineer'] },
     { href: 'targets.html',            	  icon: NAV_ICONS.targets,      label: 'Targets',              roles: [...LEAD_UP, 'engineer'] },
     { href: 'reports.html',            	  icon: NAV_ICONS.reports,      label: 'Reports',              roles: ALL_ROLES },
-    { href: 'users.html',              	  icon: NAV_ICONS.users,        label: 'Users',                roles: ALL_ROLES },
+    { href: 'users.html',                 icon: NAV_ICONS.users,        label: 'Users',                roles: ['admin'] },
     { href: 'admin.html',              	  icon: NAV_ICONS.admin,        label: 'Admin',                roles: [...LEAD_UP] },
   ];
   if (!role) return [];
@@ -616,3 +618,134 @@ function syncProjectGate() {
   });
   new MutationObserver(run).observe(document.documentElement, { childList: true, subtree: true });
 })();
+
+
+// ── MY PROFILE MODAL (opens when the name/role badge in the top bar is clicked) ──
+function closeProfile() {
+  const m = document.getElementById('profile-modal');
+  if (m) m.remove();
+}
+
+async function openProfile() {
+  const p = getProfile();
+  if (!p?.id) return;
+  closeProfile();
+
+  const wrap = document.createElement('div');
+  wrap.id = 'profile-modal';
+  wrap.style.cssText = 'position:fixed;inset:0;z-index:9991;background:rgba(0,0,0,0.65);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;';
+  wrap.addEventListener('click', e => { if (e.target === wrap) closeProfile(); });
+  wrap.innerHTML = `
+    <div style="background:var(--surface);border:1px solid var(--border-2);border-radius:14px;width:min(480px,94vw);padding:40px;box-shadow:0 32px 80px rgba(0,0,0,0.6);">
+      <div class="loading-state" style="padding:10px;"><div class="spinner"></div><span>Loading…</span></div>
+    </div>`;
+  document.body.appendChild(wrap);
+
+  // Role display name / color and project name (both readable by every signed-in user)
+  let roleInfo = null, projectInfo = null;
+  try {
+    const [r, pr] = await Promise.all([
+      db.from('roles').select('name, badge_color').eq('key', p.role).maybeSingle(),
+      p.project_id
+        ? db.from('projects').select('name, code').eq('id', p.project_id).maybeSingle()
+        : Promise.resolve({ data: null }),
+    ]);
+    roleInfo    = r.data;
+    projectInfo = pr.data;
+  } catch (err) {
+    console.warn('[EngPro] Profile lookups failed:', err);
+  }
+
+  if (!document.getElementById('profile-modal')) return; // closed while loading
+
+  const roleColor = /^#[0-9a-fA-F]{3,8}$/.test(roleInfo?.badge_color || '') ? roleInfo.badge_color : '#546E7A';
+  const roleName  = roleInfo?.name || (p.role || '').replace(/_/g, ' ');
+  const initials  = (p.full_name || '?').split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2) || '?';
+  const since     = p.created_at
+    ? new Date(p.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+    : '—';
+  const active    = p.is_active !== false;
+
+  const row = (label, value) => `
+    <div style="display:flex;justify-content:space-between;gap:16px;padding:9px 0;border-bottom:1px solid var(--border);">
+      <span style="font-size:12px;color:var(--text-3);">${label}</span>
+      <span style="font-size:13px;color:var(--text);font-weight:500;text-align:right;word-break:break-word;">${value}</span>
+    </div>`;
+
+  wrap.innerHTML = `
+    <div style="background:var(--surface);border:1px solid var(--border-2);border-radius:14px;width:min(480px,94vw);max-height:88vh;display:flex;flex-direction:column;box-shadow:0 32px 80px rgba(0,0,0,0.6);overflow:hidden;">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--border-2);flex-shrink:0;">
+        <span style="font-size:14px;font-weight:700;color:var(--text);">My Profile</span>
+        <button onclick="closeProfile()" aria-label="Close" style="background:none;border:none;cursor:pointer;color:var(--text-3);font-size:18px;">✕</button>
+      </div>
+
+      <div style="padding:18px 20px;overflow-y:auto;">
+        <div style="display:flex;align-items:center;gap:14px;margin-bottom:12px;">
+          <div style="width:48px;height:48px;border-radius:50%;background:var(--accent-dim);border:1px solid var(--accent);display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;color:var(--accent);flex-shrink:0;">${esc(initials)}</div>
+          <div style="min-width:0;">
+            <div style="font-size:16px;font-weight:700;color:var(--text);">${esc(p.full_name) || '—'}</div>
+            <span class="badge" style="margin-top:4px;background-color:${roleColor}22;color:${roleColor};border-color:${roleColor}55;">${esc(roleName)}</span>
+          </div>
+        </div>
+
+        ${row('Username',    '@' + (esc(p.username) || '—'))}
+        ${row('Initials',    esc(p.initials) || '—')}
+        ${row('Email',       esc(p.email || currentUser?.email) || '—')}
+        ${row('Discipline',  esc(p.disciplines?.name) || '—')}
+        ${row('Project',     projectInfo ? esc(projectInfo.code) + ' — ' + esc(projectInfo.name) : '—')}
+        ${row('Status',      `<span class="badge ${active ? 'badge-green' : 'badge-gray'}">${active ? 'Active' : 'Inactive'}</span>`)}
+        ${row('Member since', since)}
+
+        <div style="margin-top:20px;">
+          <div style="font-size:11px;font-weight:600;color:#f07900;text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px;">Change Password</div>
+          <div class="form-group">
+            <label for="pf-cur">Current password</label>
+            <input type="password" id="pf-cur" autocomplete="current-password" />
+          </div>
+          <div class="form-group">
+            <label for="pf-new">New password</label>
+            <input type="password" id="pf-new" placeholder="Min. 8 characters" autocomplete="new-password" />
+          </div>
+          <div class="form-group">
+            <label for="pf-conf">Confirm new password</label>
+            <input type="password" id="pf-conf" autocomplete="new-password" />
+          </div>
+          <div style="display:flex;justify-content:flex-end;">
+            <button class="btn btn-primary" id="pf-save-btn" onclick="submitProfilePassword()">Update Password</button>
+          </div>
+        </div>
+      </div>
+    </div>`;
+
+  document.getElementById('pf-conf')?.addEventListener('keydown', e => {
+    if (e.key === 'Enter') submitProfilePassword();
+  });
+}
+
+async function submitProfilePassword() {
+  const cur  = document.getElementById('pf-cur')?.value  || '';
+  const nw   = document.getElementById('pf-new')?.value  || '';
+  const conf = document.getElementById('pf-conf')?.value || '';
+  const btn  = document.getElementById('pf-save-btn');
+
+  if (!cur)            { toast('Enter your current password.', 'error'); return; }
+  if (nw.length < 8)   { toast('New password must be at least 8 characters.', 'error'); return; }
+  if (nw !== conf)     { toast('New passwords do not match.', 'error'); return; }
+  if (nw === cur)      { toast('New password must be different from the current one.', 'error'); return; }
+
+  if (btn) { btn.disabled = true; btn.textContent = 'Updating…'; }
+  try {
+    // Confirm the current password first so a borrowed, unlocked session can't change it
+    const email = currentUser?.email || getProfile()?.email;
+    const { error: verifyErr } = await db.auth.signInWithPassword({ email, password: cur });
+    if (verifyErr) { toast('Current password is incorrect.', 'error'); return; }
+
+    const { error } = await db.auth.updateUser({ password: nw });
+    if (error) { toast('Failed to update password: ' + error.message, 'error'); return; }
+
+    ['pf-cur', 'pf-new', 'pf-conf'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+    toast('Password updated successfully.', 'success');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Update Password'; }
+  }
+}

@@ -11,6 +11,10 @@
       }
     },
     {
+      "src": "api/admin-users.js",
+      "use": "@vercel/node"
+    },
+    {
       "src": "**/*.html",
       "use": "@vercel/static"
     },
@@ -43,6 +47,10 @@
     {
       "src": "/api/generate-pdf",
       "dest": "/api/generate-pdf.js"
+    },
+    {
+      "src": "/api/admin-users",
+      "dest": "/api/admin-users.js"
     },
     {
       "src": "/",
