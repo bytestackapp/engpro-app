@@ -494,8 +494,8 @@ function toggleTheme() {
   const next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
   try { localStorage.setItem('engpro_theme', next); } catch (e) {}
   document.documentElement.setAttribute('data-theme', next);
-  window.CHART_GRID   = next === 'dark' ? '#222' : '#e5e7eb';
-  window.CHART_BORDER = next === 'dark' ? '#1c1c1c' : '#ffffff';
+  window.CHART_GRID   = next === 'dark' ? '#333' : '#e5e7eb';
+  window.CHART_BORDER = next === 'dark' ? '#212121' : '#ffffff';
 
   const tc = document.querySelector('meta[name="theme-color"]');
   if (tc) tc.content = next === 'dark' ? '#111111' : '#ffffff';

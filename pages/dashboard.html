@@ -144,10 +144,33 @@
       position: relative;
       top: 4px;
     }
-    /* Fill the body panel edge to edge */
-    #page-content { padding: 0 !important; }
-    .main-area { background: var(--surface) !important; overflow: hidden; }
-    .scurve-card { margin-bottom: 0; border-radius: 0; border-left: none; border-right: none; }
+    /* ── Floating panels with even spacing ── */
+    #page-content { padding: 0 !important; gap: var(--gap); }
+    .scurve-card,
+    #page-content .card {
+      border-radius: var(--panel-radius);
+    }
+    .scurve-card { margin-bottom: 0; flex-shrink: 0; }
+    .lower-charts { display: flex; gap: var(--gap); align-items: stretch; }
+    .lower-charts-left {
+      flex: 1; min-width: 0;
+      display: flex; flex-direction: column; gap: var(--gap);
+    }
+    @media (max-width: 900px) {
+      .lower-charts { flex-direction: column; }
+    }
+
+    /* ── DESKTOP: content scrolls below the top bar ── */
+    @media (min-width: 901px) {
+      #page-content {
+        flex: none;
+        height: calc(100vh - var(--header-h) - var(--gap) * 3);
+        overflow-y: auto;
+        padding-right: 4px !important;
+        border-radius: var(--panel-radius);
+      }
+      #page-content > * { flex-shrink: 0; } /* keeps panels at full height */
+    }
   </style>
 </head>
 <body>
@@ -435,8 +458,8 @@
         </div>
 
         <!-- Lower charts -->
-        <div style="display:flex;gap:16px;margin-bottom:20px;align-items:stretch;">
-          <div style="flex:1;display:flex;flex-direction:column;gap:16px;min-width:0;">
+        <div class="lower-charts">
+          <div class="lower-charts-left">
             <div class="card" style="min-height:490px;">
               <div class="card-header"><span class="card-title">Document Status</span></div>
               <div class="card-body chart-container" style="height:320px;"><canvas id="chart-status"></canvas></div>

@@ -35,6 +35,14 @@
     .disc-card-icon { width:32px; height:32px; display:flex; align-items:center; justify-content:center; color:var(--accent); }
     .disc-card-name { font-size:12px; font-weight:600; color:var(--text-2); }
     .disc-card:hover .disc-card-name { color:var(--accent-light); }
+
+    /* ── ADMIN SETTINGS CARDS: orange tint fading downward ── */
+    #tab-adminsettings .adm-scroll > div > .card {
+      background-image: linear-gradient(to bottom,
+        rgba(240,121,0,0.14) 0%,
+        rgba(240,121,0,0.05) 35%,
+        rgba(240,121,0,0) 70%);
+    }
   </style>
 </head>
 <body>
@@ -1163,7 +1171,9 @@
         <div class="card adm-panel" id="tab-disciplines">
           <div class="card-body">
             <div class="table-toolbar">
-              
+              <p style="font-size:12px;color:var(--text-3);margin-top:8px;">
+                Manage project disciplines used to classify and organize engineering documents, drawings, and activities.
+              </p>                  
               <div class="toolbar-right">
                 <button class="btn btn-primary btn-sm btn-icon-only" onclick="openAddDisc()" title="Add Discipline">${IC.plus}</button>
               </div>
@@ -1191,7 +1201,9 @@
         <div class="card adm-panel" id="tab-workflow">
           <div class="card-body">
             <div class="table-toolbar">
-              
+              <p style="font-size:12px;color:var(--text-3);margin-top:8px;">
+                Configure workflow steps and define the sequence of actions required for document and drawing processing.
+              </p>                
               <div class="toolbar-right">
                 <button class="btn btn-primary btn-sm btn-icon-only" onclick="openAddStep()" title="Add Step">${IC.plus}</button>
               </div>
@@ -1325,7 +1337,9 @@
         <div class="card adm-panel" id="tab-roles">
           <div class="card-body">
             <div class="table-toolbar">
-              
+              <p style="font-size:12px;color:var(--text-3);margin-top:8px;">
+                Manage user roles and define the permissions and access levels assigned to each role.
+              </p>               
               <div class="toolbar-right">
                 <button class="btn btn-primary btn-sm btn-icon-only" onclick="openAddRole()" title="Add Role">${IC.plus}</button>
               </div>
@@ -1359,7 +1373,9 @@
         <div class="card adm-panel" id="tab-doccodes">
           <div class="card-body">
             <div class="table-toolbar">
-              
+              <p style="font-size:12px;color:var(--text-3);margin-top:8px;">
+                Manage project deliverables and define the types of documents and drawings required for project execution.
+              </p>                 
               <div class="toolbar-right">
                 <button class="btn btn-primary btn-sm btn-icon-only" onclick="openAddDocCode()" title="Add Deliverable">${IC.plus}</button>
               </div>
@@ -1388,7 +1404,9 @@
 		<div class="card adm-panel" id="tab-revisiontypes">
           <div class="card-body">
             <div class="table-toolbar">
-              
+              <p style="font-size:12px;color:var(--text-3);margin-top:8px;">
+                Manage revision types used to identify and classify document and drawing revisions.
+              </p>              
               <div class="toolbar-right">
                 <button class="btn btn-primary btn-sm btn-icon-only" onclick="openAddRevisionType()" title="Add Revision Type">${IC.plus}</button>
               </div>
@@ -1425,15 +1443,14 @@
 		<div class="card adm-panel" id="tab-customcolumns">
           <div class="card-body">
             <div class="table-toolbar">
-              
+              <p style="font-size:12px;color:var(--text-3);margin-top:8px;">
+                Manage custom columns for Drawing and Document Registers. Columns are automatically locked once they are in use.
+              </p>
               <div class="toolbar-right">
                 <button class="btn btn-primary btn-sm btn-icon-only" onclick="openAddCustomColumn()" title="Add Custom Column">${IC.plus}</button>
               </div>
             </div>
             <div class="adm-scroll">
-              <p style="font-size:12px;color:var(--text-3);margin-bottom:14px;">
-                Manage custom columns for Drawing and Document Registers. Columns are automatically locked once they are in use.
-              </p>
               <div class="table-wrapper">
                 <table>
                   <thead>
@@ -1459,7 +1476,9 @@
         <div class="card adm-panel" id="tab-otheractivities">
           <div class="card-body">
             <div class="table-toolbar">
-              
+              <p style="font-size:12px;color:var(--text-3);margin-top:8px;">
+                Manage additional project activities that are not covered by the standard activity categories.
+              </p>                
               <div class="toolbar-right">
                 <button class="btn btn-primary btn-sm btn-icon-only" onclick="openAddOtherActivity()" title="Add Activity">${IC.plus}</button>
               </div>
@@ -1488,7 +1507,9 @@
         <div class="card adm-panel" id="tab-miscactivities">
           <div class="card-body">
             <div class="table-toolbar">
-              
+              <p style="font-size:12px;color:var(--text-3);margin-top:8px;">
+                Manage miscellaneous activities used in workflow steps and across the application.
+              </p>                
               <div class="toolbar-right">
                 <button class="btn btn-primary btn-sm btn-icon-only" onclick="openAddMiscActivity()" title="Add Activity">${IC.plus}</button>
               </div>

@@ -50,99 +50,57 @@
       margin-bottom: 18px; gap: 12px;
     }
 
-    /* ── TOTAL MANHOURS BADGE ── */
-    .total-manhours-badge {
-      display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 3px;
-      background: var(--bg-2);
-      border: 1px solid var(--accent);
-      border-radius: var(--radius-lg);
-      padding: 6px 14px;
-      min-height: 61px;          /* ADD */
-      box-sizing: border-box;    /* ADD */
-      font-size: 12px; font-weight: 600;
-      color: var(--accent-light);
-      white-space: nowrap; flex-shrink: 0;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-    }
-	
-    .total-manhours-badge .tmh-row {
+    /* ── TOTAL MANHOURS PILL (top bar) ── */
+    .hdr-mh-pill {
       display: flex; align-items: center; gap: 8px;
-      line-height: 1;   /* ADD — stops the 17px value from stretching row height */
+      height: 38px; padding: 0 14px;
+      background: var(--surface);
+      border: 1px solid var(--accent);
+      border-radius: 999px;
+      font-size: 12px; font-weight: 600; color: var(--text-2);
+      white-space: nowrap; flex-shrink: 0;
     }
-	
-    .total-manhours-badge .mh-value {
-      font-size: 17px; font-weight: 700; color: var(--accent);
-    }
-    .total-manhours-badge .tmh-subline {
+    .hdr-mh-pill svg { width: 15px; height: 15px; color: var(--accent); }
+    .hdr-mh-pill .mh-value { font-size: 15px; font-weight: 700; color: var(--accent); }
+    .hdr-mh-pill .tmh-subline {
       font-size: 10px; font-weight: 500; color: var(--text-4);
-      padding-left: 22px;
+      padding-left: 8px; border-left: 1px solid var(--border-2);
     }
 
-    /* ── FLOATING TOP-RIGHT ROW (Admin warning + toggle + Total Manhours) ── */
-    .floating-top-right-row {
-      position: fixed;
-      top: 70px;
-      right: 24px;
-      z-index: 999;
-      display: flex;
-      align-items: flex-start;
-      gap: 12px;
-    }
-    
-    /* ── ADMIN MODE TOGGLE + DATE OVERRIDE ── */
-    .admin-mode-badge {
-      display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 6px;
-      background: var(--bg-2);
-      border: 1px solid var(--text-4);
-      border-radius: var(--radius-lg);
-      padding: 6px 14px;
-      min-height: 61px;          /* ADD */
-      box-sizing: border-box;    /* ADD */
-      font-size: 12px; font-weight: 600;
-      white-space: nowrap; flex-shrink: 0;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-      transition: border-color .15s, background .15s;
-    }
-	
-    .admin-mode-badge.active {
-      border-color: #ef4444;
-      background: var(--red-solid); /* solid — fixes the see-through bleed from the screenshot */
-    }
-	
-    .admin-mode-badge .amb-toggle-row {
-      display: flex; align-items: center; gap: 8px; cursor: pointer;
-      color: var(--text-3); background: none; border: none; padding: 0;
-      font-size: 12px; font-weight: 600; font-family: inherit;
-      line-height: 1;   /* ADD — for consistency with the row above */
-    }
-	
-    .admin-mode-badge.active .amb-toggle-row { color: var(--red); }
-    .admin-mode-badge .amb-second-row {
-      display: flex; align-items: center; gap: 6px;
-      min-height: 16px; /* same reserved space whether it holds the caption or the date picker */
-    }
-    .admin-mode-badge .amb-caption {
-      font-size: 10px; font-weight: 500; color: var(--text-4);
-      padding-left: 22px;
-    }
-    .admin-mode-badge input[type="date"] {
-      background: var(--bg-1); border: 1px solid var(--text-4); border-radius: 6px;
-      color: var(--text); font-size: 11px; padding: 3px 6px; outline: none;
-    }
-    
-    /* ── ADMIN MODE WARNING — compact chip, lives in the same fixed row, never shifts layout ── */
-    .admin-mode-banner {
-      display: none; /* toggled to 'flex' by renderAdminModeUI() */
+    /* ── ADMIN MODE: WARNING IN TOP BAR ── */
+    .hdr-admin-warning {
+      display: none; /* shown by renderAdminModeUI() */
       align-items: center; gap: 8px;
-      background: var(--red-solid); /* solid, matches .active above */
-      border: 1px solid #ef4444;
-      border-radius: var(--radius-lg);
-      padding: 6px 14px;
+      min-width: 0;
       color: var(--red);
-      font-size: 11px; font-weight: 600;
-      max-width: 460px;
-	  min-height: 61px;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+      font-size: 11px; font-weight: 700;
+    }
+    .hdr-admin-warning > svg { flex-shrink: 0; }
+    .hdr-admin-warning-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .app-header .hdr-admin-warning input[type="date"] {
+      width: auto; flex-shrink: 0;
+      padding: 4px 8px; font-size: 11px;
+      background: var(--surface); color: var(--text);
+      border: 1px solid #ef4444; border-radius: 6px;
+    }
+
+    /* ── ADMIN MODE: RED TOP BAR + ACTIVE ICON ── */
+    .app-header { transition: background .2s, border-color .2s; }
+    .app-header.admin-mode-on {
+      background: var(--red-solid);
+      border-color: #ef4444;
+    }
+    .header-pill #admin-mode-btn.active {
+      background: #ef4444 !important;
+      color: #fff;
+    }
+
+    @media (max-width: 1280px) {
+      .hdr-mh-pill .tmh-subline { display: none; }
+    }
+    @media (max-width: 900px) {
+      .hdr-mh-pill .tmh-label,
+      .hdr-admin-warning-text { display: none; }
     }
 
     /* ── PANEL CARD ── */
@@ -150,9 +108,10 @@
       background: var(--surface);
       border: 1px solid var(--border);
       border-radius: var(--radius-lg);
-      margin-bottom: 20px;
+      margin-bottom: var(--gap);
       overflow: visible;
     }
+    .page-columns .eng-panel:last-child { margin-bottom: 0; }
     .eng-panel-header {
       display: flex; align-items: center; justify-content: space-between;
       padding: 14px 20px;
@@ -164,6 +123,28 @@
     }
     .eng-panel-body { padding: 20px; }
 
+    /* ── ACTIVITY BLOCKS: no header line + icon add button ── */
+    .activity-block .eng-panel-header {
+      border-bottom: none;
+      padding: 12px 16px 0 20px;
+    }
+    .activity-block .eng-panel-body { padding-top: 18px; }
+    .panel-add-btn {
+      width: 28px; height: 28px; padding: 0; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+      background: var(--bg-3);
+      border: 1px solid var(--border-2);
+      border-radius: 50%;
+      color: var(--text-3);
+      cursor: pointer;
+      transition: all var(--speed);
+    }
+    .panel-add-btn:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+      background: var(--accent-dim);
+    }
+	
     /* ── AUTO / READ-ONLY FIELDS ── */
     .auto-field {
       background: var(--bg-4);
@@ -572,7 +553,7 @@
     .page-columns {
       display: grid;
       grid-template-columns: 2.3fr 1fr;
-      gap: 20px;
+      gap: var(--gap);
       align-items: start;
     }
 
@@ -608,6 +589,40 @@
 
     @media (max-width: 900px) {
       .page-columns { grid-template-columns: 1fr; }
+    }
+
+    /* ── DESKTOP: only the left side scrolls ── */
+    @media (min-width: 901px) {
+      .page-columns {
+        height: calc(100vh - var(--header-h) - var(--gap) * 3);
+        grid-template-rows: minmax(0, 1fr);
+        align-items: stretch;
+        overflow: hidden;
+      }
+      .page-columns > div:first-child {
+        min-height: 0;
+        overflow-y: auto;
+        padding-right: 4px;
+      }
+      .activity-panel {
+        display: flex; flex-direction: column;
+        min-height: 0;
+        margin-bottom: 0;
+        overflow: hidden;
+      }
+      .activity-panel .eng-panel-header { flex-shrink: 0; }
+      .activity-panel .activity-feed {
+        flex: 1;
+        min-height: 0;
+        overflow-y: auto; /* only scrolls on very short screens */
+      }
+      /* each entry takes 1/11 of the panel height */
+      .activity-panel .activity-item {
+        flex: 0 0 calc(100% / 11);
+        justify-content: center;
+        padding-top: 4px;
+        padding-bottom: 4px;
+      }
     }
     @media (max-width: 680px) {
       .info-row { grid-template-columns: 1fr; }
@@ -926,34 +941,30 @@
     }
 
     function renderAdminModeUI() {
-      const badge      = document.getElementById('admin-mode-badge');
-      const banner     = document.getElementById('admin-mode-banner');
-      const label      = document.getElementById('admin-mode-label');
-      const secondRow  = document.getElementById('admin-mode-second-row');
-      const bannerDate = document.getElementById('admin-mode-banner-date');
-      if (!badge) return; // role doesn't have Admin Mode injected on the page
+      const header = document.querySelector('.app-header');
+      const btn    = document.getElementById('admin-mode-btn');
+      const banner = document.getElementById('admin-mode-banner');
+      const text   = document.getElementById('admin-mode-banner-text');
+      const input  = document.getElementById('admin-mode-date-input');
+      if (!header || !btn || !banner) return;
 
-      badge.classList.toggle('active', adminModeActive);
-      label.textContent = adminModeActive ? 'Admin Mode: ON' : 'Admin Mode: OFF';
+      header.classList.toggle('admin-mode-on', adminModeActive);
+      btn.classList.toggle('active', adminModeActive);
+      btn.title = adminModeActive ? 'Admin Mode: ON (click to turn off)' : 'Admin Mode: OFF';
+      btn.setAttribute('aria-label', btn.title);
+      btn.setAttribute('aria-pressed', String(adminModeActive));
 
-      // Second row always exists — its *content* swaps, so the badge
-      // is the same height whether Admin Mode is on or off.
-      if (adminModeActive) {
-        secondRow.innerHTML = `
-          <span style="font-size:10px;color:var(--text-4);">Log as:</span>
-          <input type="date" id="admin-mode-date-input" value="${adminModeDate || ''}" onchange="onAdminModeDateChange(this.value)" />
-        `;
-      } else {
-        secondRow.innerHTML = `<span class="amb-caption">Not intended for routine use.</span>`;
-      }
+      banner.style.display = adminModeActive ? 'flex' : 'none';
+      input.value = adminModeDate || '';
 
-      if (adminModeActive && adminModeDate) {
-        banner.style.display = 'flex';
-        bannerDate.textContent = new Date(`${adminModeDate}T12:00:00`)
+      if (adminModeDate) {
+        const dateLabel = new Date(`${adminModeDate}T12:00:00`)
           .toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+        text.textContent = `Admin Mode ON: logging as ${dateLabel}. Turn off when done.`;
       } else {
-        banner.style.display = 'none';
+        text.textContent = 'Admin Mode ON: pick a date, or entries are logged as today.';
       }
+      banner.title = text.textContent;
     }
 
     // Returns an ISO timestamp when Admin Mode has a date selected, or
@@ -1946,135 +1957,95 @@
           </div>
         </div>
 		
-        <div class="page-top-bar">
-          <div class="page-header" style="margin-bottom:0;">
-            <h1>${IC.pencil} Manhours Input</h1>
-            <p>Record manhours for each activity execution</p>
-          </div>
-          <div class="floating-top-right-row">
-            <div class="admin-mode-banner" id="admin-mode-banner">
-              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-              <span>Warning: Admin Mode is ON!<br>
-			  Everything will be logged as <span class="amb-banner-date" id="admin-mode-banner-date"></span> — turn off when done.</span>
-            </div>
-            <div class="admin-mode-badge" id="admin-mode-badge">
-              <button class="amb-toggle-row" onclick="toggleAdminMode()" title="Log entries as a different date">
-                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-                <span id="admin-mode-label">Admin Mode: OFF</span>
-              </button>
-              <div class="amb-second-row" id="admin-mode-second-row">
-                <span class="amb-caption">Not intended for routine use.</span>
-              </div>
-            </div>
-            <div class="total-manhours-badge">
-              <div class="tmh-row">
-                ${IC.clock}
-                <span>Total Manhours</span>
-                <span class="mh-value" id="total-mh-display">0.0</span>
-              </div>
-              <div class="tmh-subline" id="today-logged-subline">Already logged: 0.0 hrs</div>
-            </div>
-          </div>
-        </div>
-
         <div class="page-columns">
 
           <!-- LEFT: form -->
           <div>
-            <div class="eng-panel">
+            <!-- 3D Model Preparation -->
+            <div class="eng-panel activity-block">
               <div class="eng-panel-header">
                 <div class="eng-panel-title" style="color:var(--accent);"> ${IC.cube} 3D Model Preparation</div>
+                <button type="button" class="panel-add-btn" onclick="addModelRow()" title="Add Another Model" aria-label="Add Another Model">${IC.plus}</button>
               </div>
               <div class="eng-panel-body">
                 <div class="entry-rows-container" id="model-rows-container"></div>
-                <button class="add-row-btn" onclick="addModelRow()">
-                  ${IC.plus}&nbsp; Add Another Model
-                </button>
               </div>
             </div>
-            <div class="eng-panel">
+
+            <!-- Drawing Preparation -->
+            <div class="eng-panel activity-block">
               <div class="eng-panel-header">
                 <div class="eng-panel-title" style="color:var(--accent);"> ${IC.file} Drawing Preparation</div>
+                <button type="button" class="panel-add-btn" onclick="addEntryRow()" title="Add Another Drawing Set" aria-label="Add Another Drawing Set">${IC.plus}</button>
               </div>
               <div class="eng-panel-body">
-
                 <div class="entry-rows-container" id="entry-rows-container"></div>
-
-                <button class="add-row-btn" onclick="addEntryRow()">
-                  ${IC.plus}&nbsp; Add Another Drawing Set
-                </button>
               </div>
             </div>
 
-            <div class="eng-panel">
+            <!-- Test Package -->
+            <div class="eng-panel activity-block">
               <div class="eng-panel-header">
                 <div class="eng-panel-title" style="color:var(--accent);"> ${IC.archive} Test Package</div>
+                <button type="button" class="panel-add-btn" onclick="addTpEntryRow()" title="Add Another Test Package" aria-label="Add Another Test Package">${IC.plus}</button>
               </div>
               <div class="eng-panel-body">
                 <div class="entry-rows-container" id="tp-rows-container"></div>
-                <button class="add-row-btn" onclick="addTpEntryRow()">
-                  ${IC.plus}&nbsp; Add Another Test Package
-                </button>
               </div>
             </div>
-			
-			<div class="eng-panel">
+
+            <!-- Construction Support -->
+            <div class="eng-panel activity-block">
               <div class="eng-panel-header">
                 <div class="eng-panel-title" style="color:var(--accent);"> ${IC.calc} Construction Support</div>
+                <button type="button" class="panel-add-btn" onclick="addCalcEntryRow()" title="Add Another Calculation" aria-label="Add Another Calculation">${IC.plus}</button>
               </div>
               <div class="eng-panel-body">
                 <div class="entry-rows-container" id="calc-rows-container"></div>
-                <button class="add-row-btn" onclick="addCalcEntryRow()">
-                  ${IC.plus}&nbsp; Add Another Calculation
-                </button>
               </div>
             </div>
-			
-			<div class="eng-panel">
+
+            <!-- Material Preparation -->
+            <div class="eng-panel activity-block">
               <div class="eng-panel-header">
                 <div class="eng-panel-title" style="color:var(--accent);"> ${IC.package} Material Preparation</div>
+                <button type="button" class="panel-add-btn" onclick="addMatEntryRow()" title="Add Another Material" aria-label="Add Another Material">${IC.plus}</button>
               </div>
               <div class="eng-panel-body">
                 <div class="entry-rows-container" id="mat-rows-container"></div>
-                <button class="add-row-btn" onclick="addMatEntryRow()">
-                  ${IC.plus}&nbsp; Add Another Material
-                </button>
               </div>
             </div>
-			
-			<div class="eng-panel">
+
+            <!-- Project Inquiry -->
+            <div class="eng-panel activity-block">
               <div class="eng-panel-header">
                 <div class="eng-panel-title" style="color:var(--accent);"> ${IC.inquiry} Project Inquiry</div>
+                <button type="button" class="panel-add-btn" onclick="addInquiryRow()" title="Add Another Inquiry" aria-label="Add Another Inquiry">${IC.plus}</button>
               </div>
               <div class="eng-panel-body">
                 <div class="entry-rows-container" id="inq-rows-container"></div>
-                <button class="add-row-btn" onclick="addInquiryRow()">
-                  ${IC.plus}&nbsp; Add Another Inquiry
-                </button>
               </div>
             </div>
 
-            <div class="eng-panel">
+            <!-- Miscellaneous Activities -->
+            <div class="eng-panel activity-block">
               <div class="eng-panel-header">
                 <div class="eng-panel-title" style="color:var(--accent);">${IC.misc} Miscellaneous Activities</div>
+                <button type="button" class="panel-add-btn" onclick="addMiscActivityRow()" title="Add Another Miscellaneous Activity" aria-label="Add Another Miscellaneous Activity">${IC.plus}</button>
               </div>
               <div class="eng-panel-body">
                 <div class="entry-rows-container" id="ma-rows-container"></div>
-                <button class="add-row-btn" onclick="addMiscActivityRow()">
-                  ${IC.plus}&nbsp; Add Another Miscellaneous Activity
-                </button>
               </div>
             </div>
 
-            <div class="eng-panel">
+            <!-- Other Activities -->
+            <div class="eng-panel activity-block">
               <div class="eng-panel-header">
                 <div class="eng-panel-title" style="color:var(--accent);"> ${IC.others} Other Activities</div>
+                <button type="button" class="panel-add-btn" onclick="addOtherActivityRow()" title="Add Another Activity" aria-label="Add Another Activity">${IC.plus}</button>
               </div>
               <div class="eng-panel-body">
                 <div class="entry-rows-container" id="oa-rows-container"></div>
-                <button class="add-row-btn" onclick="addOtherActivityRow()">
-                  ${IC.plus}&nbsp; Add Another Activity
-                </button>
               </div>
             </div>
 			
@@ -2101,11 +2072,11 @@
           </div>
 
           <!-- RIGHT: recent activity -->
-          <div class="eng-panel" style="position:sticky;top:20px;">
+          <div class="eng-panel activity-panel">
             <div class="eng-panel-header">
               <div class="eng-panel-title">${IC.activity} My Recent Activity</div>
               <div style="display:flex;align-items:center;gap:8px;">
-                <span style="font-size:11px;color:var(--text-4);">Last 20 entries</span>
+                <span style="font-size:11px;color:var(--text-4);">Lastest entries</span>
                 <button class="btn btn-ghost btn-sm" onclick="clearRecentActivity()" style="font-size:11px;padding:2px 8px;">Clear All</button>
               </div>
             </div>
@@ -2113,6 +2084,48 @@
           </div>
         </div>
       `;
+
+      injectHeaderControls();
+    }
+
+    // ── TOP BAR CONTROLS (warning, total manhours, admin icon) ──
+    function injectHeaderControls() {
+      const header    = document.querySelector('.app-header');
+      const userBadge = header?.querySelector('.header-user-badge');
+      const actions   = document.getElementById('header-actions');
+      if (!header || !userBadge || !actions) return;
+
+      // Admin Mode warning + date picker
+      const warning = document.createElement('div');
+      warning.className = 'hdr-admin-warning';
+      warning.id = 'admin-mode-banner';
+      warning.innerHTML = `
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        <span class="hdr-admin-warning-text" id="admin-mode-banner-text"></span>
+        <input type="date" id="admin-mode-date-input" aria-label="Log entries as this date" onchange="onAdminModeDateChange(this.value)" />
+      `;
+      header.insertBefore(warning, userBadge);
+
+      // Total Manhours pill (beside the user/role badge)
+      const pill = document.createElement('div');
+      pill.className = 'hdr-mh-pill';
+      pill.innerHTML = `
+        ${IC.clock}
+        <span class="tmh-label">Total Manhours</span>
+        <span class="mh-value" id="total-mh-display">0.0</span>
+        <span class="tmh-subline" id="today-logged-subline">Already logged: 0.0 hrs</span>
+      `;
+      header.insertBefore(pill, userBadge);
+
+      // Admin Mode icon button (first icon in the icon group)
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.id = 'admin-mode-btn';
+      btn.onclick = toggleAdminMode;
+      btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>`;
+      actions.insertBefore(btn, actions.firstChild);
+
+      renderAdminModeUI();
     }
 
     // ── ADD ENTRY ROW ──────────────────────────────────────
@@ -4459,7 +4472,7 @@
     ...(miscActs  || []).map(a => ({ type: 'misc',     label: a.misc_activities?.name || '—',                       sub: a.step_done || a.misc_activities?.category || '—',               mh: a.manhours, date: a.created_at })),
     ...(prActs    || []).map(a => ({ type: 'pr',       label: a.purchase_requisitions?.pr_no || '—',                sub: a.step_done || '—',                                              mh: a.manhours, date: a.created_at })),
     ...(tbeActs   || []).map(a => ({ type: 'tbe',      label: a.tbe_items?.tbe_number || '—',                       sub: a.step_done || '—',                                              mh: a.manhours, date: a.created_at })),
-  ].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 20);
+  ].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 11);
 
   if (!all.length) {
     el.innerHTML = `<div style="padding:32px 16px;text-align:center;font-size:12px;color:var(--text-4);">No activity yet.</div>`;

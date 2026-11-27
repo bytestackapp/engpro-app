@@ -78,20 +78,20 @@
 html[data-theme="dark"] {
   --bg:           #0a0a0a;
   --bg-2:         #111111;
-  --bg-3:         #151515;
-  --bg-4:         #1a1a1a;
-  --surface:      #1c1c1c;
-  --surface-2:    #222222;
-  --surface-3:    #2a2a2a;
+  --bg-3:         #1c1c1c;
+  --bg-4:         #232323;
+  --surface:      #212121;
+  --surface-2:    #292929;
+  --surface-3:    #323232;
 
-  --border:       #2a2a2a;
-  --border-2:     #333333;
-  --border-3:     #3d3d3d;
+  --border:       #383838;
+  --border-2:     #434343;
+  --border-3:     #505050;
 
   --text:         #f0f0f0;
   --text-2:       #cccccc;
-  --text-3:       #888888;
-  --text-4:       #555555;
+  --text-3:       #949494;
+  --text-4:       #6e6e6e;
 
   --accent:       #F07900;
   --accent-light: #F8A145;
@@ -219,11 +219,14 @@ html[data-theme="dark"] .theme-icon-moon { display: none; }
   white-space: nowrap;
 }
 .header-user-badge {
-  display: flex; align-items: center; gap: 8px;
-  padding: 5px 10px;
+  display: flex; align-items: center; gap: 10px;
+  min-width: 190px;
+  height: 38px;
+  padding: 0 16px 0 14px;
+  flex-shrink: 0;
   background: var(--surface);
   border: 1px solid var(--border-2);
-  border-radius: 20px;
+  border-radius: 999px;
 }
 .header-avatar {
   width: 22px; height: 22px;
@@ -928,3 +931,4 @@ body { background: var(--bg-2); }
 .gate-notice svg { opacity: .5; margin-bottom: 12px; }
 .gate-notice .gate-title { font-size: 14px; font-weight: 600; color: var(--text-3); margin: 0 0 4px; }
 .gate-notice .gate-sub   { font-size: 12px; margin: 0; }
+

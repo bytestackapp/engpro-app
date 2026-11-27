@@ -3,8 +3,8 @@
   let theme = 'light';
   try { if (localStorage.getItem('engpro_theme') === 'dark') theme = 'dark'; } catch (e) {}
   document.documentElement.setAttribute('data-theme', theme);
-  window.CHART_GRID   = theme === 'dark' ? '#222' : '#e5e7eb';
-  window.CHART_BORDER = theme === 'dark' ? '#1c1c1c' : '#ffffff';
+  window.CHART_GRID   = theme === 'dark' ? '#333' : '#e5e7eb';
+  window.CHART_BORDER = theme === 'dark' ? '#212121' : '#ffffff';
 })();
 
 // ============================================================
