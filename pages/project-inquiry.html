@@ -28,6 +28,7 @@
     .status-cancelled  { background:rgba(100,116,139,.15);color:#64748b; }
     .mh-sub   { font-size:11px;color:var(--text-3); }
     .mh-total { font-weight:700;color:var(--accent); }
+    #inq-pagination:empty { display:none; }
     .modal-grid-2 { display:grid;grid-template-columns:1fr 1fr;gap:12px; }
     .modal-grid-3 { display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px; }
     .modal-full { grid-column:1 / -1; }
@@ -46,7 +47,7 @@
     let inquiries     = [];
     let searchQ       = '';
     let filterStatus  = '';
-    let filterProject = '';
+    let filterYear    = '';
     let currentPage   = 1;
     const PAGE_SIZE   = 50;
 
@@ -234,23 +235,24 @@
         <div class="card">
           <div class="card-body" style="padding-top:14px;padding-bottom:0;padding-left:0;padding-right:0;">
             <div class="table-toolbar" style="margin:0 24px 12px;">
-              <input type="text" id="filter-project" placeholder="Filter by project…" oninput="onFilter()" style="font-size:12px;padding:6px 10px;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg-3);color:var(--text);width:160px;" />
+              <select class="filter-select" id="filter-year" data-gate="inquiries" data-gate-text="Select a year above to view its inquiries" data-gate-sub="The data shown was filtered per selected  year." onchange="onFilter()" style="font-size:12px;padding:6px 10px;border:1.5px solid var(--accent);font-weight:600;color:var(--accent);">
+                <option value="">— Select a year —</option>
+              </select>
               <select class="filter-select" id="filter-status" onchange="onFilter()" style="font-size:12px;padding:6px 10px;">
                 <option value="">All Statuses</option>
                 <option>Open</option><option>In Progress</option><option>Completed</option><option>Cancelled</option>
               </select>
               <div class="search-box-sm">
-                <input type="text" id="search-input" placeholder="Search control no, client…" oninput="onSearch(this.value)" />
+                <input type="text" id="search-input" placeholder="Search…" oninput="onSearch(this.value)" />
               </div>
               <div class="toolbar-right">
-                <span id="row-count" style="font-size:11px;color:var(--text-4);margin-right:6px;"></span>
                 <button class="btn btn-primary btn-sm btn-icon-only" onclick="openAddModal()" title="Add Inquiry">${PI_IC.plus}</button>
-                <button class="btn btn-danger btn-sm btn-icon-only" onclick="openDeleteAllModal()" title="Delete All">${PI_IC.trash}</button>
+                <button class="btn btn-danger btn-sm btn-icon-only" onclick="needYear(openDeleteAllModal)" title="Delete All">${PI_IC.trash}</button>
                 <div class="action-menu">
                   <button class="btn btn-ghost btn-sm btn-icon-only action-menu-toggle" onclick="toggleActionMenu(this)" title="More options">${PI_IC.menu}</button>
                   <div class="action-menu-list">
                     <button class="action-menu-item" onclick="openModal('import-modal')">${PI_IC.download} Import Excel</button>
-                    <button class="action-menu-item" onclick="exportInquiries()">${PI_IC.upload} Export</button>
+                    <button class="action-menu-item" onclick="needYear(exportInquiries)">${PI_IC.upload} Export</button>
                   </div>
                 </div>
               </div>
@@ -259,6 +261,7 @@
               <table>
                 <thead>
                   <tr>
+                    <th style="width:40px;min-width:40px;text-align:center;">#</th>
                     <th style="text-align:left;min-width:130px;">Control No.</th>
                     <th style="min-width:110px;">Client</th>
                     <th style="min-width:100px;">Project</th>
@@ -276,14 +279,14 @@
                     <th style="min-width:80px;">Actions</th>
                   </tr>
                   <tr class="sub-header">
-                    <th colspan="10"></th>
+                    <th colspan="11"></th>
                     <th>Dia Inch (DI)</th><th>Steel Weight (MT)</th><th>Module Weight (MT)</th><th>No. of Equipment</th>
                     <th>PS</th><th>CS</th><th>CSA</th><th>MP</th><th>EI</th><th>CD</th>
                     <th colspan="3"></th>
                   </tr>
                 </thead>
                 <tbody id="inq-tbody">
-                  <tr><td colspan="23" style="text-align:center;padding:40px;color:var(--text-4);">Loading…</td></tr>
+                  <tr><td colspan="24" style="text-align:center;padding:40px;color:var(--text-4);">Loading…</td></tr>
                 </tbody>
               </table>
             </div>
@@ -291,27 +294,65 @@
           </div>
         </div>
       `;
-      if (filterProject) { const el = document.getElementById('filter-project'); if(el) el.value = filterProject; }
       if (filterStatus)  { const el = document.getElementById('filter-status');  if(el) el.value = filterStatus; }
+    }
+
+    // Search across all text columns
+    function applySearch(q) {
+      const t = searchQ.replace(/[,()%*]/g, ' ').trim();
+      if (!t) return q;
+      const cols = ['control_number','client','project','activity','scope_of_work','contact_person','remarks','status'];
+      return q.or(cols.map(c => `${c}.ilike.%${t}%`).join(','));
+    }
+
+        function needYear(fn) {
+      if (!filterYear) { toast('Please select a year first.', 'info'); return; }
+      fn();
+    }
+
+    // Filters by Date Received (falls back to created date when empty)
+    function applyYear(q) {
+      if (!filterYear) return q;
+      const a = `${filterYear}-01-01`, b = `${filterYear}-12-31`;
+      return q.or(`and(date_received.gte.${a},date_received.lte.${b}),and(date_received.is.null,created_at.gte.${a},created_at.lte.${b}T23:59:59)`);
+    }
+
+    async function loadYears() {
+      const sel = document.getElementById('filter-year');
+      if (!sel) return;
+      const { data } = await db.from('project_inquiries')
+        .select('date_received').not('date_received', 'is', null)
+        .order('date_received', { ascending: true }).limit(1);
+      const nowY = new Date().getFullYear();
+      const minY = data?.[0]?.date_received ? parseInt(data[0].date_received.slice(0, 4), 10) : nowY;
+      let opts = '<option value="">— Select a year —</option>';
+      for (let y = nowY; y >= Math.min(minY, nowY); y--) opts += `<option value="${y}">${y}</option>`;
+      sel.innerHTML = opts;
+      if (filterYear) sel.value = filterYear;
     }
 
     async function loadInquiries() {
       const tbody = document.getElementById('inq-tbody');
-      if (tbody) tbody.innerHTML = `<tr><td colspan="23" style="text-align:center;padding:30px;color:var(--text-4);">Loading…</td></tr>`;
+      const ys = document.getElementById('filter-year');
+      if (ys && ys.options.length <= 1) await loadYears();
+
+      if (!filterYear) { inquiries = []; renderPagination(0); return; }
+
+      if (tbody) tbody.innerHTML = `<tr><td colspan="24" style="text-align:center;padding:30px;color:var(--text-4);">Loading…</td></tr>`;
 
       let q = db.from('project_inquiries')
         .select('*, inquiry_activities(manhours, activity_id, misc_activities(name))', { count:'exact' })
         .order('created_at', { ascending: false });
 
-      if (searchQ)       q = q.or(`control_number.ilike.%${searchQ}%,client.ilike.%${searchQ}%,activity.ilike.%${searchQ}%`);
+      q = applyYear(q);
+      if (searchQ)       q = applySearch(q);
       if (filterStatus)  q = q.eq('status', filterStatus);
-      if (filterProject) q = q.ilike('project', `%${filterProject}%`);
 
       const from = (currentPage - 1) * PAGE_SIZE;
       q = q.range(from, from + PAGE_SIZE - 1);
 
       const { data, count, error } = await q;
-      if (error) { if(tbody) tbody.innerHTML=`<tr><td colspan="23" style="text-align:center;padding:30px;color:var(--red);">Error: ${error.message}</td></tr>`; return; }
+      if (error) { if(tbody) tbody.innerHTML=`<tr><td colspan="24" style="text-align:center;padding:30px;color:var(--red);">Error: ${error.message}</td></tr>`; return; }
       inquiries = data || [];
       renderTable(count || 0);
     }
@@ -319,17 +360,16 @@
     function renderTable(total) {
       const tbody = document.getElementById('inq-tbody');
       if (!tbody) return;
-      const rc = document.getElementById('row-count');
-      if (rc) rc.textContent = `${total} record${total !== 1 ? 's' : ''}`;
 
       if (!inquiries.length) {
-        tbody.innerHTML = `<tr><td colspan="19" style="text-align:center;padding:50px;color:var(--text-4);">No inquiries found.<br><span style="font-size:12px;">Click "+ Add Inquiry" to get started.</span></td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="24" style="text-align:center;padding:50px;color:var(--text-4);">No inquiries found.<br><span style="font-size:12px;">Click "+ Add Inquiry" to get started.</span></td></tr>`;
         renderPagination(total); return;
       }
 
-      tbody.innerHTML = inquiries.map(d => {
+      tbody.innerHTML = inquiries.map((d, idx) => {
         const statusCls = {'Open':'status-open','In Progress':'status-inprogress','Completed':'status-completed','Cancelled':'status-cancelled'}[d.status] || 'status-open';
         return `<tr>
+          <td style="text-align:center;color:var(--text-4);font-size:12px;">${(currentPage - 1) * PAGE_SIZE + idx + 1}</td>
           <td style="text-align:left;font-weight:600;color:var(--text);">${d.control_number}</td>
           <td>${d.client||'—'}</td>
           <td>${d.project?`<span class="badge badge-gray">${d.project}</span>`:'—'}</td>
@@ -498,7 +538,10 @@
 
     // ── DELETE ALL ───────────────────────────────────────
     async function openDeleteAllModal() {
-      const { count } = await db.from('project_inquiries').select('*', { count:'exact', head:true });
+      let cq = db.from('project_inquiries').select('*', { count:'exact', head:true });
+      if (filterStatus) cq = cq.eq('status', filterStatus);
+      cq = applyYear(cq);
+      const { count } = await cq;
       const el = document.getElementById('delete-all-count');
       if (el) el.textContent = `${count || 0}`;
       document.getElementById('delete-all-confirm-input').value = '';
@@ -515,9 +558,9 @@
       btn.disabled = true; btn.textContent = 'Deleting…';
       // Apply current filters if any so "delete all" respects visible scope
       let q = db.from('project_inquiries').delete();
-      if (filterProject) q = q.ilike('project', `%${filterProject}%`);
       if (filterStatus)  q = q.eq('status', filterStatus);
-      if (!filterProject && !filterStatus) q = q.neq('id', '00000000-0000-0000-0000-000000000000'); // force delete all
+      q = applyYear(q);
+      if (!filterStatus && !filterYear) q = q.neq('id', '00000000-0000-0000-0000-000000000000'); // force delete all
       const { error } = await q;
       btn.disabled = false; btn.textContent = 'Delete All';
       if (error) { toast('Error: ' + error.message, 'error'); return; }
@@ -528,10 +571,9 @@
 
     // ── EXPORT ───────────────────────────────────────────
     async function exportInquiries() {
-      let q = db.from('project_inquiries').select('*').order('created_at', { ascending:false });
+      let q = applyYear(db.from('project_inquiries').select('*').order('created_at', { ascending:false }));
       if (filterStatus)  q = q.eq('status', filterStatus);
-      if (filterProject) q = q.ilike('project', `%${filterProject}%`);
-      if (searchQ)       q = q.or(`control_number.ilike.%${searchQ}%,client.ilike.%${searchQ}%`);
+      if (searchQ)       q = applySearch(q);
       const { data } = await q;
       if (!data?.length) { toast('No data to export.', 'info'); return; }
       const rows = data.map(d => ({
@@ -661,8 +703,8 @@
     const onSearch = debounce(async v => { searchQ=v; currentPage=1; await loadInquiries(); }, 300);
 
     async function onFilter() {
+      filterYear    = document.getElementById('filter-year')?.value    || '';
       filterStatus  = document.getElementById('filter-status')?.value  || '';
-      filterProject = document.getElementById('filter-project')?.value || '';
       currentPage   = 1;
       await loadInquiries();
     }

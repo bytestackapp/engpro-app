@@ -119,8 +119,8 @@
         <div class="card">
           <div class="card-body" style="padding-top:14px;padding-bottom:0;padding-left:0;padding-right:0;">
             <div class="table-toolbar" style="margin-left:24px;">
-              <select class="filter-select" id="filter-project" onchange="onFilter()" style="font-size:12px;padding:6px 10px;">
-                <option value="">All Projects</option>
+              <select class="filter-select" id="filter-project" data-gate="issues and concerns" onchange="onFilter()" style="font-size:12px;padding:6px 10px;border:1.5px solid var(--accent);font-weight:600;color:var(--accent);">
+                <option value="">— Select a project —</option>
               </select>
               <select class="filter-select" id="filter-disc" onchange="onFilter()" style="font-size:12px;padding:6px 10px;">
                 <option value="">All Disciplines</option>
@@ -180,7 +180,7 @@
         disciplinesData.map(d => `<option value="${d.id}">${d.name}</option>`).join('');
 
       // Populate filter selects
-      document.getElementById('filter-project').innerHTML = `<option value="">All Projects</option>` +
+      document.getElementById('filter-project').innerHTML = `<option value="">— Select a project —</option>` +
         projectsData.map(p => `<option value="${p.id}">${p.code} — ${p.name}</option>`).join('');
       document.getElementById('filter-disc').innerHTML = `<option value="">All Disciplines</option>` +
         disciplinesData.map(d => `<option value="${d.id}">${d.name}</option>`).join('');
@@ -195,6 +195,11 @@
 
     async function loadIssues() {
       const tbody = document.getElementById('issues-tbody');
+      if (!filterProject) {
+        issuesData = [];
+        tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;padding:40px;color:var(--text-4);">Select a project above to view its issues and concerns.</td></tr>`;
+        return;
+      }
       tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;padding:30px;color:var(--text-4);">Loading…</td></tr>`;
 
       let q = db.from('issues_concerns')
@@ -276,8 +281,9 @@
     }
 
     function openAddModal() {
+      if (!filterProject) { toast('Select a project first.', 'info'); return; }
       document.getElementById('i-id').value          = '';
-      document.getElementById('i-project').value     = localStorage.getItem('activeProjectId') || '';
+      document.getElementById('i-project').value     = filterProject;
       document.getElementById('i-discipline').value  = '';
       document.getElementById('i-status').value      = 'Open';
       document.getElementById('i-date-raised').value = new Date().toISOString().slice(0, 10);

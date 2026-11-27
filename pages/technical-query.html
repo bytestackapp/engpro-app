@@ -359,7 +359,7 @@
         <div class="card">
           <div class="card-body" style="padding-top:14px;padding-bottom:0;padding-left:0;padding-right:0;">
             <div class="table-toolbar" style="margin-left:24px;">
-              <select class="filter-select" id="tq-project-select" onchange="onProjectChange()" style="font-size:12px;padding:6px 10px;">
+              <select class="filter-select" id="tq-project-select" data-gate="queries" onchange="onProjectChange()" style="font-size:12px;padding:6px 10px;border:1.5px solid var(--accent);font-weight:600;color:var(--accent);">
                 <option value="">— Select a project —</option>
                 ${projectCodes.map(p => `<option value="${p.code}">${p.code} — ${p.name}</option>`).join('')}
               </select>

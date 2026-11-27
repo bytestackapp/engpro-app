@@ -911,3 +911,20 @@ body { background: var(--bg-2); }
 .page-content > .card:has(.table-wrapper) .table-wrapper::-webkit-scrollbar-thumb {
   background: var(--border-3);
 }
+
+/* Full-height card that also works for "empty state" pages */
+.page-content > .card.fill-card { display: flex; flex-direction: column; }
+.page-content > .card.fill-card > .card-body { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.page-content > .card.fill-card:not(:has(.table-wrapper)) { flex: 1; }
+
+/* ── "Select a project" gate (works with select[data-gate]) ── */
+.card-body.gated > .table-wrapper,
+.card-body.gated > [id$="pagination"] { display: none !important; }
+.gate-notice {
+  flex: 1; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; text-align: center;
+  padding: 70px 24px; color: var(--text-4);
+}
+.gate-notice svg { opacity: .5; margin-bottom: 12px; }
+.gate-notice .gate-title { font-size: 14px; font-weight: 600; color: var(--text-3); margin: 0 0 4px; }
+.gate-notice .gate-sub   { font-size: 12px; margin: 0; }

@@ -124,6 +124,7 @@
 
     const SVG_SM = p => `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
     const IC = {
+      menu:     SVG_SM('<line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>'),
       plus:     SVG_SM('<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>'),
       edit:     SVG_SM('<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>'),
       trash:    SVG_SM('<polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6m4-6v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>'),
@@ -139,6 +140,12 @@
       await loadProjects();
     }
 
+        // Shows an info toast if no project is selected, otherwise runs the action
+    function needProject(fn) {
+      if (!filterProject) { toast('Please select a project first.', 'info'); return; }
+      fn();
+    }
+
     function renderPage() {
       document.getElementById('page-content').innerHTML = `
         <div class="page-header" style="margin-bottom:14px;">
@@ -149,48 +156,59 @@
           <p>Manage structural areas, systems, and modules per project.</p>
         </div>
 
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;flex-wrap:wrap;">
-          <select class="filter-select" id="filter-project" onchange="onProjectChange()" style="font-size:13px;padding:7px 12px;min-width:240px;">
-            <option value="">— Select a project —</option>
-          </select>
-          <div id="page-action-buttons" style="margin-left:auto;display:none;gap:6px;flex-wrap:nowrap;">
-            <button class="btn btn-ghost btn-sm" onclick="openModal('import-modal')" style="display:flex;align-items:center;gap:5px;">${IC.download} Import Excel</button>
-            <button class="btn btn-ghost btn-sm" onclick="exportItems()" style="display:flex;align-items:center;gap:5px;">${IC.upload} Export</button>
-            <button class="btn btn-primary btn-sm" onclick="openAddModal()" style="display:flex;align-items:center;gap:5px;">${IC.plus} Add Item</button>
-            <button class="btn btn-danger btn-sm" onclick="deleteAllItems()" style="display:flex;align-items:center;gap:5px;">${IC.trash} Delete All</button>
+        <div class="card fill-card">
+          <div class="card-body" style="padding-top:14px;padding-bottom:0;padding-left:0;padding-right:0;">
+            <div class="table-toolbar" style="margin:0 24px 12px;">
+              <select class="filter-select" id="filter-project" onchange="onProjectChange()" style="font-size:12px;padding:6px 10px;border:1.5px solid var(--accent);font-weight:600;color:var(--accent);">
+                <option value="">— Select a project —</option>
+              </select>
+              <div class="search-box-sm" id="search-wrap">
+                <input type="text" id="search-input" placeholder="Search area, module…" oninput="onSearch(this.value)" />
+              </div>
+              <div class="toolbar-right">
+                <button class="btn btn-primary btn-sm btn-icon-only" onclick="needProject(openAddModal)" title="Add Item">${IC.plus}</button>
+                <button class="btn btn-danger btn-sm btn-icon-only" onclick="needProject(deleteAllItems)" title="Delete All">${IC.trash}</button>
+                <div class="action-menu">
+                  <button class="btn btn-ghost btn-sm btn-icon-only action-menu-toggle" onclick="toggleActionMenu(this)" title="More options">${IC.menu}</button>
+                  <div class="action-menu-list">
+                    <button class="action-menu-item" onclick="needProject(() => openModal('import-modal'))">${IC.download} Import Excel</button>
+                    <button class="action-menu-item" onclick="needProject(exportItems)">${IC.upload} Export</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div id="structure-content-wrap" style="display:contents;"></div>
           </div>
         </div>
-
-        <div id="structure-content-wrap"></div>
       `;
       renderGateOrContent();
     }
 
-    // Shows the "select a project" empty state, or the real table shell,
+    // Shows the "select a project" empty state, or the real table,
     // depending on whether a project is currently selected.
     function renderGateOrContent() {
-      const wrap    = document.getElementById('structure-content-wrap');
-      const actions = document.getElementById('page-action-buttons');
+      const wrap       = document.getElementById('structure-content-wrap');
+      const searchWrap = document.getElementById('search-wrap');
       if (!wrap) return;
 
+      const si = document.getElementById('search-input');
+      if (si) si.value = '';
+
       if (!filterProject) {
-        actions.style.display = 'none';
         wrap.innerHTML = `
-          <div class="card">
-            <div class="card-body" style="text-align:center;padding:70px 24px;color:var(--text-4);">
-              <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="opacity:0.5;margin-bottom:12px;"><path d="M3.5 20.5V3.5h17v17"/><path d="M3.5 12h17M12 3.5v17"/></svg>
-              <p style="font-size:14px;font-weight:600;color:var(--text-3);margin:0 0 4px;">Select a project above to view its structure items</p>
-              <p style="font-size:12px;margin:0;">The columns shown depend on which disciplines that project has configured.</p>
-            </div>
+          <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:70px 24px;color:var(--text-4);">
+            <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="opacity:0.5;margin-bottom:12px;"><path d="M3.5 20.5V3.5h17v17"/><path d="M3.5 12h17M12 3.5v17"/></svg>
+            <p style="font-size:14px;font-weight:600;color:var(--text-3);margin:0 0 4px;">Select a project above to view its structure items</p>
+            <p style="font-size:12px;margin:0;">The columns shown depend on which disciplines that project has configured.</p>
           </div>`;
         return;
       }
 
-      actions.style.display = 'flex';
+      if (searchWrap) searchWrap.style.display = '';
       renderTableShell();
     }
 
-    // Builds the table shell (grouped header driven by activeFieldGroups()),
+    // Builds the table (grouped header driven by activeFieldGroups()),
     // then loads the actual row data into it.
     function renderTableShell() {
       const wrap = document.getElementById('structure-content-wrap');
@@ -199,39 +217,30 @@
       const totalCols = 3 + fields.length + 2; // project/priority/area + discipline fields + remarks/actions
 
       wrap.innerHTML = `
-        <div class="card">
-          <div class="card-body" style="padding-top:14px;padding-bottom:0;padding-left:0;padding-right:0;">
-            <div class="table-toolbar" style="margin:0 16px 12px;">
-              <div class="search-box-sm">
-                <input type="text" id="search-input" placeholder="Search area, module…" oninput="onSearch(this.value)" />
-              </div>
-            </div>
-            <div class="table-wrapper">
-              <table>
-                ${renderColgroup()}
-                <thead>
-                  <tr>
-                    <th rowspan="2" style="font-size:10px;font-weight:700;letter-spacing:0.8px;text-align:left;padding:6px 12px;">PROJECT CODE</th>
-                    <th rowspan="2" style="font-size:10px;font-weight:700;letter-spacing:0.8px;padding:6px 12px;">PRIORITY / SHIPMENT</th>
-                    <th rowspan="2" style="font-size:10px;font-weight:700;letter-spacing:0.8px;text-align:left;padding:6px 12px;">AREA / SYSTEM / MODULE</th>
-                    ${groups.map(([, g]) => `<th colspan="${g.fields.length}" class="th-group" style="font-size:10px;font-weight:700;letter-spacing:0.8px;padding:6px 12px;color:${g.color};">${g.label}</th>`).join('')}
-                    <th rowspan="2" style="font-size:10px;font-weight:700;letter-spacing:0.8px;text-align:left;padding:6px 12px;">REMARKS</th>
-                    <th rowspan="2" style="font-size:10px;font-weight:700;letter-spacing:0.8px;padding:6px 12px;">ACTIONS</th>
-                  </tr>
-                  <tr>
-                    ${groups.map(([, g]) => g.fields.map(f => `<th style="font-size:10px;font-weight:700;letter-spacing:0.8px;padding:6px 12px;color:${g.color};">${f.label}</th>`).join('')).join('')}
-                  </tr>
-                </thead>
-                <tbody id="structure-tbody">
-                  <tr><td colspan="${totalCols}" style="text-align:center;padding:30px;color:var(--text-4);">
-                    <div style="display:flex;align-items:center;justify-content:center;gap:8px;"><div class="spinner"></div> Loading…</div>
-                  </td></tr>
-                </tbody>
-              </table>
-            </div>
-            <div id="structure-pagination"></div>
-          </div>
-        </div>`;
+        <div class="table-wrapper" id="table-wrapper">
+          <table>
+            ${renderColgroup()}
+            <thead>
+              <tr>
+                <th rowspan="2" style="font-size:10px;font-weight:700;letter-spacing:0.8px;text-align:left;padding:6px 12px;">PROJECT CODE</th>
+                <th rowspan="2" style="font-size:10px;font-weight:700;letter-spacing:0.8px;padding:6px 12px;">PRIORITY / SHIPMENT</th>
+                <th rowspan="2" style="font-size:10px;font-weight:700;letter-spacing:0.8px;text-align:left;padding:6px 12px;">AREA / SYSTEM / MODULE</th>
+                ${groups.map(([, g]) => `<th colspan="${g.fields.length}" class="th-group" style="font-size:10px;font-weight:700;letter-spacing:0.8px;padding:6px 12px;color:${g.color};">${g.label}</th>`).join('')}
+                <th rowspan="2" style="font-size:10px;font-weight:700;letter-spacing:0.8px;text-align:left;padding:6px 12px;">REMARKS</th>
+                <th rowspan="2" style="font-size:10px;font-weight:700;letter-spacing:0.8px;padding:6px 12px;">ACTIONS</th>
+              </tr>
+              <tr>
+                ${groups.map(([, g]) => g.fields.map(f => `<th style="font-size:10px;font-weight:700;letter-spacing:0.8px;padding:6px 12px;color:${g.color};">${f.label}</th>`).join('')).join('')}
+              </tr>
+            </thead>
+            <tbody id="structure-tbody">
+              <tr><td colspan="${totalCols}" style="text-align:center;padding:30px;color:var(--text-4);">
+                <div style="display:flex;align-items:center;justify-content:center;gap:8px;"><div class="spinner"></div> Loading…</div>
+              </td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div id="structure-pagination"></div>`;
 
       loadItems();
     }
@@ -450,7 +459,7 @@
 
     async function confirmDeleteAllItems() {
       const val = document.getElementById('del-confirm-input').value.trim().toLowerCase();
-      if (val !== 'Delete') {
+      if (val !== 'delete') {
         toast('Incorrect. Please type "Delete" exactly to confirm.', 'error');
         return;
       }
@@ -693,7 +702,7 @@
     }
 
     // ── SEARCH / PAGINATION ─────────────────────────────────────
-    const onSearch = debounce(async v => { searchQ = v; currentPage = 1; await loadItems(); }, 300);
+    const onSearch = debounce(async v => { searchQ = v; currentPage = 1; if (!filterProject) return; await loadItems(); }, 300);
     async function changePage(p) { currentPage = p; await loadItems(); window.scrollTo(0, 0); }
 
     // ── MODALS ───────────────────────────────────────────────────

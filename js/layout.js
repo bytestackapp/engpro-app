@@ -569,3 +569,50 @@ document.addEventListener('click', e => {
   }
 });
 
+// ── "SELECT A PROJECT" GATE ──────────────────────────────────
+// Any <select data-gate="things"> with no value hides its table and
+// shows a centered notice instead.
+function syncProjectGate() {
+  document.querySelectorAll('select[data-gate]').forEach(sel => {
+    const body = sel.closest('.card-body');
+    if (!body) return;
+    const empty = !sel.value;
+    body.classList.toggle('gated', empty);
+    let note = body.querySelector(':scope > .gate-notice');
+    if (empty && !note) {
+      note = document.createElement('div');
+      note.className = 'gate-notice';
+
+      // Use the same icon as this page's sidebar link
+      const navSvg = document.querySelector('.nav-link.active .nav-icon svg');
+      note.innerHTML =
+        (navSvg ? navSvg.outerHTML : '') +
+        '<p class="gate-title"></p><p class="gate-sub"></p>';
+      note.querySelector('.gate-title').textContent =
+        sel.dataset.gateText || ('Select a project above to view its ' + sel.dataset.gate);
+      const subText = sel.dataset.gateSub !== undefined
+        ? sel.dataset.gateSub
+        : 'The columns shown depend on which disciplines that project has configured.';
+      const subEl = note.querySelector('.gate-sub');
+      if (subText) subEl.textContent = subText; else subEl.remove();
+
+      const svg = note.querySelector('svg');
+      if (svg) {
+        svg.setAttribute('width', '36');
+        svg.setAttribute('height', '36');
+        svg.setAttribute('stroke-width', '1.5');
+      }
+      body.insertBefore(note, body.querySelector(':scope > .table-wrapper'));
+    } else if (!empty && note) {
+      note.remove();
+    }
+  });
+}
+(function () {
+  let raf = null;
+  const run = () => { cancelAnimationFrame(raf); raf = requestAnimationFrame(syncProjectGate); };
+  document.addEventListener('change', e => {
+    if (e.target.matches && e.target.matches('select[data-gate]')) run();
+  });
+  new MutationObserver(run).observe(document.documentElement, { childList: true, subtree: true });
+})();
